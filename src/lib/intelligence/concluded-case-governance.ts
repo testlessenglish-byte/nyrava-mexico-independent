@@ -208,6 +208,15 @@ export function formatSpeakerRoleBadge(
     speaker === "quejoso" ||
     speaker === "recurrente" ||
     speaker === "apelante" ||
+    speaker === "actor" ||
+    speaker === "demandado" ||
+    speaker === "trabajador" ||
+    speaker === "patron" ||
+    speaker === "contribuyente" ||
+    speaker === "ejidatario" ||
+    speaker === "promovente" ||
+    speaker === "parte_actora" ||
+    speaker === "parte_demandada" ||
     speaker === "defensa" ||
     speaker === "ministerio_publico" ||
     speaker === "autoridad_responsable" ||
@@ -481,7 +490,8 @@ export function validateFinalReportGovernance(input: {
     const speaker = String(f.speaker_role ?? "").toLowerCase();
     const adopt = String(f.adoption_status ?? "").toLowerCase();
     const auditClass = String(f.audit_classification ?? "").toUpperCase();
-    if ((speaker === "quejoso" || speaker === "recurrente" || speaker === "party") && adopt !== "adopted") {
+    const isParty = isPartySpeaker || speaker === "quejoso" || speaker === "recurrente" || speaker === "actor" || speaker === "demandado" || speaker === "trabajador" || speaker === "patron" || speaker === "party";
+    if (isParty && adopt !== "adopted") {
       if (auditClass === "VERIFIED_COURT_HOLDING") {
         partyMisclassified = true;
         break;

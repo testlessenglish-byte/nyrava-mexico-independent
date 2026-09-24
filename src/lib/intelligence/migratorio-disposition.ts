@@ -69,6 +69,16 @@ const historical = (item: MandatoryDecisionCoreItem): MandatoryDecisionCoreItem 
   ...item, kind: "REJECTED_HOLDING", adoption_status: "historical", proposition_type: "procedural_fact",
 });
 
+// A long verbatim subspan of the selected order in the same document is a
+// reconstruction alias, even if the model assigned the receiving court as
+// its speaker. Replace it with the complete, physically anchored order.
+function currentOrderAlias(item: MandatoryDecisionCoreItem, orders: MandatoryDecisionCoreItem[]): boolean {
+  return orders.some(order => dispositionText(order.text) === dispositionText(item.text) ||
+    item.source_refs.some(ref => dispositionText(ref.quote ?? "").length >= 60 &&
+      order.source_refs.some(source => (ref.document_id ?? ref.doc_id) === (source.document_id ?? source.doc_id) &&
+        dispositionText(source.quote ?? "").includes(dispositionText(ref.quote ?? "")))));
+}
+
 /** Unknown authority or competing judgments at the same level require review;
  * upload order and a quotation's existence cannot establish which one controls. */
 export function resolveMigratorioDisposition(documents: Document[], core: MandatoryDecisionCoreItem[]): MigratorioDisposition {
@@ -94,7 +104,7 @@ export function resolveMigratorioDisposition(documents: Document[], core: Mandat
     // Reconstruction and operative extraction can identify the same order
     // under different IDs. That does not turn the current order into history.
     history: [...displaced, ...lower.flatMap(c => c.items)]
-      .filter(item => !selected.items.some(order => dispositionText(order.text) === dispositionText(item.text)))
+      .filter(item => !currentOrderAlias(item, selected.items))
       .map(historical),
   };
 }
@@ -106,6 +116,7 @@ export function applyMigratorioDisposition(core: MandatoryDecisionCoreItem[], re
   // from an earlier application. Equal text under a different ID is not history.
   const currentIds = new Set(resolved.items.map(i => i.id));
   return [...core.filter(i => !displaced.has(i.id) && !currentIds.has(i.id) &&
+    !currentOrderAlias(i, resolved.items) &&
     i.kind !== "DISPOSITION" && String(i.kind) !== "RESOLUTIVOS"), ...resolved.items];
 }
 

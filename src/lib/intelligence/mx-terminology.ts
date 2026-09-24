@@ -295,6 +295,8 @@ const US_TERM_RULES: readonly TermRule[] = [
 
 /** Hard US-jurisdiction references — never auto-rewritten, always blocking. */
 const US_JURISDICTION_PATTERNS: readonly { re: RegExp; detail: string }[] = [
+  {re:/\b(?:OSHA|\d+\s+C\.?F\.?R\.?|Brady\s+v\.?\s+Maryland|Miranda\s+v\.?\s+Arizona|Federal Rules of (?:Evidence|Civil Procedure))\b/gi,detail:'Autoridad estadounidense no aplicable al análisis jurídico mexicano.'},
+  {re:/\b(?:cuarta|quinta|sexta|decimocuarta)\s+enmienda\b/gi,detail:'Enmienda estadounidense; verificar el fundamento mexicano aplicable.'},
   {
     re: /\b(first|second|fourth|fifth|sixth|eighth|fourteenth)\s+amendment\b/gi,
     detail: "Referencia a una enmienda de la Constitución de EE. UU.; el marco aplicable es la CPEUM.",

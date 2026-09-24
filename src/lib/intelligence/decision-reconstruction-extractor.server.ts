@@ -15,7 +15,7 @@
 // on buildDecisionReconstruction for why this boundary matters.
 //
 // Reuses, rather than reimplements, every verification primitive
-// completed-case-audit.server.ts already proved out: buildGroundingCorpus/
+// completed-case-audit.server.ts already proved out: buildCaseGroundingCorpus/
 // verifyQuoteDetailed/locateQuoteInText for quote verification,
 // extractCitationsFromText + verifyStatutoryCitation for legal-authority
 // verification (run deterministically over already-quote-verified text,
@@ -29,7 +29,7 @@ import { resolveProviderKeys } from "@/lib/ai-key-router.server";
 import { extractCitationsFromText } from "@/lib/legal-connectors/citation-extract";
 import { verifyStatutoryCitation } from "@/lib/legal/citation-verification.server";
 import {
-  buildGroundingCorpus,
+  buildCaseGroundingCorpus,
   verifyQuoteDetailed,
   type GroundingCorpus,
 } from "./grounding.server";
@@ -372,7 +372,7 @@ export async function buildDecisionReconstruction(
     .order("created_at", { ascending: true });
   const docs = (docsRaw ?? []) as Doc[];
   if (docs.length === 0) return null;
-  const corpus = buildGroundingCorpus(docs);
+  const corpus = await buildCaseGroundingCorpus(db, caseId, docs);
 
   const resolved = await resolveProviderKeys(db, userId, "groq");
   const apiKeys = apiKey ? [apiKey, ...resolved.keys.filter((k) => k !== apiKey)] : resolved.keys;

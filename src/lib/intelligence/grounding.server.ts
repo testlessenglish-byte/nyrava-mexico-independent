@@ -14,7 +14,8 @@
 // option) with the explicit "Insufficient evidence to support this conclusion."
 // statement so the user sees the gap instead of an invented fact.
 
-import { locateQuoteInText, pageForOffset, citationHash, sha256Hex } from "./evidence-provenance.server";
+import { locateQuoteInText, citationHash, sha256Hex } from "./evidence-provenance.server";
+import type { MatterSourcePage } from './source-matter-audit';
 
 export type RawCitation = {
   doc_n?: number;
@@ -64,6 +65,7 @@ export type GroundingCorpus = {
     document_hash: string;
     /** SHA-256 of each entry in `pages`, same index — the chunk-level hash a citation's chunk_hash resolves to. */
     pageHashes: string[];
+    physicalPages?: Array<{page:number;text:string}>;
   }>;
   /** Page size buildGroundingCorpus paginated with — needed to convert a character offset into a page number. */
   pageChars: number;
@@ -90,6 +92,7 @@ function norm(s: string): string {
 export function buildGroundingCorpus(
   docs: Array<{ id: string; filename: string; extracted_text: string | null }>,
   pageChars = 3000,
+  sourcePages: Array<Pick<MatterSourcePage,'document_id'|'page'|'text'>> = [],
 ): GroundingCorpus {
   const out: GroundingCorpus = { text: "", docs: [], pageChars };
   const blocks: string[] = [];
@@ -109,11 +112,20 @@ export function buildGroundingCorpus(
       // the same document land on the same page — hashing the whole
       // document's pages up front is cheap and avoids redundant work later.
       pageHashes: pages.map((p) => sha256Hex(p)),
+      physicalPages: sourcePages.filter(p=>p.document_id===d.id),
     });
     blocks.push(text);
   });
   out.text = norm(blocks.join("\n\n"));
   return out;
+}
+
+/** Database callers share the same physical-page map as report release. */
+export async function buildCaseGroundingCorpus(db: import('@supabase/supabase-js').SupabaseClient<any>, caseId:string,
+  docs: Array<{id:string;filename:string;extracted_text:string|null}>): Promise<GroundingCorpus> {
+  if (!docs.length) return buildGroundingCorpus([]);
+  const {loadCaseSourcePages} = await import('./source-matter-audit.server');
+  return buildGroundingCorpus(docs,3000,await loadCaseSourcePages(db,caseId));
 }
 
 export type QuoteVerification = {
@@ -191,7 +203,8 @@ export function verifyEvidenceRefs(
     if (!verifyQuote(quote, corpus)) continue;
 
     const docN = typeof r.doc_n === "number" ? r.doc_n : null;
-    const claimedDoc = docN ? corpus.docs.find((d) => d.doc_n === docN) : null;
+    const claimedDoc = corpus.docs.find(d=>d.document_id===(r.document_id ?? r.doc_id)) ??
+      (docN ? corpus.docs.find((d) => d.doc_n === docN) : null);
     const claimedId =
       (r.document_id as string | undefined) ?? (r.doc_id as string | undefined) ?? claimedDoc?.document_id ?? null;
 
@@ -222,6 +235,15 @@ export function verifyEvidenceRefs(
     // Token overlap is useful for relevance, never proof of a quotation.
     // Only retain citations with a real contiguous source span.
     if (!loc || !locatedDoc) continue;
+    const physicalMatches = (locatedDoc.physicalPages ?? []).flatMap(p=>{
+      const span=locateQuoteInText(quote,p.text);
+      return span ? [{...p,span}] : [];
+    });
+    const physical = physicalMatches.find(p=>p.page===r.page) ??
+      (physicalMatches.length===1 ? physicalMatches[0] : undefined);
+    // A supplied page map is authoritative; ambiguous/unlocated passages
+    // cannot gain a physical citation through the character-offset fallback.
+    if (locatedDoc.physicalPages?.length && !physical) continue;
     const documentId = locatedDoc.document_id;
     // Never fabricate a chunk hash for a span that isn't actually located —
     // same "never fabricate precision" rule start_offset/end_offset follow.
@@ -230,7 +252,8 @@ export function verifyEvidenceRefs(
       loc && locatedDoc && chunkIndex !== null ? (locatedDoc.pageHashes[chunkIndex] ?? null) : null;
     verified.push({
       ...r,
-      quote: rawDocText(locatedDoc).slice(loc.start, loc.end),
+      quote: physical ? physical.text.slice(physical.span.start,physical.span.end) : rawDocText(locatedDoc).slice(loc.start, loc.end),
+      page: physical?.page,
       verified: true,
       // FIX (2026-08-18, ADR-5829/2025 second audit): document_id/filename
       // below were already corrected to the document the quote was ACTUALLY
@@ -250,7 +273,7 @@ export function verifyEvidenceRefs(
       filename: locatedDoc?.filename ?? claimedDoc?.filename ?? null,
       start_offset: loc?.start ?? null,
       end_offset: loc?.end ?? null,
-      page_located: loc ? pageForOffset(loc.start, corpus.pageChars) : null,
+      page_located: physical?.page ?? null,
       document_hash: locatedDoc?.document_hash ?? null,
       chunk_index: chunkIndex,
       chunk_hash: chunkHash,

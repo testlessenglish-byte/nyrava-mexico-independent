@@ -3023,8 +3023,8 @@ ${digestText}`;
     .select("id,filename,extracted_text")
     .eq("case_id", caseId)
     .order("created_at", { ascending: true });
-  const { buildGroundingCorpus, groundItems } = await import("./intelligence/grounding.server");
-  const groundCorpus = buildGroundingCorpus(
+  const { buildCaseGroundingCorpus, groundItems } = await import("./intelligence/grounding.server");
+  const groundCorpus = await buildCaseGroundingCorpus(db, caseId, 
     (docsForGround ?? []).map((d) => ({
       id: d.id as string,
       filename: d.filename,
@@ -4042,39 +4042,8 @@ const AGENT_ENGINE: Record<string, string> = {
  */
 const AUDIT_ONLY_AGENT_TYPES = new Set<string>(["ways_out_analysis"]);
 
-/**
- * Providers excluded from the investigator-agent stage's PACKING BUDGET MATH
- * — not from the runtime routing chain, which still tries Groq's user keys
- * as a genuine last resort (see below).
- *
- * Groq's ~5.5k-token input budget yields ~8,082 chars of usable corpus after
- * the agent prompt overhead, which clamped every agent batch to that floor
- * and produced 8+ batches per agent. Excluding it here means packingCharBudget
- * sizes agent batches for a wider-budget provider (OpenRouter/Gemini)
- * instead, so a normal run doesn't fragment into tiny Groq-sized requests.
- *
- * This does NOT — and must not — also exclude Groq from routeAI's runtime
- * chain (router.server.ts loads a user's provider keys via
- * loadUserProviderKeyGroups independently of `skipProviders`, so Groq's user
- * keys stay in `chain`). A batch packed for the wider budget is naturally
- * too big for Groq's own limit, so the pre-flight size gate skips it whenever
- * a full-size provider looks available — but routeAI's cascading compressed
- * retry (the size-skipped-budget cascade, see its doc comment) means that
- * once every wider provider has actually been tried and failed, the same
- * request gets compressed down to Groq's OWN advertised budget and Groq gets
- * a real, correctly-sized attempt — never a request silently truncated past
- * recognition by a mismatched target. Confirmed live: a case stalled with
- * "authority_notification_validation ... All configured provider keys
- * failed (tried: gemini ... configured but never attempted: groq,
- * openrouter)" after Gemini hit its daily quota — freshly-added Groq keys
- * sat completely unreachable because the OLD compressed retry only ever
- * compressed once, to the single LARGEST skipped budget (OpenRouter's), and
- * gave up the moment that also failed. If this ever needs to become a true
- * hard exclusion again, exclude the provider from `runtimeGroups` in
- * router.server.ts too — filtering `rows` alone (the current
- * `skippedProviders` behavior) never reaches user-key groups.
- */
-const AGENT_SKIP_PROVIDERS: ProviderType[] = ["groq"];
+// Pack for every configured provider so Groq remains available for each agent chunk.
+export const AGENT_SKIP_PROVIDERS: ProviderType[] = [];
 
 /**
  * How many investigator agents may execute simultaneously inside the "agents"
@@ -4391,8 +4360,8 @@ export async function runAgents(args: {
       .select("id,filename,extracted_text")
       .eq("case_id", caseId)
       .order("created_at", { ascending: true });
-    const { buildGroundingCorpus, groundItems } = await import("./intelligence/grounding.server");
-    const agentGroundCorpus = buildGroundingCorpus(
+    const { buildCaseGroundingCorpus, groundItems } = await import("./intelligence/grounding.server");
+    const agentGroundCorpus = await buildCaseGroundingCorpus(db, caseId, 
       (docsForAgentGround ?? []).map((d) => ({
         id: d.id as string,
         filename: d.filename,
@@ -6411,6 +6380,7 @@ async function _runReportInner(args: {
       source_refs: relocateSourceRefs(item.source_refs, dispositionPages, docIndex),
     }));
   }
+  const {alignDecisionCoreFindings} = await import('./intelligence/mandatory-decision-core');
   const {
     persistPenalDisposition,
     renderPenalDisposition,
@@ -6470,6 +6440,9 @@ async function _runReportInner(args: {
   findings = consolidateFindings(
     findings as unknown as Array<Record<string, unknown>>,
   ) as unknown as typeof findings;
+  // Consolidation can recover references from merged legacy rows. Resolve the
+  // current core after that merge so stale page labels cannot be resurrected.
+  findings = alignDecisionCoreFindings(findings,mandatoryDecisionCore,await getReportLocale(db,caseId)) as typeof findings;
 
   const findingsLite = [...findings]
     .sort((a, b) => {
@@ -6726,7 +6699,7 @@ ${corpus.slice(0, s(160000))}${resolutivoAnchorBlock}${penalDispositionAnchorBlo
     (isCriminalOrCivilRights
       ? `Análisis constitucional y de procedimiento penal SÍ son relevantes cuando el corpus los respalda. Fundamenta en el Art. 20 CPEUM (derechos del imputado y la víctima), ${isTraditional ? "los códigos procesales penales del sistema mixto/inquisitivo (previos a la reforma de 2008)" : "el catálogo de prisión preventiva oficiosa del Art. 19 CPEUM, y las reglas de cadena de custodia (Arts. 227-230 CNPP)"} — nunca en doctrina estadounidense (Miranda, Brady/Giglio, enmiendas constitucionales de EE.UU.).`
       : "Este NO es un asunto penal ni de derechos humanos por violación de autoridad. NO manufactures cuestiones constitucionales ni recursos de amparo. Regresa arreglos vacíos para `constitutional_issues` y excluye recursos penales de `motion_opportunities`. Concéntrate en el procedimiento civil, ofrecimiento de pruebas, y mociones dispositivas conforme al derecho mexicano.") +
-    '\nMANDATORY CITATION RULE: Every factual claim MUST include a `[DOC N p.M]` bracket immediately after a 10–30 word verbatim quote from that page, written as natural prose — the quote goes in the sentence itself, in quotation marks, NOT inside the brackets. Correct: the report states the officer "failed to inspect the equipment" [DOC 3 p.2]. WRONG — never do this: [DOC 3 p.2: "failed to inspect the equipment"]. A claim without a citation is UNVERIFIED and must be rewritten or omitted. No exceptions.' +
+    '\nMANDATORY CITATION RULE: Every factual claim MUST include a `[DOC N p.M]` bracket immediately after a 10–30 word verbatim quote from that page, written as natural prose — the quote goes in the sentence itself, in quotation marks, NOT inside the brackets. Correct: the report states the officer "omitió revisar el equipo" [DOC 3 p.2]. WRONG — never do this: [DOC 3 p.2: "omitió revisar el equipo"]. A claim without a citation is UNVERIFIED and must be rewritten or omitted. No exceptions.' +
     "\nDO NOT duplicate findings already provided — extend them with deeper analysis; do not restate them as new items." +
     "\nFor every CONTRADICTION: Document A specific quote vs Document B specific quote, plus (nature, credibility impact, trial significance, impeachment value, strategic implications)." +
     "\nFor every MOTION: supporting facts, legal rationale, anticipated opposing response, and likely outcome." +
@@ -6750,7 +6723,7 @@ ${corpus.slice(0, s(160000))}${resolutivoAnchorBlock}${penalDispositionAnchorBlo
             ? "executive_summary 200-350; case_overview 250-400; facts 400-700 chronological; timeline_summary 200-350; risk_analysis 200-350; recommendations 250-450; theory reports 200-350 each; evidence/witness/discovery/contradiction reports 200-350"
             : "executive_summary 150-250; case_overview 150-300; facts 250-450 chronological; timeline_summary 150-250; risk_analysis 150-250; recommendations 150-300; theory reports 120-250 each; evidence/witness/discovery/contradiction reports 120-250";
       return (
-        `\nLENGTH TARGETS (MANDATORY, scaled to this case's ${n} confirmed findings — a ${tier} evidence case; do NOT pad sections beyond what the evidence supports to hit a bigger number): ${targets}. Write in flowing prose with topic sentences and analysis, NOT bullet fragments. Generic statements like 'The evidence suggests negligence' are FORBIDDEN — replace with 'The evidence suggests negligence because the defendant "failed to inspect the equipment per OSHA 29 CFR 1910.147" [DOC 3 p.2], which establishes...'. Note the quote sits in the sentence, in quotation marks — the citation bracket that follows contains ONLY \`DOC N p.M\`, never the quote text itself. If the corpus is genuinely insufficient, write a detailed paragraph explaining what evidence is missing and why — never a one-line placeholder.` +
+        `\nLENGTH TARGETS (MANDATORY, scaled to this case's ${n} confirmed findings — a ${tier} evidence case; do NOT pad sections beyond what the evidence supports to hit a bigger number): ${targets}. Write in flowing prose with topic sentences and analysis, NOT bullet fragments. Generic statements like 'The evidence suggests negligence' are FORBIDDEN — replace with 'The evidence suggests negligence because the defendant "omitió revisar el equipo conforme al procedimiento documentado" [DOC 3 p.2], which establishes...'. Note the quote sits in the sentence, in quotation marks — the citation bracket that follows contains ONLY \`DOC N p.M\`, never the quote text itself. If the corpus is genuinely insufficient, write a detailed paragraph explaining what evidence is missing and why — never a one-line placeholder.` +
         `\nPROGRESSIVE DISCLOSURE (MANDATORY): each finding gets ONE section where it is explained in full (its natural home — e.g. a constitutional violation belongs to constitutional_issues, not to five sections). Every OTHER section that touches that same finding must reference it in a single short clause (e.g. "the post-invocation questioning discussed above further undermines...") and then move directly into analysis THAT SECTION alone is responsible for — the section's distinct lens on the case (timeline placement, discovery implications, risk exposure, strategic use), never a second full re-explanation of the same fact pattern. If you find yourself writing the same 2-3 sentences that already appear in an earlier section, stop and write the section's unique contribution instead, even if that means the section runs shorter than the target range.` +
         `\nEXECUTIVE SUMMARY STRUCTURE (MANDATORY): \`prose.executive_summary\` must let an attorney understand the whole case in under two minutes. Write it as flowing professional prose (not headers or a bullet dump), but it must touch every one of these in order, each as its own sentence or two: (1) case overview — what happened and who the parties are; (2) the core legal issue(s) actually in play; (3) the single strongest piece of evidence and why; (4) the single biggest weakness and why; (5) the most consequential contradiction, if one exists; (6) overall litigation posture in one clear phrase (e.g. "favorable for the defense," "evenly balanced," "unfavorable absent further discovery"); (7) the immediate recommended action; (8) an explicit confidence level in the assessment (e.g. "high confidence given a complete medical record" or "moderate confidence — key witness statements are still outstanding"); (9) any critical deadline apparent from the corpus (statute of limitations, a filing deadline, a hearing date) — if none is apparent from the record, say so in one clause rather than omitting the topic silently. Every factual claim inside this summary still needs its \`[DOC N p.M]\` citation like every other section.` +
         `\nATTORNEY VOICE (MANDATORY): write like a senior litigation attorney, not an AI describing a case. Prefer one direct, confident sentence over three hedged ones. FORBIDDEN filler/hedge phrases (rewrite around every instance, do not use a synonym that means the same thing): "significantly compromised", "heavily relies on", "characterized by", "overall risk", "aims to", "focuses on", "it is important to note", "plays a crucial role", "in order to", "based on the available evidence", "this could indicate", "it is possible that", "there are indications", "the evidence suggests" (state directly what the evidence shows or establishes instead). Example of the required register: NOT "The prosecution's case is significantly compromised by evidentiary gaps" but "The State's strongest evidence is the knife recovered at arrest; its admissibility is vulnerable because the chain of custody contains a documented gap [DOC 3 p.1]." NOT "Based on the available evidence, there appears to be a discrepancy" but "The record shows a discrepancy between the incident report and the officer's deposition testimony [DOC 2 p.4]."`
@@ -8099,7 +8072,7 @@ ${paginationTail}`;
   // Every structured claim must cite a quote that actually exists in the
   // extracted corpus. Items whose quotes cannot be verified are dropped.
   await setCase(db, caseId, { status_message: "Validating evidence citations", progress: 90 });
-  const { buildGroundingCorpus, verifyQuote, verifyEvidenceRefs } = await import(
+  const { buildCaseGroundingCorpus, verifyQuote, verifyEvidenceRefs } = await import(
     "./intelligence/grounding.server"
   );
   const { confidenceLabel } = await import("./intelligence/scoring.server");
@@ -8108,7 +8081,7 @@ ${paginationTail}`;
     .select("id,filename,extracted_text")
     .eq("case_id", caseId)
     .order("created_at", { ascending: true });
-  const reportCorpus = buildGroundingCorpus(
+  const reportCorpus = await buildCaseGroundingCorpus(db, caseId, 
     (docsForReportGround ?? []).map((d) => ({
       id: d.id as string,
       filename: d.filename,
@@ -8135,6 +8108,19 @@ ${paginationTail}`;
   const { loadCaseSourcePages: loadReportSourcePages } = await import("./intelligence/source-matter-audit.server");
   const { relocateSourceRefs } = await import("./reporting/source-location-audit");
   const reportSourcePages = await loadReportSourcePages(db, caseId);
+  if (mandatoryDecisionCoreRequired && narrativeFallback) {
+    const {auditSourceLocations} = await import('./reporting/source-location-audit');
+    const {groundedDecisionSummary} = await import('./intelligence/decision-summary');
+    const verifiedCore = mandatoryDecisionCore.flatMap(item=>{
+      const audit=auditSourceLocations(relocateSourceRefs(item.source_refs,reportSourcePages,docIndex),reportSourcePages,docIndex);
+      return audit.ok && audit.verified.length ? [{...item,source_refs:audit.verified}] : [];
+    });
+    const grounded=groundedDecisionSummary(verifiedCore,docIndex);
+    if(grounded.length>=80) {
+      prose.executive_summary=grounded;
+      citations.push(...verifiedCore.flatMap(item=>item.source_refs) as typeof citations);
+    }
+  }
   citations = relocateSourceRefs(citations, reportSourcePages, docIndex) as typeof citations;
   for (const finding of findings) {
     if (Array.isArray(finding.evidence_refs)) finding.evidence_refs = relocateSourceRefs(finding.evidence_refs as any[], reportSourcePages, docIndex) as any;
@@ -8601,19 +8587,21 @@ ${paginationTail}`;
   // allowMotionGeneration all true). `chunkStatus.narrative.ok` is the
   // correct signal: true whether the chunk came from a fresh call or a
   // legitimate cache resume, false only on a real failure.
+  // Report mode governs narrative depth. Quantitative scoring is a separate
+  // capability — a single SCJN ruling can support deep legal analysis (FULL)
+  // without supporting quantitative risk/strength scores.
   const reportMode: "FULL" | "LIMITED" =
     !chunkStatus.narrative.ok ||
-    !ess.allowQuantitativeScores ||
-    ess.bin === "minimal" ||
-    scoreSuppressed
+    ess.bin === "minimal"
       ? "LIMITED"
       : "FULL";
+  const suppressScores = !ess.allowQuantitativeScores || scoreSuppressed;
   const isLimited = reportMode === "LIMITED";
 
   // Motion / scoring governance gates — in LIMITED mode, gated prose is
   // cleared entirely so suppressed content can never leak into the export.
   const motionsFinal = isLimited || !allowReportMotionGeneration ? [] : motionsGuarded.items;
-  if (isLimited) {
+  if (isLimited || suppressScores) {
     // Fields gated in LIMITED mode are wiped — we skip generation rather
     // than soft-hiding. The export layer renders a single suppression line.
     prose["recommendations"] = "";
@@ -8982,7 +8970,11 @@ ${paginationTail}`;
   const findingIds = findings
     .map((f) => f.id)
     .filter((id): id is string => typeof id === "string" && id.length > 0);
-  const uncoveredFindings = findingIds.filter((id) => !reportJsonForAudit.includes(id));
+  const uncoveredFindings = findingIds.filter((id) => {
+    const finding=findings.find(f=>f.id===id);
+    return !reportJsonForAudit.includes(id) && ![finding?.title,finding?.description]
+      .some(text=>typeof text==='string' && text.length>=40 && reportJsonForAudit.includes(JSON.stringify(text).slice(1,-1)));
+  });
   if (uncoveredFindings.length) {
     pipelineWarnings.push(`uncovered_findings:${uncoveredFindings.length}`);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -9201,7 +9193,10 @@ ${paginationTail}`;
               id: f.id,
               type: f.category,
               source_doc_ids: Array.isArray(f.source_doc_ids) ? f.source_doc_ids : [],
-              ocr_confidence: typeof f.confidence === "number" ? f.confidence : undefined,
+              // ocr_confidence must be actual OCR legibility (0.0-1.0), not finding
+              // semantic confidence (0-100). Passing f.confidence here caused all
+              // findings to get the default score of 40 with no factors.
+              ocr_confidence: undefined,
             })),
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             witnesses: ((witnesses ?? []) as any[]).map((w) => ({
@@ -9424,6 +9419,8 @@ ${paginationTail}`;
             })(),
           },
           findings.length,
+          undefined,
+          {reportMode, strategyAllowed:reportGovernance.strategy_output_allowed},
         ),
         contradictions_input: contradictionsRaw.length,
         contradictions_verified: contradictions.length,
@@ -10255,10 +10252,7 @@ ${paginationTail}`;
 
   // Last composition checkpoint. Export/HTML repeat this same contract check
   // on their actual payload (which can include newer live findings).
-  if (materiaForReport === 'migratorio') {
-    const { loadCaseSourcePages } = await import('./intelligence/source-matter-audit.server');
-    (reportRow.full_report as any).pre_release_source_pages = await loadCaseSourcePages(db, caseId);
-  }
+  (reportRow.full_report as any).pre_release_source_pages = reportSourcePages;
   const { composeFinalReportPayload, validateFinalReportContract } = await import("./reporting/final-report-contract");
   const finalPayload = composeFinalReportPayload({
     case: { ...caseTsRow, case_analysis_mode: reportCaseAnalysisMode, procedural_posture: proceduralPosture },
@@ -10292,7 +10286,7 @@ ${paginationTail}`;
     ];
   }
 
-  if (materiaForReport === "migratorio") {
+  {
     const { loadCaseSourcePages } = await import("./intelligence/source-matter-audit.server");
     const { auditSourceLocations } = await import("./reporting/source-location-audit");
     const pages = await loadCaseSourcePages(db, caseId);

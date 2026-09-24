@@ -94,13 +94,9 @@ function scoreMemoCompleteness(parsed: any): DimensionScore {
   if (irac.length > 0) {
     const good = irac.filter((i) => {
       const rule = String(i?.rule ?? "");
-      // A bare 3-4 digit number false-positives on dollar figures, statute
-      // section numbers, or docket numbers — none of which are case
-      // citations. Require the "v." party-separator pattern (the actual
-      // signal of a case name) OR a reporter-citation shape (volume,
-      // reporter abbreviation, page — e.g. "410 U.S. 113"), not just any
-      // nearby digits.
-      const hasCase = /v\.\s/i.test(rule) || /\b\d{1,4}\s+[A-Za-z.]{2,10}\s?(?:2d|3d)?\s+\d{1,5}\b/.test(rule);
+      // Mexican statutory and judicial authority. Presence is a completeness
+      // signal only; the independent authority/source gates verify validity.
+      const hasCase = /(?:art[ií]culos?\s+\d+[\s\S]*\b(?:Constituci[oó]n|Ley|C[oó]digo)|\b(?:tesis|jurisprudencia|registro digital)\s*[:\w./() -]*\d|\b(?:amparo en revisi[oó]n|amparo directo|contradicci[oó]n de (?:tesis|criterios))\s+\d+\/\d{4})/i.test(rule);
       const app = String(i?.application ?? "");
       const hasDocCite = /\[DOC\s+\d+\s+p\.\s*\d+/i.test(app);
       const complete =
@@ -249,7 +245,10 @@ export function scoreReportQuality(
    * presence-only check so existing callers don't need to change.
    */
   verifiedCitations?: Set<string>,
+  context?: { reportMode: "FULL" | "LIMITED"; strategyAllowed: boolean },
 ): QualityGateResult {
+  const verificationOnly = context?.reportMode === "LIMITED" || context?.strategyAllowed === false;
+  const summary = String(parsed?.prose?.executive_summary ?? parsed?.executive_summary ?? "");
   const dims: Record<QualityDimension, DimensionScore> = {
     memo_completeness: scoreMemoCompleteness(parsed),
     citation_integrity: scoreCitationIntegrity(signals.orphaned_citation_count ?? 0, signals.citation_count ?? 0),
@@ -259,18 +258,27 @@ export function scoreReportQuality(
     prose_specificity: scoreProseSpecificity(parsed, signals.avg_prose_length ?? 0),
   };
 
-  const score = Object.values(dims).reduce((a, d) => a + d.score, 0);
+  if (verificationOnly) {
+    dims.memo_completeness = {score: summary.trim().length >= 80 ? 20 : 0, max:20, detail:"verification report executive summary"};
+    dims.motion_quality = {score:0,max:0,detail:"not applicable: report capability prohibits strategy"};
+    dims.cross_examination = {score:0,max:0,detail:"not applicable: report capability prohibits strategy"};
+  }
+
+  const score = Math.round(100 * Object.values(dims).reduce((a, d) => a + d.score, 0) /
+    Object.values(dims).reduce((a,d) => a + d.max, 0));
 
   const critical_issues: string[] = [];
   const warnings: string[] = [];
-  if (!signals.legal_memorandum_present) critical_issues.push("legal_memorandum absent");
+  if (!verificationOnly && !signals.legal_memorandum_present) critical_issues.push("legal_memorandum absent");
+  if (verificationOnly && summary.trim().length < 80) critical_issues.push("executive summary absent or incomplete");
+  if ((signals.citation_count ?? 0) === 0) critical_issues.push("no citations detected");
   if ((signals.orphaned_citation_count ?? 0) > 0) {
     critical_issues.push(`${signals.orphaned_citation_count} orphaned citation(s) — verify docIndex`);
   }
-  if (!signals.legal_memorandum_irac_complete) warnings.push("IRAC blocks incomplete");
-  if (dims.motion_quality.score < 10) warnings.push("motion_quality below threshold");
+  if (!verificationOnly && !signals.legal_memorandum_irac_complete) warnings.push("IRAC blocks incomplete");
+  if (!verificationOnly && dims.motion_quality.score < 10) warnings.push("motion_quality below threshold");
   if (dims.findings_coverage.score < 14) warnings.push("findings_coverage below threshold");
-  if (signals.chunk_success && !signals.chunk_success.memo) critical_issues.push("memo chunk failed");
+  if (!verificationOnly && signals.chunk_success && !signals.chunk_success.memo) critical_issues.push("memo chunk failed");
   if (signals.chunk_success && !signals.chunk_success.intelligence) warnings.push("intelligence chunk failed");
 
   const passed = score >= 70 && critical_issues.length === 0;

@@ -100,6 +100,14 @@ const sampleRow = {
 };
 
 describe("addFindings: schema-drift resilience on the judicial-hierarchy columns", () => {
+  it('retains court attribution when an older authority_level column is smallint',async()=>{
+    const {addFindings}=await import('@/lib/intelligence/findings.server');
+    const calls={insert:[] as Array<Record<string,unknown>[]>};
+    const db=makeFakeDb(calls,[{code:'22P02',message:'invalid input syntax for type smallint: "court_record"'}]);
+    await addFindings(db as never,[{...sampleRow,authority_level:'court_record',speaker_role:'scjn',proposition_type:'holding',adoption_status:'adopted',audit_classification:'VERIFIED_COURT_HOLDING'}]);
+    expect(calls.insert[1][0]).toMatchObject({speaker_role:'scjn',audit_classification:'VERIFIED_COURT_HOLDING',adoption_status:'adopted',metadata:{authority_level_label:'court_record'}});
+    expect(calls.insert[1][0]).not.toHaveProperty('authority_level');
+  });
   it("recovers a whole batch after a single column-does-not-exist error by retrying without ONLY that column", async () => {
     const { addFindings } = await import("@/lib/intelligence/findings.server");
     const calls = { insert: [] as Array<Record<string, unknown>[]> };

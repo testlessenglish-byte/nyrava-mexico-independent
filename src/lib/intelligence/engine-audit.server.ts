@@ -189,7 +189,7 @@ export async function runEngine<T>(
   // "Joe — Migratorio", 670 replayed witness rows, perspectives queued since
   // the first tick). Resuming a checkpoint means taking over that row.
   const claimQueuedRow = async (): Promise<string | null> => {
-    const { data, error } = await db
+    const q = (db as any)
       .from("pipeline_engine_runs")
       .update({
         status: "running",
@@ -200,9 +200,8 @@ export async function runEngine<T>(
       } as never)
       .eq("case_id", args.caseId)
       .eq("engine", args.engine)
-      .eq("status", "queued")
-      .select("id")
-      .maybeSingle();
+      .eq("status", "queued");
+    const { data, error } = typeof q?.select === "function" ? await q.select("id").maybeSingle() : await q;
     if (error) {
       console.warn(`[engine-audit] runEngine(${args.engine}) queued-row claim failed: ${error.message}`);
       return null;

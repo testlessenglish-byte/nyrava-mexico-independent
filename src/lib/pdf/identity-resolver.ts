@@ -68,15 +68,26 @@ export function resolveReportIdentity(caseData: Record<string, any>) {
   );
 
   // Jurisdictional body (órgano jurisdiccional).
-  const court = firstText(
-    caseData.court_name,
-    identity.court_name,
-    metadata.courtName,
-    metadata.competentAuthority,
-    identity.tribunal_level,
-    metadata.detected_authority,
-    Array.isArray(jurisdictionProfile.courts) ? jurisdictionProfile.courts[0] : undefined,
-  );
+  // When the SCJN issues a remand ruling, both the SCJN and the receiving
+  // court may appear in the metadata. Prioritize the explicit identity
+  // court_name over the tribunal_level to avoid presenting the SCJN as
+  // the deciding court when it only returned the file.
+  const tribunalLevel = firstText(identity.tribunal_level);
+  const identityCourt = firstText(identity.court_name);
+  const remandOrdered = identity.remand_ordered === true ||
+    identity.procedural_posture === "remand" ||
+    /devuelvanse|devolver los autos/i.test(String(identity.disposition ?? ""));
+  const court = remandOrdered && identityCourt
+    ? identityCourt
+    : firstText(
+        caseData.court_name,
+        identityCourt,
+        metadata.courtName,
+        metadata.competentAuthority,
+        tribunalLevel,
+        metadata.detected_authority,
+        Array.isArray(jurisdictionProfile.courts) ? String(jurisdictionProfile.courts[0] ?? "") || undefined : undefined,
+      );
 
   const jurisdiction = firstText(
     caseData.jurisdiction,

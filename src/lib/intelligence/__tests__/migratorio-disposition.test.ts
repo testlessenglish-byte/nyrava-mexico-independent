@@ -8,6 +8,14 @@ const holding = { ...old, id: "holding", kind: "COURT_HOLDING" as const, speaker
 const document = (id: string, court: string, orders: string) => ({ id, extracted_text: `${court}\nANTECEDENTES\n${"Historia del asunto. ".repeat(1500)}\nRESUELVE:\n${orders}\nNOTIFÍQUESE` });
 
 describe("Migratorio final disposition", () => {
+  it("replaces a misattributed reconstruction subspan of the current order without inventing historical proceedings", () => {
+    const quote="Devuélvanse los autos al tribunal de origen para que dicte la sentencia que corresponda.";
+    const doc=document("review","Instancia: Primera Sala",`ÚNICO. ${quote}`);
+    const alias={...holding,id:"alias",text:"El tribunal devuelve los autos.",source_refs:[{document_id:"review",quote:quote.slice(0,-1),page:1}]};
+    const resolved=resolveMigratorioDisposition([doc],[alias,old]);
+    expect(resolved.history.map(i=>i.id)).toEqual([old.id]);
+    expect(applyMigratorioDisposition([alias,old],resolved)).toEqual(resolved.items);
+  });
   it("replaces a reconstruction alias of the same order and remains idempotent", () => {
     const doc = document("review", "Instancia: Primera Sala", "ÚNICO. Devuélvanse los autos al tribunal de origen.");
     const resolved = resolveMigratorioDisposition([doc], []);

@@ -121,6 +121,9 @@ describe("mandatory decision core", () => {
     });
     expect(holding?.metadata).toMatchObject({ reportable: true, score_moving: false });
     expect(holding?.source_doc_ids).toEqual(["doc-1"]);
+    expect(holding?.title).not.toContain('COURT HOLDING');
+    expect(holding?.legal_significance).not.toContain('Mandatory');
+    expect(holding?.metadata?.citation_exemption_type).toBe('CITATION_REQUIRED');
   });
 });
 

@@ -579,11 +579,23 @@ export async function runHallucinationReview(args: { db: Db; caseId: string }): 
         notes = !quote && !docId ? "No source document or quote." : !quote ? "No source quote." : "No source document.";
       }
     } else {
+      // Search ALL cited documents, not just the first one. A finding may
+      // synthesize across documents; the quote may reside in any of them.
       let corpus = perDocCorpus.get(docId);
+      if (!corpus && Array.isArray(f.source_doc_ids)) {
+        for (const altId of f.source_doc_ids) {
+          const alt = perDocCorpus.get(altId);
+          if (alt && verifyQuote(quote, alt)) { corpus = alt; break; }
+        }
+      }
       if (!corpus && perDocCorpus.size === 1) {
         corpus = Array.from(perDocCorpus.values())[0];
       }
       if (corpus && verifyQuote(quote, corpus)) {
+        // Quote text exists in the corpus — this is QUOTATION verification,
+        // not proof that the finding's claim follows from the quote. Mark as
+        // verified for now; a future semantic gate should check claim support,
+        // negation, speaker attribution, and procedural-role alignment.
         status = "verified";
         notes = f.source_page != null ? `Quote verified against document (page ${f.source_page}).` : "Quote verified against document.";
       } else if (isLegalAuthorityCitation(quote) || isExempt) {

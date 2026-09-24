@@ -32,6 +32,8 @@ function makeFakeDb(inserts: { table: string; row: Record<string, unknown> }[]) 
         select(_cols: string) {
           const chain = {
             eq: () => chain,
+            is: () => chain,
+            range: () => chain,
             order: () => chain,
             or: () => chain,
             limit: () => Promise.resolve({ data: [], error: null }),

@@ -33,13 +33,17 @@ const PLATFORM_ENV: Record<ProviderName, string | undefined> = {
 
 export async function resolveProviderKeys(db: Db, userId: string, provider: ProviderName): Promise<ResolvedKeys> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (db as any)
+  const q = (db as any)
     .from("user_ai_keys")
     .select("id,provider,encrypted_key,priority,created_at")
     .eq("user_id", userId)
-    .eq("is_active", true)
-    .order("priority", { ascending: true, nullsFirst: false })
-    .order("created_at", { ascending: true });
+    .eq("is_active", true);
+
+  const res = typeof q?.order === "function"
+    ? await q.order("priority", { ascending: true, nullsFirst: false }).order("created_at", { ascending: true })
+    : await q;
+
+  const { data, error } = res;
 
   if (error) throw new Error(error.message);
 

@@ -12,6 +12,12 @@ import { contentRestriction, transformReportContent, fold, absenceText, verified
 import { resolveFinalReleaseDecision } from "./final-release-decision";
 import { matchesMigratorioDisposition, dispositionText, isMigratorioHistoricalDecision, type MigratorioDisposition } from "../intelligence/migratorio-disposition";
 import { quarantineDispositionConflicts, verifyContradictionPairs, reconcileReportScorePresentation, reconcileContradictionRisk } from './report-evidence-integrity';
+import { auditSourceLocations, relocateSourceRefs } from './source-location-audit';
+import { groundedDecisionSummary } from '../intelligence/decision-summary';
+import {receivingProceedings,relocateReportReferences} from './report-source-contract';
+import {auditText} from '../intelligence/mx-terminology';
+import {mxProfileOrNull} from '../execution/mx-pipeline';
+import {alignDecisionCoreFindings} from '../intelligence/mandatory-decision-core';
 
 type Row = Record<string, any>;
 const obj = (x: any): Row => x && typeof x === "object" && !Array.isArray(x) ? x : {};
@@ -32,6 +38,7 @@ export interface ReportPresentation {
   render_output?: { format: string; text: string };
   decision_sections: Array<{ id: string; kind: string; title: string; text: string; speaker_role: string; speaker_label: string }>;
   procedural_history?: Array<{ id: string; text: string; speaker_role: string }>;
+  issuing_court?: string;
   finding_cards: Array<{ finding: Row; source_count: number; details: ReturnType<typeof buildFindingWorkProduct> }>;
   withheld_findings: Array<{ id: unknown; category: string; attorney_review_required: boolean }>;
 }
@@ -70,7 +77,8 @@ export function composeFinalReportPayload(input: CaseExportData): FinalReportPay
   const originalFull = obj(obj(input.report).full_report);
   const currentNumbers = arr(originalFull.proceeding_registry).filter(p => /sentencia analizada|current judgment/i.test(p.relationship ?? '')).map(p => String(p.number));
   const integrity = quarantineDispositionConflicts(input, originalFull.migratorio_disposition, currentNumbers);
-  const data = structuredClone(integrity.data) as FinalReportPayload;
+  const data = relocateReportReferences(structuredClone(integrity.data),arr(originalFull.pre_release_source_pages) as any,
+    input.documents.map((d,i)=>({document_id:String(d.id),doc_n:Number(d.doc_n??i+1)}))) as FinalReportPayload;
   const report = obj(data.report), full = obj(report.full_report), c = obj(data.case);
   const stored = obj(full.report_governance);
   const governance = resolveReportGovernance({
@@ -94,8 +102,25 @@ export function composeFinalReportPayload(input: CaseExportData): FinalReportPay
     (s.source_aliases ?? []).includes(String(d.id)),
   )).map(d => String(d.id ?? d.filename ?? "unknown"));
   const core = arr(obj(full.mandatory_decision_core).items);
-  const migratorio = (c.case_type ?? full.case_type) === "migratorio" && governance.decision_core_priority;
+  data.findings = alignDecisionCoreFindings(arr(data.findings),core as any,c.report_language ?? 'es');
+  const seenCore = new Set<string>();
+  data.findings = data.findings.filter(f=>{
+    const id=f.source_module==='decision_core' ? obj(f.metadata).mandatory_decision_core_id : undefined;
+    if(!id || !core.some(i=>i.id===id))return true;
+    if(seenCore.has(id))return false;
+    seenCore.add(id);return true;
+  });
+  const inferredRegistry=receivingProceedings(core,arr(full.pre_release_source_pages) as any,
+    data.documents.map((d,i)=>({document_id:String(d.id),doc_n:Number(d.doc_n??i+1)})));
+  full.proceeding_registry=[...arr(full.proceeding_registry),...inferredRegistry.filter(p=>!arr(full.proceeding_registry).some(r=>r.number===p.number))];
+  const migratorio = ((c.underlying_materia ?? c.case_type ?? full.case_type) === "migratorio" || (full.case_identity as any)?.underlying_materia === "migratorio") && governance.decision_core_priority;
   const disposition = full.migratorio_disposition as MigratorioDisposition | undefined;
+  const dispositionRefs = disposition?.items?.flatMap(i=>i.source_refs) ?? [];
+  const issuingCourt = disposition?.status==='verified' && disposition.items.length>0 &&
+    disposition.items.every(i=>i.speaker_role==='scjn') && dispositionRefs.length>0 &&
+    auditSourceLocations(dispositionRefs,arr(full.pre_release_source_pages) as any,
+      data.documents.map((d,i)=>({document_id:String(d.id),doc_n:Number(d.doc_n??i+1)}))).ok
+    ? 'Suprema Corte de Justicia de la Nación' : undefined;
   const historicalFindings = migratorio ? arr(data.findings).filter(f => isMigratorioHistoricalDecision(f, disposition)) : [];
   const historicalFindingIds = new Set(historicalFindings.map(f => f.id));
   if (disposition && historicalFindings.length) {
@@ -179,6 +204,7 @@ export function composeFinalReportPayload(input: CaseExportData): FinalReportPay
   Object.assign(projected.report.full_report as Row, { report_governance: governance, report_capability: capability });
   // Cards reference the projected findings, never an unfiltered raw finding.
   projected.report_presentation = {
+    issuing_court:issuingCourt,
     capability, governance, canonical_sources: uniqueSources, unique_source_count: uniqueSources.length, unresolved_source_ids,
     snapshot, executive_questions,
     decision_sections, finding_cards: finding_cards.map((card, i) => ({ ...card, finding: projected.findings![i] })),
@@ -204,8 +230,32 @@ export function composeFinalReportPayload(input: CaseExportData): FinalReportPay
     final.documents.map((d,i)=>({document_id:String(d.id),doc_n:Number(d.doc_n ?? i+1)})));
   finalReport.contradictions_struct = pairAudit.accepted.filter(c=>c.kind==='factual');
   finalFull.contradictions = finalReport.contradictions_struct;
-  reconcileContradictionRisk(finalReport,finalReport.contradictions_struct.length);
+  if (capability.scores_allowed) reconcileContradictionRisk(finalReport,finalReport.contradictions_struct.length);
   reconcileReportScorePresentation(finalReport,capability.scores_allowed,c.report_language ?? 'es');
+  // Policy/disposition filtering can remove the writer's whole summary. Recover
+  // only from independently verified passages AFTER these destructive transforms.
+  if (String(finalReport.executive_summary ?? '').trim().length < 80) {
+    const pages = arr(finalFull.pre_release_source_pages) as any;
+    const index = final.documents.map((d,i)=>({document_id:String(d.id),doc_n:Number(d.doc_n ?? i+1)}));
+    const verifiedCore = arr(finalFull.mandatory_decision_core?.items).flatMap(item => {
+      const refs = relocateSourceRefs(arr(item.source_refs),pages,index);
+      const audit = auditSourceLocations(refs,pages,index);
+      return audit.ok && audit.verified.length ? [{...item,source_refs:audit.verified}] : [];
+    });
+    const summary = groundedDecisionSummary(verifiedCore as any,index);
+    if (summary.length >= 80) {
+      finalReport.executive_summary = summary;
+      finalFull.prose = {...obj(finalFull.prose),executive_summary:summary};
+      finalFull.executive_summary_source = 'verified_decision_passages';
+      // The summary and the appendix are one contract. Never create an inline
+      // reference without inserting its verified source entry as well.
+      finalReport.citations = [...arr(finalReport.citations)];
+      for (const ref of verifiedCore.flatMap(item=>item.source_refs)) {
+        if (!finalReport.citations.some((r:Row)=>r.document_id===ref.document_id && r.page===ref.page && r.quote===ref.quote))
+          finalReport.citations.push({...ref,id:`source-${finalReport.citations.length+1}`});
+      }
+    }
+  }
   if (governance.decision_core_priority && disposition?.status === 'verified' && finalFull.objective) {
     finalFull.objective.question = c.report_language === 'en' ? 'What did the court order in this judgment?' : '¿Qué resolvió el tribunal en la sentencia analizada?';
     finalFull.objective.answer = disposition.items.map(i=>i.text).join('\n');
@@ -224,6 +274,7 @@ export function validateFinalReportContract(payload: FinalReportPayload, capabil
   const view = payload.report_presentation;
   const restricted = capability.mode === "LIMITED" || !capability.strategic_recommendations_allowed;
   const violations: string[] = [];
+  if (String(payload.report?.executive_summary ?? '').trim().length < 80) violations.push('executiveSummaryMissing');
   const violation_paths: Array<{rule:string; path:string}> = [];
   let inspected_nodes = 0;
   // Attribution survives formatting: exempt only the exact sourced/verified
@@ -253,6 +304,14 @@ export function validateFinalReportContract(payload: FinalReportPayload, capabil
   const visit = (v: any, key = "", path = "$", parent: Row = {}) => {
     if (key === 'pre_release_source_pages' || key === 'pre_release_validation') return;
     inspected_nodes++;
+    if (typeof v==='string' && !/\.(?:documents|agent_logs|integrity_audit)(?:\[|\.)/.test(path)) {
+      const foreign=auditText(v,{profile:mxProfileOrNull(payload.case?.case_type)??'civil',locale:payload.case?.report_language==='en'?'en':'es'})
+        .some(issue=>issue.kind==='us_jurisdiction_reference');
+      if (foreign) {
+        if(!violations.includes('foreignJurisdictionPresent')) violations.push('foreignJurisdictionPresent');
+        violation_paths.push({rule:'foreignJurisdictionPresent',path});
+      }
+    }
     let restriction = contentRestriction(v, key, parent, capability, governance);
     if (restriction === "unverifiedAbsencePresent" && path === "$.report_presentation.render_output.text") {
       let remaining = fold(v);
@@ -300,7 +359,7 @@ export function validateFinalReportContract(payload: FinalReportPayload, capabil
         section.speaker_label === formatSpeakerRoleBadge({...item, mandatory_decision_kind:item.kind});
     }));
   const c = obj(payload.case), full = obj(payload.report?.full_report);
-  if ((c.case_type ?? full.case_type) === "migratorio" && governance.decision_core_priority) {
+  if (((c.underlying_materia ?? c.case_type ?? full.case_type) === "migratorio" || (full.case_identity as any)?.underlying_materia === "migratorio") && governance.decision_core_priority) {
     const disposition = full.migratorio_disposition as MigratorioDisposition | undefined;
     if (!matchesMigratorioDisposition(disposition, expectedCore) ||
         !matchesMigratorioDisposition(disposition, view.decision_sections)) {

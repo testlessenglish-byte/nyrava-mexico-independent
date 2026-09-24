@@ -19,6 +19,8 @@ function makeFakeDb() {
   function chain(resolveValue: unknown) {
     const c: Record<string, unknown> = {
       eq: () => c,
+      is: () => c,
+      range: () => c,
       in: () => c,
       not: () => c,
       like: () => c,

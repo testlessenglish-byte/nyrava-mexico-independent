@@ -21,6 +21,8 @@ function makeFakeDb(updateCalls: Array<{ id: unknown; payload: Record<string, un
   function chain(resolveValue: unknown) {
     const c: Record<string, unknown> = {
       eq: () => c,
+      is: () => c,
+      range: () => c,
       not: () => c,
       like: () => c,
       order: () => c,

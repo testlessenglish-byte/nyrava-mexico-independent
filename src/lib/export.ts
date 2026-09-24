@@ -2323,8 +2323,9 @@ function renderCover(
   const identity = resolveReportIdentity(c);
   const currentJudgment = asArr(asObj(r.full_report).proceeding_registry).find(p =>
     /sentencia analizada|current judgment/i.test(asStr(p.relationship)) && asArr(p.source_refs).length > 0);
-  const reportCourt = presentation(data).governance.decision_core_priority && currentJudgment
-    ? asStr(currentJudgment.court,identity.court) : identity.court;
+  const reportCourt = presentation(data).issuing_court ??
+    (presentation(data).governance.decision_core_priority && currentJudgment
+      ? asStr(currentJudgment.court,identity.court) : identity.court);
   b.premiumCover({
     reportTitle: "INFORME DE INTELIGENCIA JURÍDICA",
     caseName: asStr(c.name, "Untitled Case"),

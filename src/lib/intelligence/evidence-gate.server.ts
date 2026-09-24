@@ -15,7 +15,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
-import { buildGroundingCorpus, verifyQuoteDetailed, type GroundingCorpus } from "./grounding.server";
+import { buildCaseGroundingCorpus, verifyQuoteDetailed, type GroundingCorpus } from "./grounding.server";
 import { assessProceduralDefectGrounding } from "./procedural-defect-grounding.server";
 
 export type AnalysisMode = "strict" | "balanced" | "exploratory";
@@ -814,7 +814,7 @@ export async function buildEntityIndex(
     .order("created_at", { ascending: true })
     .order("id", { ascending: true });
   const extracted = (docs ?? []).filter((d) => d.status === "extracted");
-  const corpus = buildGroundingCorpus(
+  const corpus = await buildCaseGroundingCorpus(db, caseId, 
     extracted.map((d) => ({ id: d.id as string, filename: d.filename, extracted_text: d.extracted_text })),
   );
   const names = new Set<string>();

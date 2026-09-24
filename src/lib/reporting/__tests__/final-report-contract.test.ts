@@ -30,7 +30,8 @@ export function regressionInput(): CaseExportData {
   return {
     case:{case_analysis_mode:"concluded_audit",case_type:"penal", name:"Synthetic concluded judgment"},
     documents:[{id:"doc-1",filename:source.original_filename}],analysis:null,agents:[],score:null,
-    report:{report_mode:"LIMITED",scores_suppressed:true,motions_suppressed:true, full_report:{
+    report:{report_mode:"LIMITED",scores_suppressed:true,motions_suppressed:true,
+      executive_summary:'El tribunal desecha el recurso de revisión. Queda firme la sentencia recurrida, según el documento aportado para esta revisión.', full_report:{
       source_audit:{canonical_sources:[source]},
       mandatory_decision_core:{items:[
         {...item,id:"disposition",kind:"DISPOSITION",text:"Se desecha el recurso de revisión"},

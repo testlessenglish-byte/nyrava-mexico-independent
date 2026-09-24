@@ -265,12 +265,12 @@ export async function runPerspectivesEngine(args: {
   // this codebase's next_actions fields). Fetched once, outside the
   // per-perspective loop below, and reused across every perspective call —
   // same real-document grounding runStrategyEngine now uses.
-  const { buildGroundingCorpus, verifyQuote } = await import("./grounding.server");
+  const { buildCaseGroundingCorpus, verifyQuote } = await import("./grounding.server");
   const { data: docsForPerspectiveGrounding } = await db
     .from("documents")
     .select("id,filename,extracted_text")
     .eq("case_id", caseId);
-  const perspectiveGroundingCorpus = buildGroundingCorpus(
+  const perspectiveGroundingCorpus = await buildCaseGroundingCorpus(db, caseId, 
     (docsForPerspectiveGrounding ?? []).map((d) => ({
       id: d.id as string,
       filename: d.filename,
@@ -634,8 +634,8 @@ export async function runEvidenceIntelEngine(args: {
     remainingCitationChars -= text.length;
     citationDocs.push({ id: d.id as string, filename: d.filename, extracted_text: text });
   }
-  const { buildGroundingCorpus } = await import("./grounding.server");
-  const promotionCorpus = buildGroundingCorpus(citationDocs);
+  const { buildCaseGroundingCorpus } = await import("./grounding.server");
+  const promotionCorpus = await buildCaseGroundingCorpus(db, caseId, citationDocs);
   const citationCorpusText = citationDocs
     .map((d, i) => `=== DOC ${i + 1} (id=${d.id}): ${d.filename} ===\n${d.extracted_text ?? ""}`)
     .join("\n\n");
@@ -1033,8 +1033,8 @@ export async function runStrategyEngine(args: {
     briefText,
   ].join("\n");
   const matterSubtype = detectMatterSubtype(caseType, subtypeSignalText);
-  const { buildGroundingCorpus, verifyQuote } = await import("./grounding.server");
-  const strategyGroundingCorpus = buildGroundingCorpus(
+  const { buildCaseGroundingCorpus, verifyQuote } = await import("./grounding.server");
+  const strategyGroundingCorpus = await buildCaseGroundingCorpus(db, caseId, 
     (docsForGrounding ?? []).map((d) => ({
       id: d.id as string,
       filename: d.filename,
@@ -1042,7 +1042,7 @@ export async function runStrategyEngine(args: {
     })),
   );
   const caseFrame = civil
-    ? `This is a CIVIL matter (case_type=${caseType}). Use civil terminology ONLY — liability, damages, comparative fault, settlement, discovery, credibility. NEVER use criminal terms (conviction, acquittal, Miranda, Brady, suppression, search and seizure, reasonable doubt, prosecution strategy). NEVER recommend criminal motions (motion to suppress, Brady motion).`
+    ? `This is a CIVIL matter (case_type=${caseType}). Use civil terminology ONLY — responsabilidad civil, daños y perjuicios, culpa concurrente, convenio judicial, ofrecimiento y desahogo de pruebas, credibilidad. NEVER use criminal terms (conviction, acquittal, Miranda, Brady, suppression, search and seizure, reasonable doubt, prosecution strategy). NEVER recommend criminal motions (motion to suppress, Brady motion).`
     : `This is a MEXICAN PENAL matter under the CNPP (case_type=${caseType}). Use Mexican penal terminology ONLY — Ministerio Público, imputado, víctima u ofendido, auto de vinculación a proceso, sentencia condenatoria/absolutoria, Juez de Control, Tribunal de Enjuiciamiento. NEVER use U.S. criminal-system terms (jury, plea bargain, indictment, felony, misdemeanor, grand jury, Miranda, Brady, prosecutor as a role title).`;
 
   const r = await callGroq({

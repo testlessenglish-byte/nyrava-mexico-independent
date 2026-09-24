@@ -36,9 +36,10 @@ describe("orchestrator agent output contradiction (agentEntities/agentOcr)", () 
               limit(_n: number) {
                 return chain;
               },
+              order() { return chain; },
               maybeSingle: async () => {
                 if (table === "pipeline_engine_runs") {
-                  return { data: opts.engineCompleted ? { id: "run-1" } : null, error: null };
+                  return { data: opts.engineCompleted ? { id: "run-1",status:'completed' } : null, error: null };
                 }
                 return { data: null, error: null };
               },

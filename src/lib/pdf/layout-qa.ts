@@ -4,7 +4,8 @@ export type PdfLayoutIssueCode =
   | "BOX_CONTENT_OVERFLOW"
   | "TABLE_WIDTH_OVERFLOW"
   | "ORPHAN_HEADING"
-  | "PAGE_NUMBER_MISMATCH";
+  | "PAGE_NUMBER_MISMATCH"
+  | "TEXT_GLYPH_COLLISION";
 
 export interface PdfLayoutIssue {
   code: PdfLayoutIssueCode;

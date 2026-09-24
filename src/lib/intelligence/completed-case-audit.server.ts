@@ -39,7 +39,7 @@ import {
 } from "@/lib/legal/citation-verification.server";
 import { PROJECTION_LIKE } from "@/lib/intelligence/finding-selection";
 import {
-  buildGroundingCorpus,
+  buildCaseGroundingCorpus,
   verifyQuoteDetailed,
   type GroundingCorpus,
 } from "./grounding.server";
@@ -279,7 +279,7 @@ export async function runCompletedCaseAudit(
     filename: string;
     extracted_text: string | null;
   }>;
-  const corpus = buildGroundingCorpus(docs);
+  const corpus = await buildCaseGroundingCorpus(db, caseId, docs);
 
   const { data: findingsRaw } = await db
     .from("case_findings")

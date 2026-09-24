@@ -55,6 +55,38 @@ export const MATTER_SUBTYPE_RULES: Record<string, readonly SubtypeRule[]> = {
         "agent:domestic_violence_assessment",
       ],
     },
+    {
+      key: "alimentos",
+      label: "Pensión alimenticia y obligaciones alimentarias",
+      signals:
+        /\b(pension alimenticia|alimentos provisionales|obligacion alimentaria|incidente de alimentos|compensacion economica|alimentos definitivos|garantia alimentaria)\b/,
+      counterSignals:
+        /\b(guarda y custodia|patria potestad|violencia familiar|convivencia supervisada|sucesori[oa])\b/,
+      excludedEngines: [
+        "agent:custody_best_interest_analysis",
+        "agent:domestic_violence_assessment",
+      ],
+    },
+    {
+      key: "custodia",
+      label: "Guarda, custodia y convivencia",
+      signals:
+        /\b(guarda y custodia|patria potestad|convivencia supervisada|regimen de convivencia|interes superior del menor|reconocimiento de paternidad)\b/,
+      counterSignals:
+        /\b(sucesori[oa]|testamentari[oa]|intestamentari[oa]|herencia)\b/,
+      excludedEngines: [
+        "agent:child_support_calculation",
+      ],
+    },
+    {
+      key: "violencia_familiar",
+      label: "Violencia familiar",
+      signals:
+        /\b(violencia familiar|violencia domestica|orden de proteccion|medida de proteccion|violencia intrafamiliar)\b/,
+      counterSignals:
+        /\b(sucesori[oa]|testamentari[oa]|intestamentari[oa]|herencia)\b/,
+      excludedEngines: [],
+    },
   ],
   // Real case: a 1-document corpus consisting of "AMPARO DIRECTO EN
   // REVISIÓN 4640/2017" (an SCJN constitutional-analysis resolution, not a
@@ -134,14 +166,34 @@ export const MATTER_SUBTYPE_RULES: Record<string, readonly SubtypeRule[]> = {
  */
 export function detectMatterSubtype(materia: string, text: string): MatterSubtype | null {
   const rules = MATTER_SUBTYPE_RULES[fold(materia)];
-  if (!rules || rules.length === 0) return null;
   const haystack = fold(text);
   if (!haystack) return null;
-  for (const rule of rules) {
-    if (!rule.signals.test(haystack)) continue;
-    if (rule.counterSignals?.test(haystack)) continue;
-    return { key: rule.key, label: rule.label, excludedEngines: rule.excludedEngines };
+
+  // Check materia-specific rules first.
+  if (rules && rules.length > 0) {
+    for (const rule of rules) {
+      if (!rule.signals.test(haystack)) continue;
+      if (rule.counterSignals?.test(haystack)) continue;
+      return { key: rule.key, label: rule.label, excludedEngines: rule.excludedEngines };
+    }
   }
+
+  // Cross-materia procedural vehicle detection: if the text indicates an
+  // amparo proceeding (e.g. ADR), apply amparo exclusions even when the
+  // substantive materia is different (familiar, penal, etc.). The procedural
+  // vehicle determines which procedural agents are relevant, independent of
+  // the underlying materia.
+  if (fold(materia) !== "amparo") {
+    const amparoRules = MATTER_SUBTYPE_RULES["amparo"];
+    if (amparoRules) {
+      for (const rule of amparoRules) {
+        if (!rule.signals.test(haystack)) continue;
+        if (rule.counterSignals?.test(haystack)) continue;
+        return { key: rule.key, label: rule.label, excludedEngines: rule.excludedEngines };
+      }
+    }
+  }
+
   return null;
 }
 

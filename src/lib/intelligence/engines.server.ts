@@ -217,7 +217,7 @@ export async function runTheoryEngine(args: {
   // The model is told to return an empty array when it cannot back a theory
   // with at least 2 verbatim citations.
   const { applyEvidenceGate, getAnalysisMode, textMatchesCaseType } = await import("./evidence-gate.server");
-  const { buildGroundingCorpus } = await import("./grounding.server");
+  const { buildCaseGroundingCorpus } = await import("./grounding.server");
   const { resolveCaseType, isCriminalCaseType } = await import("../pipeline.server");
   const { mxPartyRoleEnum, MX_PARTY_ROLES, requireMxProfile, mxRoleLabel } = await import("../execution/mx-pipeline");
   const mode = await getAnalysisMode(db, caseId);
@@ -233,7 +233,7 @@ export async function runTheoryEngine(args: {
     // corpus the generating engine's prompt actually showed the model.
     .order("created_at", { ascending: true })
     .order("id", { ascending: true });
-  const groundCorpus = buildGroundingCorpus(
+  const groundCorpus = await buildCaseGroundingCorpus(db, caseId, 
     (docsForGround ?? [])
       .filter((d) => d.status === "extracted")
       .map((d) => ({ id: d.id as string, filename: d.filename, extracted_text: d.extracted_text })),
@@ -489,7 +489,7 @@ export async function runOpportunityEngine(args: {
 
   const { diagnoseEvidenceGate, getAnalysisMode, filterByCaseType, isCivilCaseType } =
     await import("./evidence-gate.server");
-  const { buildGroundingCorpus } = await import("./grounding.server");
+  const { buildCaseGroundingCorpus } = await import("./grounding.server");
   const { resolveCaseType } = await import("../pipeline.server");
   const { mxPartyRoleEnum, MX_PARTY_ROLES, requireMxProfile, mxRoleLabel } = await import("../execution/mx-pipeline");
   const caseType = await resolveCaseType(db, caseId, ctx.corpus.slice(0, 4000));
@@ -521,7 +521,7 @@ export async function runOpportunityEngine(args: {
     // corpus the generating engine's prompt actually showed the model.
     .order("created_at", { ascending: true })
     .order("id", { ascending: true });
-  const groundCorpus = buildGroundingCorpus(
+  const groundCorpus = await buildCaseGroundingCorpus(db, caseId, 
     (docsForGround ?? [])
       .filter((d) => d.status === "extracted")
       .map((d) => ({ id: d.id as string, filename: d.filename, extracted_text: d.extracted_text })),
@@ -531,7 +531,7 @@ export async function runOpportunityEngine(args: {
     ? "discovery, witness_attack, timeline_attack, evidence_attack, credibility_attack, damages, liability, comparative_fault, settlement_leverage"
     : "suppression, discovery, witness_attack, timeline_attack, evidence_attack, credibility_attack, constitutional";
   const caseFrame = civil
-    ? `This is a CIVIL matter (case_type=${caseType}). Use civil terminology only — liability, comparative fault, damages, settlement, credibility, discovery, insurance exposure. NEVER use criminal terms (conviction, acquittal, Miranda, Brady, suppression, search and seizure, reasonable doubt, prosecution strategy).`
+    ? `This is a CIVIL matter (case_type=${caseType}). Use civil terminology only — responsabilidad civil, daños y perjuicios, culpa concurrente, convenio judicial, ofrecimiento y desahogo de pruebas, credibilidad. NEVER use criminal terms (conviction, acquittal, Miranda, Brady, suppression, search and seizure, reasonable doubt, prosecution strategy).`
     : `This is a MEXICAN PENAL matter under the CNPP (case_type=${caseType}). Use Mexican penal terminology only — Ministerio Público, imputado, víctima u ofendido, sentencia condenatoria/absolutoria. NEVER use U.S. criminal-system terms (jury, plea bargain, indictment, felony, misdemeanor, grand jury, Miranda, Brady, prosecutor as a role title).`;
 
   const r = await callGroq({

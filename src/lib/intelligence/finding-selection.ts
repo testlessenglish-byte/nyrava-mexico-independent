@@ -48,6 +48,9 @@ export type SelectableFinding = {
 
 export function classifyFindingSource(f: SelectableFinding): FindingSourceClass {
   const sm = String(f.source_module ?? "");
+  // Independently reconstructed judicial propositions are engine output too.
+  // The same suppression and citation-verification rules below still apply.
+  if (sm === 'decision_core') return 'engine';
   if (sm.startsWith("engine:")) return "engine";
   if (sm.startsWith("agent:")) return "agent";
   if (sm.startsWith("analyzer:")) return "analyzer";

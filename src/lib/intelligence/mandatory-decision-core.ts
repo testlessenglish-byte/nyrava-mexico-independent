@@ -274,12 +274,16 @@ export function mandatoryDecisionCoreToFindings(args: {
   core: MandatoryDecisionCoreItem[];
   caseId: string;
   userId: string;
+  locale?: "es" | "en";
 }): NewFinding[] {
+  const es = args.locale !== 'en';
+  const labels:Record<MandatoryDecisionKind,string>={DISPOSITION:'RESULTADO',COURT_HOLDING:'DETERMINACIÓN DEL TRIBUNAL',REJECTED_HOLDING:'DETERMINACIÓN RECHAZADA',CONTROLLING_ISSUE:'CUESTIÓN CONTROLANTE',REMEDY:'EFECTO DE LA RESOLUCIÓN'};
   return args.core.map((item) => {
     const docIds = [
       ...new Set(item.source_refs.map((r) => r.doc_id ?? r.document_id).filter(Boolean)),
     ] as string[];
     const evidenceRefs = item.source_refs.map((ref) => ({
+      ...ref,
       doc_id: ref.doc_id ?? ref.document_id,
       quote: ref.quote,
       label: ref.label,
@@ -305,20 +309,20 @@ export function mandatoryDecisionCoreToFindings(args: {
       user_id: args.userId,
       source_module: "decision_core",
       category: item.kind.toLowerCase(),
-      title: `${item.kind.replace(/_/g, " ")}: ${item.text.slice(0, 180)}`,
+      title: `${es ? labels[item.kind] : item.kind.replace(/_/g, " ")}: ${item.text}`,
       description: item.text,
       severity: item.kind === "DISPOSITION" || item.kind === "REMEDY" ? "critical" : "high",
       confidence: 0.99,
       legal_significance:
-        "Mandatory, source-verified proposition from the reconstructed judicial decision.",
+        es ? "Determinación o cuestión identificada en la resolución judicial, respaldada por su pasaje fuente." : "Source-backed proposition from the reconstructed judicial decision.",
       potential_impact:
-        "Must be represented in the completed-case report; score-neutral unless separately classified.",
+        es ? "Integra el análisis de la resolución concluida; no modifica las puntuaciones por sí sola." : "Required in the concluded-case report; score-neutral unless separately classified.",
       affected_party: "neutral",
       benefited_party: "neutral",
       impact_direction: "neutral",
       authority_level: "court_record",
       score_dimension: null,
-      reason_for_score_effect: "Reportable decision core is distinct from score-moving evidence.",
+      reason_for_score_effect: es ? "La determinación judicial no modifica por sí sola las puntuaciones." : "Reportable decision core is distinct from score-moving evidence.",
       strategic_significance: "mandatory_decision_core",
       priority: item.kind === "DISPOSITION" || item.kind === "REMEDY" ? 100 : 95,
       speaker_role: speaker(item.speaker_role),
@@ -335,14 +339,26 @@ export function mandatoryDecisionCoreToFindings(args: {
         mandatory_decision_kind: item.kind,
         reportable: true,
         score_moving: false,
-        citation_exemption_type:
-          item.kind === "DISPOSITION" || item.kind === "CONTROLLING_ISSUE"
-            ? "EXEMPT_STATUTORY_FORMULA"
-            : item.source_refs.some((r) => r.quote)
-              ? "CITATION_REQUIRED"
-              : "EXEMPT_METADATA",
+        citation_exemption_type: "CITATION_REQUIRED",
       },
     };
+  });
+}
+
+/** Refresh existing decision findings from the resolved core. Preserve IDs and
+ * counts; never manufacture a finding to satisfy report coverage. */
+export function alignDecisionCoreFindings<T extends Record<string, any>>(findings:T[], core:MandatoryDecisionCoreItem[], locale:'es'|'en'='es'):T[] {
+  const norm=(text:string)=>text.normalize('NFC').replace(/\s+/g,' ').trim();
+  return findings.map(f=>{
+    if(f.source_module!=='decision_core') return f;
+    const item=core.find(i=>i.id===f.metadata?.mandatory_decision_core_id || i.source_refs.some(r=>
+      (f.evidence_refs??[]).some((ref:any)=>{
+        const quote=norm(String(ref.quote??''));
+        return quote.length>=60 && (r.document_id??r.doc_id)===(ref.document_id??ref.doc_id) && norm(r.quote??'').includes(quote);
+      })));
+    if(!item) return f;
+    const refreshed=mandatoryDecisionCoreToFindings({core:[item],caseId:f.case_id,userId:f.user_id,locale})[0];
+    return {...f,...refreshed,metadata:{...f.metadata,...refreshed.metadata}} as T;
   });
 }
 

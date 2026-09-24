@@ -23,6 +23,7 @@ function input():CaseExportData {
   return {case:{case_type:"amparo",case_analysis_mode:"concluded_audit",report_language:"es"},
     documents:[{id:"doc-1",filename:"Judgment.pdf"}],analysis:null,agents:[],score:null,findings:[],
     report:{report_mode:"LIMITED",scores_suppressed:true,motions_suppressed:true,generated_language:"es",
+      executive_summary:'El documento aportado contiene la resolución del tribunal. El recurso fue desechado según el resolutivo de la sentencia analizada.',
       full_report:{case_type:"amparo",source_audit:{canonical_sources:[source]},
         mandatory_decision_core:{items:[{id:"disposition",kind:"DISPOSITION",text:ref.quote,speaker_role:"scjn",source_refs:[ref]}]}}}};
 }

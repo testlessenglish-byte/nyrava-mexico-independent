@@ -44,17 +44,13 @@ type DomainTerm = { match: RegExp; label: string };
 const PENAL_ONLY_TERMS: DomainTerm[] = [
   { match: /\btribunal(?:es)?\s+de\s+enjuiciamiento\b/i, label: "Tribunal de Enjuiciamiento" },
   { match: /\bjuez(?:a)?\s+de\s+control\b/i, label: "Juez de Control" },
-  { match: /\bministerio\s+p[uú]blico\b/i, label: "Ministerio Público" },
-  { match: /\bfiscal[ií]a\b/i, label: "Fiscalía" },
   { match: /\bcarpeta\s+de\s+investigaci[oó]n\b/i, label: "Carpeta de Investigación" },
-  { match: /\baudiencia\s+inicial\b/i, label: "Audiencia Inicial" },
   { match: /\bvinculaci[oó]n\s+a\s+proceso\b/i, label: "Vinculación a Proceso" },
   { match: /\bformulaci[oó]n\s+de\s+imputaci[oó]n\b/i, label: "Formulación de Imputación" },
   { match: /\bprisi[oó]n\s+preventiva\b/i, label: "Prisión Preventiva" },
   { match: /\bprocedimiento\s+abreviado\b/i, label: "Procedimiento Abreviado" },
   { match: /\betapa\s+intermedia\b/i, label: "Etapa Intermedia" },
   { match: /\bauto\s+de\s+apertura\s+a\s+juicio\b/i, label: "Auto de Apertura a Juicio" },
-  { match: /\bjuicio\s+oral\b/i, label: "Juicio Oral" },
   { match: /\bcriterio\s+de\s+oportunidad\b/i, label: "Criterio de Oportunidad" },
   { match: /\bacuerdo\s+reparatorio\b/i, label: "Acuerdo Reparatorio" },
   {
@@ -76,6 +72,7 @@ const MATERIAS_WITHOUT_PENAL_INSTITUTIONS: ReadonlySet<MexicanCaseType> = new Se
   "agrario",
   "ambiental",
   "inmobiliario",
+  "migratorio",
 ]);
 
 export type DomainVocabularyCheck = {
@@ -129,10 +126,11 @@ const AUTHORITY_MARKER =
   /\b(?:tesis|jurisprudencia|registro\s+digital|semanario\s+judicial|contradicci[oó]n\s+de\s+tesis|criterio\s+jurisprudencial|precedente|SCJN)\b/i;
 
 // Explicit cross-domain framing — the sentence itself situates the term in the
-// penal domain (including penal statutes cited by name), so it is a reference
-// to another domain rather than a claim about this matter. Sufficient alone.
+// penal domain (including penal statutes cited by name), or frames it in the
+// context of procedural notice/referral, domestic violence, or protection orders,
+// so it is a reference to another domain rather than a claim about this matter.
 const CROSS_DOMAIN_MARKER =
-  /\b(?:materia\s+penal|proceso\s+penal|procedimiento\s+penal|[aá]mbito\s+penal|sede\s+penal|causa\s+penal|v[ií]a\s+penal|derecho\s+penal|CNPP|C[oó]digo\s+Nacional\s+de\s+Procedimientos\s+Penales|C[oó]digo\s+Penal|criminal\s+(?:proceedings?|procedure|matter))\b/i;
+  /\b(?:materia\s+penal|proceso\s+penal|procedimiento\s+penal|[aá]mbito\s+penal|sede\s+penal|causa\s+penal|v[ií]a\s+penal|derecho\s+penal|CNPP|C[oó]digo\s+Nacional\s+de\s+Procedimientos\s+Penales|C[oó]digo\s+Penal|criminal\s+(?:proceedings?|procedure|matter)|dar?\s+vista|vista\s+al?|notificac|dar?\s+intervenci[oó]n|intervenci[oó]n\s+del?|denuncia|delito|averiguaci[oó]n|violencia\s+familiar|orden\s+de\s+protecci[oó]n|medida\s+de\s+protecci[oó]n|reparaci[oó]n\s+del\s+da[nñ]o)\b/i;
 
 const QUOTE_SPAN = /«[^»]*»|“[^”]*”|"[^"]*"/g;
 

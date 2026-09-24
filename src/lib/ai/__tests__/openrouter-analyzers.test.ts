@@ -61,7 +61,8 @@ function mockDb() {
       const c: Record<string, unknown> = {
         select: () => c,
         eq: () => c,
-        order: () => Promise.resolve({ data: userKeys, error: null }),
+        order: () => c,
+        then: (resolve: (v: unknown) => void) => resolve({data:userKeys,error:null}),
       };
       return c as never;
     }

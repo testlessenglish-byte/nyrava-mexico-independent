@@ -55,7 +55,7 @@ import {
   type AnalysisMode,
   type EvidenceItem,
 } from "./evidence-gate.server";
-import { buildGroundingCorpus, type GroundingCorpus } from "./grounding.server";
+import { buildCaseGroundingCorpus, type GroundingCorpus } from "./grounding.server";
 import { mergeConfidence, detectProducerConflict, type ReconciliationState } from "./canonical-id";
 import { PROJECTION_LIKE } from "@/lib/intelligence/finding-selection";
 import {
@@ -228,7 +228,7 @@ async function buildCaseCorpus(db: Db, caseId: string): Promise<GroundingCorpus>
     .eq("case_id", caseId)
     .order("created_at", { ascending: true });
   const extracted = (docs ?? []).filter((d) => d.status === "extracted");
-  return buildGroundingCorpus(
+  return await buildCaseGroundingCorpus(db, caseId, 
     extracted.map((d) => ({
       id: d.id as string,
       filename: d.filename,
@@ -1362,6 +1362,21 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
     .select("id");
   if (error) {
     console.error("addFindings failed", error);
+    // The original aggregation migration owns authority_level as smallint;
+    // ADD COLUMN IF NOT EXISTS text in the later semantics migration does
+    // not change it. Preserve the semantic label without discarding court
+    // attribution or inventing a numeric authority rank.
+    const badValue = /invalid input syntax for type smallint: "([^"]+)"/.exec(error.message ?? '')?.[1];
+    if (error.code === '22P02' && badValue && payload.some(row=>row.authority_level===badValue)) {
+      const compatible = payload.map(row=>{
+        if (typeof row.authority_level !== 'string' || /^\d+$/.test(row.authority_level)) return row;
+        const {authority_level,...rest}=row;
+        return {...rest,metadata:{...(row.metadata as Record<string,unknown> ?? {}),authority_level_label:authority_level}};
+      });
+      const retry=await db.from('case_findings').insert(compatible as any).select('id');
+      if (retry.error) throw new Error(`case_findings authority compatibility failed: ${retry.error.message}`);
+      return retry.data ?? [];
+    }
     // Schema-drift resilience: speaker_role/proposition_type/adoption_status
     // (migration 20260808201119_finding_judicial_attribution.sql),
     // audit_classification (migration 20260809041757_case_analysis_mode.sql),

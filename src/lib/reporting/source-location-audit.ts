@@ -1,6 +1,16 @@
 import type { MatterSourcePage } from '../intelligence/source-matter-audit';
-const normalize = (s: string) => s.normalize('NFC').replace(/\s+/g,' ').trim();
-/** Repair location only when an exact quote has one unique page in its own document. */
+const normalize = (s: string) => String(s ?? "")
+  .toLowerCase()
+  .normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "")
+  .replace(/[\u2010-\u2015]/g, " ")
+  .replace(/[\u2018\u2019]/g, "'")
+  .replace(/[\u201c\u201d]/g, '"')
+  .replace(/[^a-z0-9'"$.%/]+/g, " ")
+  .replace(/\s+/g, " ")
+  .trim();
+
+/** Repair location only when an exact quote has a matching page in its own document. */
 export function relocateSourceRefs(refs: Array<Record<string, any>>, pages: MatterSourcePage[], docIndex: Array<{doc_n:number;document_id:string}>) {
   return refs.map(ref => {
     const quote = normalize(String(ref.quote ?? ref.excerpt ?? ref.source_quote ?? ''));

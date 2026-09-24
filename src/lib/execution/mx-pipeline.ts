@@ -309,7 +309,7 @@ export function effectiveMxProfile(
   // 1. Structured procedural classification (highest priority)
   if (vehicle === "apelacion") return "apelacion";
   if (vehicle === "cndh_queja" || vehicle === "derechos_humanos") return "derechos_humanos";
-  if (vehicle === "amparo_directo_revision" || vehicle === "amparo_en_revision") return "constitucional";
+  if (["amparo_directo_revision", "amparo_en_revision", "amparo_revision"].includes(vehicle)) return "constitucional";
   if (vehicle === "responsabilidad_medica") return "responsabilidad_medica";
 
   // 2. Legacy fallback: case name / text signals
@@ -362,8 +362,8 @@ const EXCLUDED_STAGES: Record<MxPipelineProfile, readonly string[]> = {
   // Fiscal: Arts. 40 y 44 LFPCA admiten prueba testimonial ante TFJA
   // de forma condicionada / preguntas por escrito / exhortos.
   fiscal: ["constitutional"],
-  // Juicio contencioso administrativo (TFJA, LFPCA, LFPA): admite prueba testimonial condicionada.
-  administrativo: ["constitutional"],
+  // Juicio contencioso administrativo (TFJA, LFPCA, LFPA): sin desahogo de testigos ni juicio oral.
+  administrativo: ["constitutional", "witness"],
   // Segunda instancia: se resuelve sobre agravios y el expediente.
   apelacion: ["constitutional", "witness"],
   // Responsabilidad médica: pericial y testimonial activas.
@@ -549,14 +549,15 @@ export function stageSkipReasonKey(
 }
 
 /** Ordered, profile-filtered stage list for a case type. */
-export function mxPipelineStages(caseType: string | null | undefined, caseName?: string | null): StageDef[] {
-  const excluded = exclusionsFor(caseType, caseName);
-  return CANONICAL_STAGES.filter((s) => !excluded.includes(s.key));
+export function mxPipelineStages(caseType: string | null | undefined, caseName?: string | null,
+  proceduralVehicle?: string | null, underlyingMateria?: string | null): StageDef[] {
+  return CANONICAL_STAGES.filter((s) => isStageRelevantForCaseType(caseType,s.key,caseName,proceduralVehicle,underlyingMateria));
 }
 
 /** Stage keys only — convenient for server-side filtering. */
-export function mxPipelineStageKeys(caseType: string | null | undefined, caseName?: string | null): string[] {
-  return mxPipelineStages(caseType, caseName).map((s) => s.key);
+export function mxPipelineStageKeys(caseType: string | null | undefined, caseName?: string | null,
+  proceduralVehicle?: string | null, underlyingMateria?: string | null): string[] {
+  return mxPipelineStages(caseType, caseName, proceduralVehicle, underlyingMateria).map((s) => s.key);
 }
 
 // -----------------------------------------------------------------------------

@@ -238,17 +238,19 @@ async function agentIntake(ctx: RunCtx): Promise<AgentResult> {
   };
 }
 
-async function hasCompletedEngine(db: Db, caseId: string, engine: string): Promise<boolean> {
+async function hasCompletedEngine(db: Db, caseId: string, engine: string, executionId?:string): Promise<boolean> {
+  const {data:caseRow}=await db.from('cases').select('execution_id').eq('id',caseId).maybeSingle();
+  const currentExecution=executionId ?? caseRow?.execution_id;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data } = await (db as any)
+  let query = (db as any)
     .from("pipeline_engine_runs")
-    .select("id")
+    .select("id,status")
     .eq("case_id", caseId)
-    .eq("engine", engine)
-    .eq("status", "completed")
-    .limit(1)
-    .maybeSingle();
-  return !!data;
+    .eq("engine", engine);
+  if (currentExecution) query=query.eq('execution_id',currentExecution);
+  const {data,error}=await query.order('created_at',{ascending:false}).limit(1).maybeSingle();
+  if (error) throw new Error(`Unable to verify ${engine}: ${error.message}`);
+  return data?.status === 'completed' || data?.status === 'completed_negative';
 }
 
 async function agentOcr(ctx: RunCtx): Promise<AgentResult> {
@@ -376,7 +378,9 @@ async function agentLegal(ctx: RunCtx): Promise<AgentResult> {
     .from("agent_findings")
     .select("id", { count: "exact", head: true })
     .eq("case_id", ctx.caseId);
-  const ok = alreadyDone && (count ?? 0) > 0;
+  // Zero accepted specialist findings is a valid negative result; QA/Judge
+  // separately assess evidentiary sufficiency. It is not an incomplete stage.
+  const ok = alreadyDone;
   return {
     status: ok ? "success" : "failed",
     confidence: ok ? 0.8 : 0,
@@ -435,6 +439,14 @@ async function agentReport(ctx: RunCtx): Promise<AgentResult> {
   const ready = scoringDone && (findingsCount ?? 0) > 0;
   let ok = !!report || ready;
   const errors: string[] = [];
+  if (report && String(report.executive_summary ?? '').trim().length < 80) {
+    ok = false;
+    errors.push('Executive summary missing or too short (<80 chars).');
+  }
+  if (report && (!report.full_report || !Object.keys(report.full_report).length)) {
+    ok = false;
+    errors.push('Report has no full_report payload.');
+  }
   if (!ok) {
     if (!scoringDone) errors.push("Scoring stage has not completed; the report has no scored basis to assemble from.");
     if ((findingsCount ?? 0) === 0) errors.push("No canonical findings available for the report.");
@@ -600,11 +612,13 @@ export type JudgeVerdictResult = {
 
 export function isCitationExemptFinding(f: JudgeFinding): boolean {
   const mod = String(f.source_module ?? "");
-  if (CITATION_EXEMPT_SOURCE_MODULES.has(mod) || mod.startsWith("decision_core")) return true;
+  // Judicial propositions are evidence, including when an older producer
+  // incorrectly marked the decision core as a statutory-formula exemption.
+  if (mod === "decision_core" || mod.startsWith("decision_core:")) return false;
+  if (CITATION_EXEMPT_SOURCE_MODULES.has(mod)) return true;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const meta = ((f as any).metadata ?? {}) as Record<string, unknown>;
   if (
-    meta.mandatory_decision_core ||
     meta.citation_exemption_type === "EXEMPT_METADATA" ||
     meta.citation_exemption_type === "EXEMPT_STATUTORY_FORMULA"
   ) {
@@ -1205,4 +1219,5 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
 // exported under this name so regression tests can exercise the real
 // implementation directly (with a fake db) instead of re-deriving the logic
 // inline, without expanding the public API surface of this server module.
-export { agentOcr as __test__agentOcr, agentEntities as __test__agentEntities };
+export { agentOcr as __test__agentOcr, agentEntities as __test__agentEntities,
+  agentLegal as __test__agentLegal, agentReport as __test__agentReport };

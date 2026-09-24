@@ -348,7 +348,7 @@ function splitSentences(prose: string): string[] {
       out.push("");
       continue;
     }
-    const parts = block.match(/[^.!?]+[.!?]+|\S[^.!?]*$/g) ?? [block];
+    const parts = block.match(/[^.!?]+[.!?]+|[^.!?]+$/g) ?? [block];
     for (const p of parts) out.push(p);
     out.push("\n");
   }
@@ -412,7 +412,9 @@ export function enforceProse(
     }
     if (r.softened) softenedCount++;
     violations.push(...r.violations);
-    kept.push(r.text);
+    // enforceSentence trims its input. Restore the sentence boundary that
+    // trimming removed, including after numbered orders such as "ÚNICO.".
+    kept.push((s.match(/^\s*/)?.[0] ?? "") + r.text.trimStart());
   }
   let text = kept
     .join("")

@@ -26,6 +26,11 @@ const CITED = () =>
   finding({ source_document_id: "doc-1", source_quote: "a real verbatim quote" });
 
 describe("computeJudgeVerdict: citation-exempt source modules", () => {
+  it("evaluates sourced decision-core findings instead of declaring the agents output empty", () => {
+    const core = {...CITED(), source_module:"decision_core", metadata:{mandatory_decision_core:true,citation_exemption_type:"EXEMPT_STATUTORY_FORMULA"}};
+    expect(computeJudgeVerdict([core], "strict")).toMatchObject({verdict:"approve",totals:{findings:1,cited:1}});
+    expect(computeJudgeVerdict([{...core,source_document_id:null,source_quote:null}], "strict").verdict).toBe("reject");
+  });
   it("approves a fully-cited finding alongside an exempt, uncited absence marker (the exact ADR5829/2025 shape)", () => {
     const result = computeJudgeVerdict(
       [CITED(), finding({ source_module: "engine:procedural_compliance" })],
