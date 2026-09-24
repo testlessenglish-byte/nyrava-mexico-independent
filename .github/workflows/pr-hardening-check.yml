@@ -1,0 +1,94 @@
+name: Launch hardening checks
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run launch-hardening regressions
+        run: >-
+          bunx vitest run
+          src/lib/ai/__tests__/openrouter-analyzers.test.ts
+          src/lib/intelligence/__tests__/recommendation-grounding.test.ts
+          src/lib/intelligence/__tests__/verified-scoring-amparo.test.ts
+          src/lib/intelligence/__tests__/penal-legal-normalization.test.ts
+          src/lib/intelligence/__tests__/penal-procedural-identity.test.ts
+          src/lib/intelligence/__tests__/penal-timeline-event-type.test.ts
+          src/lib/intelligence/__tests__/penal-semantic-dedupe.test.ts
+          src/lib/intelligence/__tests__/penal-engine-prerequisites.test.ts
+          src/lib/intelligence/__tests__/penal-disposition.test.ts
+          src/lib/intelligence/__tests__/penal-risk-consistency.test.ts
+          src/lib/intelligence/__tests__/penal-qa-status.test.ts
+          src/lib/intelligence/__tests__/witness-person-safety.test.ts
+          src/lib/intelligence/__tests__/report-canonical-context-sanitization.test.ts
+          src/lib/intelligence/__tests__/mx_case_type/migratorio_profile_routing.test.ts
+          src/lib/intelligence/__tests__/finding-selection-quarantine.test.ts
+          src/lib/intelligence/__tests__/finding-dedupe.test.ts
+          src/lib/agents/__tests__/judge-citation-exemption.test.ts
+          src/lib/intelligence/__tests__/stale-data-guard-coverage.test.ts
+          src/lib/reporting/attorney-workproduct.test.ts
+          src/lib/reporting/objective.test.ts
+          src/lib/canonical/__tests__/rendered-report-release.test.ts
+          src/lib/social/__tests__/social-domain.test.ts
+          src/lib/social/__tests__/social-migrations.test.ts
+          src/lib/social/__tests__/social-access-scope-hardening.test.ts
+
+      - name: Lint changed social-care and billing code
+        run: >-
+          bunx eslint
+          src/lib/social.functions.ts
+          src/lib/social/types.ts
+          src/lib/social/__tests__/social-domain.test.ts
+          src/lib/social/__tests__/social-migrations.test.ts
+          src/lib/social/__tests__/social-access-scope-hardening.test.ts
+          src/routes/_authenticated/social.tsx
+          src/routes/_authenticated/account.tsx
+          src/lib/account.functions.ts
+          src/components/social/SocialCaseWorkspace.tsx
+          src/lib/billing.functions.ts
+          src/routes/_authenticated/admin.billing.tsx
+          src/routes/_authenticated/billing.tsx
+          --rule "prettier/prettier: off"
+          --rule "@typescript-eslint/no-explicit-any: off"
+
+      - name: Lint Penal legal-semantics changes
+        run: >-
+          bunx eslint
+          src/lib/intelligence/penal-legal-normalization.ts
+          src/lib/intelligence/penal-engine-prerequisites.ts
+          src/lib/intelligence/penal-disposition.server.ts
+          src/lib/intelligence/penal-qa-status.ts
+          src/lib/intelligence/case-classification.server.ts
+          src/lib/intelligence/canonical-timeline.server.ts
+          src/lib/intelligence/finding-dedupe.ts
+          src/lib/intelligence/scoring.server.ts
+          src/lib/pipeline.server.ts
+          src/lib/pipeline-runner.server.ts
+          src/lib/score-bands.ts
+          --rule "prettier/prettier: off"
+          --rule "@typescript-eslint/no-explicit-any: off"
+
+      - name: TypeScript integrity check
+        run: bunx tsc --noEmit
+
+      - name: Build production bundle
+        run: bun run build

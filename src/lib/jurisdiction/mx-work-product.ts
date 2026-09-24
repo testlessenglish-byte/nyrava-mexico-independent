@@ -1,0 +1,515 @@
+// =============================================================================
+// MEXICAN ATTORNEY WORK PRODUCT — drafting vehicles per procedural profile.
+//
+// Replaces the hardcoded U.S. binary (motion_to_suppress / motion_to_dismiss /
+// motion_for_summary_judgment / discovery_request / trial_outline /
+// settlement_demand) that runWorkProductEngine used for every case regardless
+// of materia. Those vehicles do not exist in Mexican procedure: there is no
+// summary judgment, no U.S.-style discovery request, and no "motion to
+// suppress" — the equivalent is the exclusión de prueba ilícita raised in the
+// audiencia intermedia under arts. 264 y 346 CNPP.
+//
+// Each entry is:
+//   id     — stable snake_case slug persisted on case_work_product.document_type
+//   es/en  — attorney-facing title
+//   basis  — the Mexican procedural provision the draft must be written under
+//   when   — the condition under which the engine should produce it
+//
+// `resumen_ejecutivo` is intentionally NOT the id of the factual summary:
+// `case_summary` is preserved because writer.server.ts and export.ts gate the
+// motions-suppressed PDF on exactly that value. Renaming it would change the
+// report contract, which this remediation must not do.
+//
+// Pure data module — no AI, no DB, safe on the client.
+// =============================================================================
+
+import type { MxPipelineProfile } from "@/lib/execution/mx-pipeline";
+
+export type MxWorkProductVehicle = {
+  id: string;
+  es: string;
+  en: string;
+  basis: string;
+  when: string;
+};
+
+/** Produced for every materia. `case_summary` id is a load-bearing contract. */
+const UNIVERSAL: MxWorkProductVehicle[] = [
+  {
+    id: "case_summary",
+    es: "Resumen ejecutivo del asunto",
+    en: "Executive case summary",
+    basis: "Constancias del expediente",
+    when: "siempre",
+  },
+  {
+    id: "ofrecimiento_de_pruebas",
+    es: "Escrito de ofrecimiento de pruebas",
+    en: "Evidence offering brief",
+    basis: "Reglas de ofrecimiento y admisión de pruebas de la materia",
+    when: "cuando existan pruebas documentales, periciales o testimoniales por ofrecer",
+  },
+  {
+    id: "alegatos",
+    es: "Alegatos",
+    en: "Closing argument brief",
+    basis: "Alegatos de la audiencia o por escrito, según la materia",
+    when: "cuando el expediente permita fijar la litis",
+  },
+  {
+    id: "plan_de_interrogatorio",
+    es: "Plan de interrogatorio y contrainterrogatorio",
+    en: "Direct and cross-examination plan",
+    basis: "Desahogo de la prueba testimonial/pericial en audiencia",
+    when: "cuando existan testigos o peritos identificados",
+  },
+  {
+    id: "preparacion_de_testigos",
+    es: "Preparación de testigos y peritos",
+    en: "Witness and expert preparation",
+    basis: "Desahogo de la prueba testimonial/pericial en audiencia",
+    when: "cuando existan testigos o peritos identificados",
+  },
+];
+
+const BY_PROFILE: Record<MxPipelineProfile, MxWorkProductVehicle[]> = {
+  migratorio: [
+    {
+      id: "memorandum_migratorio",
+      es: "Memorándum de estrategia migratoria mexicana",
+      en: "Mexican immigration strategy memorandum",
+      basis: "Ley de Migración, su Reglamento y fuente oficial vigente del trámite",
+      when: "cuando estén identificados el trámite, la autoridad y los hechos acreditados",
+    },
+    {
+      id: "promocion_autoridad_migratoria",
+      es: "Promoción ante la autoridad migratoria competente",
+      en: "Filing before the competent Mexican immigration authority",
+      basis: "Ley Federal de Procedimiento Administrativo y norma especial aplicable",
+      when: "cuando el expediente documente autoridad, número de trámite y petición concreta",
+    },
+    {
+      id: "solicitud_refugio_proteccion",
+      es: "Solicitud o escrito de seguimiento en materia de refugio o protección complementaria",
+      en: "Refugee or complementary-protection filing",
+      basis: "Ley sobre Refugiados, Protección Complementaria y Asilo Político",
+      when: "cuando el expediente contenga hechos y documentos pertinentes a COMAR",
+    },
+    {
+      id: "medio_defensa_migratorio",
+      es: "Proyecto de medio de defensa migratorio",
+      en: "Draft Mexican immigration remedy",
+      basis: "Ley especial, LFPCA y Ley de Amparo según el acto y la procedencia verificados",
+      when: "sólo cuando consten el acto, la notificación, la autoridad y la regla vigente aplicable",
+    },
+  ],
+  penal: [
+    {
+      id: "teoria_del_caso",
+      es: "Teoría del caso",
+      en: "Case theory",
+      basis: "Arts. 394-399 CNPP (alegatos de apertura y clausura)",
+      when: "siempre en materia penal",
+    },
+    {
+      id: "solicitud_exclusion_prueba_ilicita",
+      es: "Solicitud de exclusión de prueba ilícita",
+      en: "Motion to exclude unlawfully obtained evidence",
+      basis: "Arts. 264, 346 y 357 CNPP; art. 20 apartado A fr. IX CPEUM",
+      when: "cuando existan indicios de obtención de prueba con violación de derechos fundamentales",
+    },
+    {
+      id: "solicitud_de_no_vinculacion_a_proceso",
+      es: "Solicitud de no vinculación a proceso",
+      en: "Brief opposing bind-over to trial",
+      basis: "Arts. 313-319 CNPP",
+      when: "cuando el caso se encuentre antes del auto de vinculación",
+    },
+    {
+      id: "impugnacion_de_medidas_cautelares",
+      es: "Solicitud de revisión de medidas cautelares",
+      en: "Request to review precautionary measures",
+      basis: "Arts. 153-171 CNPP",
+      when: "cuando exista prisión preventiva u otra medida cautelar impuesta",
+    },
+    {
+      id: "solicitud_descubrimiento_probatorio",
+      es: "Solicitud de descubrimiento probatorio",
+      en: "Evidence disclosure request",
+      basis: "Arts. 337-340 CNPP",
+      when: "cuando falten registros de la carpeta de investigación",
+    },
+    {
+      id: "guion_de_audiencia_de_juicio_oral",
+      es: "Guion de audiencia de juicio oral",
+      en: "Oral trial hearing outline",
+      basis: "Arts. 391-399 CNPP",
+      when: "cuando exista auto de apertura a juicio oral",
+    },
+  ],
+  amparo: [
+    {
+      id: "demanda_de_amparo",
+      es: "Demanda de amparo",
+      en: "Amparo complaint",
+      basis: "Arts. 108 y 175 Ley de Amparo",
+      when: "cuando el acto reclamado esté identificado",
+    },
+    {
+      id: "incidente_de_suspension",
+      es: "Escrito de suspensión del acto reclamado",
+      en: "Stay of the challenged act",
+      basis: "Arts. 125-158 Ley de Amparo",
+      when: "cuando el acto reclamado sea de ejecución inminente o continuada",
+    },
+    {
+      id: "recurso_de_revision",
+      es: "Recurso de revisión",
+      en: "Revision appeal",
+      basis: "Arts. 81-96 Ley de Amparo",
+      when: "cuando exista resolución de primera instancia adversa",
+    },
+  ],
+  derechos_humanos: [
+    {
+      id: "demanda_de_amparo",
+      es: "Demanda de amparo (derechos fundamentales)",
+      en: "Amparo complaint (fundamental rights)",
+      basis: "Art. 1º CPEUM; arts. 108 y 175 Ley de Amparo",
+      when: "cuando exista acto de autoridad violatorio de derechos humanos",
+    },
+    {
+      id: "queja_ante_organismo_de_derechos_humanos",
+      es: "Queja ante organismo de derechos humanos (CNDH / comisión estatal)",
+      en: "Human-rights commission complaint",
+      basis: "Ley de la Comisión Nacional de los Derechos Humanos",
+      when: "cuando proceda la vía no jurisdiccional",
+    },
+  ],
+  // Controversia constitucional / acción de inconstitucionalidad / amparo
+  // en revisión — SCJN judicial review, not a CNDH complaint (see
+  // "derechos_humanos" above for that separate, non-jurisdictional vehicle).
+  constitucional: [
+    {
+      id: "demanda_controversia_constitucional",
+      es: "Demanda de controversia constitucional",
+      en: "Controversia constitucional complaint",
+      basis: "Art. 105 fr. I CPEUM; Ley Reglamentaria del Art. 105, Título II",
+      when: "cuando el promovente sea un órgano o poder legitimado y exista un acto o norma de otro órgano que invada su esfera de competencia",
+    },
+    {
+      id: "demanda_accion_inconstitucionalidad",
+      es: "Demanda de acción de inconstitucionalidad",
+      en: "Acción de inconstitucionalidad complaint",
+      basis: "Art. 105 fr. II CPEUM; Ley Reglamentaria del Art. 105, Título III",
+      when: "cuando el promovente esté legitimado conforme al artículo 105 fracción II y exista una norma general recién publicada por impugnar",
+    },
+    {
+      id: "recurso_de_revision_constitucional",
+      es: "Recurso de revisión (amparo directo o indirecto)",
+      en: "Constitutional review appeal (amparo directo/indirecto en revisión)",
+      basis: "Arts. 81 y 83 Ley de Amparo; Art. 107 fracciones VIII y IX CPEUM",
+      when: "cuando exista sentencia de amparo directo o indirecto y se plantee una cuestión propiamente constitucional",
+    },
+  ],
+  laboral: [
+    {
+      id: "demanda_laboral",
+      es: "Demanda laboral",
+      en: "Labor complaint",
+      basis: "Arts. 870-891 LFT (procedimiento ordinario ante tribunal laboral)",
+      when: "cuando la parte trabajadora sea la promovente",
+    },
+    {
+      id: "contestacion_demanda_laboral",
+      es: "Contestación de demanda y excepciones",
+      en: "Labor answer and defenses",
+      basis: "Arts. 873-878 LFT",
+      when: "cuando la parte patronal sea la representada",
+    },
+    {
+      id: "solicitud_de_conciliacion_prejudicial",
+      es: "Solicitud de conciliación prejudicial",
+      en: "Pre-trial conciliation request",
+      basis: "Arts. 684-A a 684-E LFT (CFCRL / centros locales)",
+      when: "cuando no exista constancia de conciliación prejudicial",
+    },
+    {
+      id: "propuesta_de_convenio_laboral",
+      es: "Propuesta de convenio laboral",
+      en: "Labor settlement proposal",
+      basis: "Art. 33 LFT (convenio ratificado)",
+      when: "cuando exista margen de arreglo cuantificado en el expediente",
+    },
+  ],
+  civil: [
+    {
+      id: "demanda_civil",
+      es: "Escrito inicial de demanda",
+      en: "Civil complaint",
+      basis: "Código Civil aplicable y código procesal civil de la entidad",
+      when: "cuando la parte representada sea actora",
+    },
+    {
+      id: "contestacion_de_demanda",
+      es: "Contestación de demanda y excepciones",
+      en: "Answer and defenses",
+      basis: "Excepciones dilatorias y perentorias del código procesal aplicable",
+      when: "cuando la parte representada sea demandada",
+    },
+    {
+      id: "propuesta_de_convenio_judicial",
+      es: "Propuesta de convenio judicial",
+      en: "Judicial settlement proposal",
+      basis: "Convenio judicial / mediación conforme a la legislación local",
+      when: "cuando existan cifras acreditadas en el expediente",
+    },
+  ],
+  familiar: [
+    {
+      id: "demanda_familiar",
+      es: "Escrito inicial en materia familiar",
+      en: "Family law petition",
+      basis: "Código Civil/Familiar y código procesal de la entidad",
+      when: "cuando la parte representada sea promovente",
+    },
+    {
+      id: "convenio_regulador",
+      es: "Propuesta de convenio regulador",
+      en: "Parenting and support agreement proposal",
+      basis: "Convenio regulador (guarda y custodia, alimentos, convivencias)",
+      when: "cuando existan menores o alimentos involucrados",
+    },
+    {
+      id: "solicitud_de_medidas_provisionales",
+      es: "Solicitud de medidas provisionales",
+      en: "Provisional measures request",
+      basis: "Medidas provisionales y órdenes de protección de la legislación local",
+      when: "cuando existan indicios de riesgo o desatención",
+    },
+  ],
+  mercantil: [
+    {
+      id: "demanda_mercantil",
+      es: "Demanda mercantil",
+      en: "Commercial complaint",
+      basis: "Código de Comercio (juicio ejecutivo u oral mercantil); LGTOC",
+      when: "cuando la parte representada sea actora",
+    },
+    {
+      id: "contestacion_y_excepciones_mercantiles",
+      es: "Contestación y excepciones",
+      en: "Commercial answer and defenses",
+      basis: "Arts. 1396-1414 Código de Comercio",
+      when: "cuando la parte representada sea demandada",
+    },
+    {
+      id: "objecion_de_documentos",
+      es: "Objeción de documentos y firma",
+      en: "Document and signature objection",
+      basis: "Arts. 1247-1250 Código de Comercio",
+      when: "cuando exista título de crédito o firma cuestionada",
+    },
+  ],
+  fiscal: [
+    {
+      id: "recurso_de_revocacion",
+      es: "Recurso de revocación",
+      en: "Administrative tax appeal",
+      basis: "Arts. 116-133 CFF",
+      when: "cuando exista resolución determinante de crédito fiscal",
+    },
+    {
+      id: "demanda_de_nulidad",
+      es: "Demanda de juicio contencioso administrativo (nulidad)",
+      en: "Tax nullity complaint before the TFJA",
+      basis: "Ley Federal de Procedimiento Contencioso Administrativo",
+      when: "cuando proceda la vía contenciosa ante el TFJA",
+    },
+    {
+      id: "solicitud_de_suspension_del_pae",
+      es: "Solicitud de suspensión del procedimiento administrativo de ejecución",
+      en: "Stay of tax enforcement proceedings",
+      basis: "Arts. 141 y 144 CFF",
+      when: "cuando exista embargo o requerimiento de pago",
+    },
+  ],
+  administrativo: [
+    {
+      id: "recurso_de_revision_administrativo",
+      es: "Recurso de revisión administrativo",
+      en: "Administrative revision appeal",
+      basis: "Arts. 83-96 Ley Federal de Procedimiento Administrativo",
+      when: "cuando exista resolución administrativa impugnable en sede administrativa",
+    },
+    {
+      id: "demanda_de_nulidad",
+      es: "Demanda de juicio de nulidad",
+      en: "Nullity complaint",
+      basis: "Ley Federal de Procedimiento Contencioso Administrativo",
+      when: "cuando proceda la vía contenciosa administrativa",
+    },
+    {
+      id: "solicitud_de_suspension_del_acto",
+      es: "Solicitud de suspensión del acto impugnado",
+      en: "Stay of the challenged administrative act",
+      basis: "Arts. 24-28 LFPCA",
+      when: "cuando el acto sea de ejecución inminente",
+    },
+  ],
+  apelacion: [
+    {
+      id: "escrito_de_agravios",
+      es: "Escrito de expresión de agravios",
+      en: "Statement of grievances on appeal",
+      basis: "Recurso de apelación conforme al código procesal aplicable",
+      when: "siempre en segunda instancia",
+    },
+  ],
+  inmobiliario: [
+    {
+      id: "memorandum_de_cierre",
+      es: "Memorándum de cierre de la operación",
+      en: "Closing memorandum",
+      basis: "Escritura pública, RPP y obligaciones fiscales de la operación",
+      when: "siempre en operaciones inmobiliarias",
+    },
+    {
+      id: "carta_de_requerimiento_documental",
+      es: "Carta de requerimiento documental a la contraparte o autoridad",
+      en: "Document request letter to counterparty or authority",
+      basis: "Due diligence documental (RPP, catastro, tesorería, notaría)",
+      when: "cuando falten constancias del expediente de cierre",
+    },
+  ],
+  agrario: [
+    {
+      id: "demanda_agraria",
+      es: "Demanda agraria",
+      en: "Agrarian complaint",
+      basis: "Ley Agraria Art. 170",
+      when: "al iniciar el juicio agrario",
+    },
+    {
+      id: "solicitud_certificado_ran",
+      es: "Solicitud de certificado o constancia al Registro Agrario Nacional",
+      en: "Request for a RAN certificate or record",
+      basis: "Reglamento Interior del Registro Agrario Nacional",
+      when: "cuando la titularidad parcelaria o de derechos agrarios no esté documentada en el expediente",
+    },
+    {
+      id: "escrito_impugnacion_asamblea",
+      es: "Escrito de impugnación de resolución de asamblea ejidal",
+      en: "Challenge to an ejido-assembly resolution",
+      basis: "Ley Agraria Art. 23-28",
+      when: "cuando la asamblea que resolvió el asunto presente un defecto de quórum, competencia o formalidad",
+    },
+    {
+      id: "demanda_de_restitucion_de_tierras",
+      es: "Demanda de restitución de tierras",
+      en: "Land-restitution complaint",
+      basis: "Ley Agraria Art. 18, 48-49",
+      when: "cuando exista despojo o privación ilegal de la posesión o titularidad de tierras",
+    },
+  ],
+  electoral: [
+    {
+      id: "juicio_de_inconformidad",
+      es: "Juicio de inconformidad",
+      en: "Electoral non-conformity complaint",
+      basis: "LGSMIME Art. 49-64",
+      when: "para impugnar resultados de cómputo o la validez de una elección",
+    },
+    {
+      id: "juicio_para_la_proteccion_de_derechos_politico_electorales",
+      es: "Juicio para la protección de los derechos político-electorales del ciudadano",
+      en: "Citizen political-electoral rights protection complaint",
+      basis: "LGSMIME Art. 79-85",
+      when: "cuando el afectado sea la persona ciudadana directamente en sus derechos político-electorales",
+    },
+    {
+      id: "queja_ante_el_ine",
+      es: "Queja ante el INE (procedimiento sancionador)",
+      en: "Complaint before the INE (sanctioning procedure)",
+      basis: "LGIPE",
+      when: "cuando exista una infracción a la normativa electoral por un sujeto obligado",
+    },
+  ],
+  ambiental: [
+    {
+      id: "denuncia_popular_ambiental",
+      es: "Denuncia popular ambiental",
+      en: "Environmental citizen complaint",
+      basis: "LGEEPA Art. 189",
+      when: "cuando cualquier habitante de la comunidad afectada denuncie un hecho, acto u omisión que produzca desequilibrio ecológico o daño ambiental",
+    },
+    {
+      id: "recurso_de_revision_ambiental",
+      es: "Recurso de revisión ambiental",
+      en: "Environmental administrative review",
+      basis: "LGEEPA",
+      when: "para impugnar un acto de PROFEPA/ASEA/CONAGUA ante la propia autoridad",
+    },
+    {
+      id: "demanda_juicio_de_nulidad_ambiental",
+      es: "Demanda de juicio de nulidad ambiental",
+      en: "Environmental nullity-action complaint",
+      basis: "Ley Federal de Procedimiento Contencioso Administrativo",
+      when: "para impugnar la resolución definitiva de PROFEPA/ASEA/CONAGUA ante el TFJA",
+    },
+  ],
+  responsabilidad_medica: [
+    {
+      id: "demanda_resp_civil_medica",
+      es: "Demanda de responsabilidad civil por negligencia médica",
+      en: "Medical malpractice civil complaint",
+      basis: "Código Civil aplicable (responsabilidad civil / daño moral) y código procesal civil de la entidad",
+      when: "cuando la parte representada sea la parte actora (paciente o derechohabientes)",
+    },
+    {
+      id: "contestacion_resp_civil_medica",
+      es: "Contestación de demanda y excepciones",
+      en: "Answer and defenses",
+      basis: "Excepciones dilatorias y perentorias del código procesal civil aplicable",
+      when: "cuando la parte representada sea la parte demandada (médico o institución de salud)",
+    },
+    {
+      id: "oferta_pericial_medica",
+      es: "Oferta de prueba pericial médica",
+      en: "Medical expert-evidence offer",
+      basis: "CNPCyF Art. 341-360",
+      when: "cuando se requiera acreditar o controvertir el estándar de cuidado (lex artis) o el nexo causal",
+    },
+    {
+      id: "solicitud_arbitraje_medico",
+      es: "Solicitud de queja o arbitraje médico ante CONAMED/CAMEC",
+      en: "Medical-arbitration complaint (CONAMED/CAMEC)",
+      basis: "Reglamento de Procedimientos para la Atención de Quejas Médicas CONAMED",
+      when: "cuando exista una vía alterna de arbitraje médico no vinculante disponible antes de o junto con la vía civil",
+    },
+  ],
+};
+
+export function mxWorkProductVehicles(profile: MxPipelineProfile): MxWorkProductVehicle[] {
+  return [...BY_PROFILE[profile], ...UNIVERSAL];
+}
+
+/** JSON-schema enum string for the AI prompt, e.g. `"a"|"b"|"c"`. */
+export function mxWorkProductEnum(profile: MxPipelineProfile): string {
+  return mxWorkProductVehicles(profile)
+    .map((v) => `"${v.id}"`)
+    .join("|");
+}
+
+/** Human-readable catalogue injected into the prompt, with legal basis. */
+export function mxWorkProductGuide(profile: MxPipelineProfile, locale: "es" | "en"): string {
+  return mxWorkProductVehicles(profile)
+    .map((v) => `- ${v.id} — ${locale === "en" ? v.en : v.es} (${v.basis}); genera si: ${v.when}`)
+    .join("\n");
+}
+
+/** True when the slug is a valid drafting vehicle for the profile. */
+export function isMxWorkProductAllowed(profile: MxPipelineProfile, id: string | null | undefined): boolean {
+  if (!id) return false;
+  return mxWorkProductVehicles(profile).some((v) => v.id === id);
+}

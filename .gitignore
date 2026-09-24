@@ -1,0 +1,67 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+.output
+.vinxi
+.tanstack/**
+.nitro
+*.local
+
+# Wrangler / Cloudflare
+.wrangler/
+.dev.vars
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Environment files — never commit secrets
+.env
+.env.local
+.env.*.local
+.env.development
+.env.development.local
+.env.production
+.env.production.local
+.env.test
+.env.staging
+*.env
+!.env.example
+.dev.vars.*
+secrets.json
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Local workspace state, generated reports and diagnostic scratch files
+/.workspace/
+/.lovable/
+/Sample_*.pdf
+/rep-es.pdf
+/test*.txt
+/typecheck*.txt
+/check-case.ts
+/check-db.ts
+/memo_dump.ts
+/original_audit.ts
+/fix3.js
+/fix4.js
+/fix_test.js
+/test.js

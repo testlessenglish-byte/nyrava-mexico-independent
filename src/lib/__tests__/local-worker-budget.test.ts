@@ -1,0 +1,7 @@
+import {afterEach, describe, expect, it, vi} from 'vitest';
+afterEach(()=>{vi.unstubAllEnvs();vi.resetModules();});
+describe('local worker execution budgets',()=>{
+ it('keeps original defaults without local configuration',async()=>{vi.stubEnv('PIPELINE_INVOCATION_BUDGET_MS','');vi.stubEnv('PIPELINE_AI_CALL_TIMEOUT_MS','');vi.stubEnv('PIPELINE_STAGE_BUDGET_MS','');vi.resetModules();const m=await import('../pipeline-checkpoint.server');expect(m.WORKER_INVOCATION_BUDGET_MS).toBe(42000);expect(m.MAX_AI_CALL_TIMEOUT_MS).toBe(33000);expect(m.budgetFor('agents')).toBe(45000);});
+ it('caps local budgets below the lease and rejects invalid configuration',async()=>{vi.stubEnv('PIPELINE_INVOCATION_BUDGET_MS','999999');vi.stubEnv('PIPELINE_AI_CALL_TIMEOUT_MS','NaN');vi.stubEnv('PIPELINE_STAGE_BUDGET_MS','999999');vi.resetModules();const m=await import('../pipeline-checkpoint.server');expect(m.WORKER_INVOCATION_BUDGET_MS).toBe(150000);expect(m.MAX_AI_CALL_TIMEOUT_MS).toBe(33000);expect(m.budgetFor('agents')).toBe(150000);});
+ it('gives local AI calls time while respecting the active deadline',async()=>{vi.stubEnv('PIPELINE_INVOCATION_BUDGET_MS','120000');vi.stubEnv('PIPELINE_AI_CALL_TIMEOUT_MS','60000');vi.stubEnv('PIPELINE_STAGE_BUDGET_MS','100000');vi.resetModules();const m=await import('../pipeline-checkpoint.server');expect(m.budgetFor('agents')).toBe(100000);const timeout=m.withCheckpointScope({stage:'agents',deadlineAt:Date.now()+100000},()=>m.aiCallTimeoutForCheckpoint('probe'));expect(timeout).toBe(60000);});
+});

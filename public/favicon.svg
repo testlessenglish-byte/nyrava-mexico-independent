@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="10 10 22 20" fill="none">
+  <title>Nyrava</title>
+  <defs>
+    <linearGradient id="purple" x1="12" y1="12" x2="30" y2="28" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A78BFA"/>
+      <stop offset="1" stop-color="#5B21B6"/>
+    </linearGradient>
+  </defs>
+  <path d="M12 28V12h4.2l9.6 11.4V12H30v16h-4.2L16.2 16.6V28H12z" fill="url(#purple)"/>
+</svg>

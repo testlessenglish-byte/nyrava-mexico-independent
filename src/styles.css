@@ -1,0 +1,247 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Nyrava Intelligence — Design System
+ *
+ * Nyrava México: ivory surfaces, deep green actions, ink typography,
+ * and restrained soft-gold accents.
+ * All colors in hex/oklch.
+ *
+ * This is a NEW isolated project. Design tokens are ported from the
+ * Nyrava reference codebase; no runtime code, data, or infrastructure
+ * is shared with the production Nyrava platform.
+ */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ring-offset-background: var(--background);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-teal: var(--teal);
+  --color-amber: var(--amber);
+  --color-mx-flag: var(--mx-flag);
+  --color-cream: var(--cream);
+  --color-cream-foreground: var(--cream-foreground);
+  --color-linkedin: var(--linkedin);
+  --color-facebook: var(--facebook);
+  --color-twitter: var(--twitter);
+  --color-discord: var(--discord);
+  --color-social-foreground: var(--social-foreground);
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Cormorant Garamond", Georgia, ui-serif, serif;
+  --font-serif: "Cormorant Garamond", "Source Serif 4", ui-serif, Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+:root {
+  --radius: 0.75rem;
+
+  /* Ivory surface with a deep green brand accent */
+  --background: #FAF4EB;
+  --foreground: #15202E;
+
+  --card: #FFFFFF;
+  --card-foreground: #15202E;
+  --popover: #FFFFFF;
+  --popover-foreground: #15202E;
+
+  --primary: #132B21;
+  --primary-foreground: #FFFFFF;
+
+  --secondary: #EAE5D9;
+  --secondary-foreground: #132B21;
+  --muted: #F1EBDF;
+  --muted-foreground: #62685F;
+  /* Distinct from --primary on purpose: dozens of call sites across the
+     app use text-accent/border-accent/bg-accent directly as a second
+     saturated brand color (active pills, badges, icons), not just as the
+     shadcn subtle-hover tint — so this has to stay legible on its own,
+     not a pale background wash. */
+  --accent: #6E592F;
+  --accent-foreground: #FFFFFF;
+
+  --destructive: #DC2626;
+  --destructive-foreground: #FFFFFF;
+  --success: #0F9D63;
+  --success-foreground: #FFFFFF;
+  --warning: #D97706;
+  --warning-foreground: #FFFFFF;
+
+  --border: #DED4C2;
+  --input: #F1EBDF;
+  --ring: #132B21;
+
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #15202E;
+  --sidebar-primary: #132B21;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #EAE5D9;
+  --sidebar-accent-foreground: #132B21;
+  --sidebar-border: #DED4C2;
+  --sidebar-ring: #132B21;
+
+  /* Brand accents */
+  --teal: #355B49;
+  --amber: #D97706;
+  /* México accent — the flag green, restrained */
+  --mx-flag: oklch(0.55 0.14 145);
+
+  /* Warm white banner tone for marketing top-nav / light sections */
+  --cream: #FAF4EB;
+  --cream-foreground: #15202E;
+
+  /* Official social-network colors used by the public footer links */
+  --linkedin: #0A66C2;
+  --facebook: #0866FF;
+  --twitter: #000000;
+  --discord: #5865F2;
+  --social-foreground: #FFFFFF;
+
+  --gradient-primary: linear-gradient(92deg, #132B21 0%, #264A38 55%, #355B49 100%);
+  --gradient-panel: linear-gradient(180deg, #FFFFFF, #FAF4EB);
+  --gradient-page: radial-gradient(ellipse at top, rgba(216,200,170,0.16), transparent 55%), #FAF4EB;
+  --gradient-mx: linear-gradient(90deg, oklch(0.55 0.14 145 / 0.9), #132B21, oklch(0.55 0.14 145 / 0.9));
+
+  --shadow-glow-cyan: 0 0 24px rgba(19,43,33,0.22);
+  --shadow-panel: 0 10px 30px rgba(19,43,33,0.08), inset 0 1px 0 rgba(255,255,255,0.6);
+}
+
+@layer base {
+  * { border-color: var(--color-border); }
+  html, body { background-color: var(--background); }
+  body {
+    background: var(--gradient-page) fixed;
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+  h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: -0.015em; }
+  .font-editorial { font-family: var(--font-serif); font-style: italic; letter-spacing: -0.02em; }
+  .font-mono { font-family: var(--font-mono); }
+}
+
+@layer components {
+  .panel {
+    background: var(--gradient-panel);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-panel);
+  }
+  .panel-glow {
+    background: var(--gradient-panel);
+    border: 1px solid rgba(19,43,33,0.35);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-panel), var(--shadow-glow-cyan);
+  }
+  .stat-tile {
+    background: var(--gradient-panel);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+  }
+  .stat-tile:hover {
+    border-color: rgba(19,43,33,0.4);
+    box-shadow: var(--shadow-glow-cyan);
+    transform: translateY(-1px);
+  }
+  .text-gradient-primary {
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .text-gradient-mx {
+    background: var(--gradient-mx);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .tag-bracket::before { content: "[ "; color: var(--primary); }
+  .tag-bracket::after  { content: " ]"; color: var(--primary); }
+  .kbd {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--muted);
+    border: 1px solid var(--color-border);
+    color: var(--muted-foreground);
+  }
+  .divider-grid {
+    background-image:
+      linear-gradient(rgba(19,43,33,0.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(19,43,33,0.07) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+}
+
+@keyframes pulse-ring {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.04); }
+}
+.animate-pulse-ring { animation: pulse-ring 2.4s ease-in-out infinite; }
+
+@keyframes spin-slow { to { transform: rotate(360deg); } }
+.animate-spin-slow { animation: spin-slow 32s linear infinite; }
+
+@keyframes scan-line {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+.animate-scan { animation: scan-line 6s ease-in-out infinite; }
+
+.bg-input {
+  background-color: var(--input);
+}
+input.bg-input:focus, textarea.bg-input:focus, select.bg-input:focus {
+  background-color: #FFFFFF;
+}
+
+/* Approved Nyrava México artwork; text and actions remain accessible HTML. */
+.nyrava-hero { background: #FAF4EB url('/brand/hero-desktop.webp') center / cover no-repeat; min-height: 680px; }
+.nyrava-hero-copy { max-width: 680px; }
+.nyrava-hero-copy > p { color: #39473E; }
+.nyrava-plan-card { border-top: 5px solid #132B21; background: #FFFCF6; box-shadow: 0 12px 36px rgba(19,43,33,.05); }
+.nyrava-wordmark { font-family: Georgia, ui-serif, serif; font-weight: 400; letter-spacing: .16em; }
+::selection { background: #D8C8AA; color: #15202E; }
+@media (max-width: 700px) {
+  .nyrava-hero { background-image: linear-gradient(#FAF4EBB8, #FAF4EB70), url('/brand/hero-mobile.webp'); background-position: center top; min-height: 740px; }
+}

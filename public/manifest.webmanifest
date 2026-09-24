@@ -1,0 +1,25 @@
+{
+  "name": "Nyrava México",
+  "short_name": "Nyrava",
+  "description": "Inteligencia legal para México.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#FAF4EB",
+  "theme_color": "#132B21",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/brand/nyrava_n_192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/brand/nyrava_n_512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

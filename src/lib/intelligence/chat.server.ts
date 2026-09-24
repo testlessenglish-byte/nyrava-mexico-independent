@@ -1,0 +1,667 @@
+// Case AI Chat — Llama 4 Scout constrained to the case's intelligence.
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { mexicoLock, groundingContract, getReportLocale } from "@/lib/mexico-lock";
+import type { Database } from "@/integrations/supabase/types";
+import { callGroq } from "../groq.server";
+import { listFindings } from "./findings.server";
+
+type Db = SupabaseClient<Database>;
+
+// ---------------------------------------------------------------------------
+// Context cache.
+//
+// Previously, every single chat message re-fetched and re-serialized the
+// entire case intelligence bundle (findings, analysis, agent findings,
+// score, theories, opportunities, witnesses, trial prep, full document
+// list) from six parallel queries — tens of thousands of characters
+// re-tokenized on every turn of a conversation. litigation.server.ts solved
+// the equivalent problem with a SharedBrief cache; this applies the same
+// idea here, scoped to what's achievable without new infrastructure:
+//
+// - This is a process-local, in-memory, time-boxed cache (no new DB table,
+//   no Redis). It will NOT be shared across server instances, and it will
+//   NOT be invalidated the instant an intelligence engine reruns mid-chat —
+//   only after CONTEXT_CACHE_TTL_MS elapses. That's a real tradeoff, not a
+//   full fix: a genuinely consistent cross-instance cache, invalidated
+//   precisely on every engine write, would need a shared cache/DB signal,
+//   which is new infrastructure and intentionally not added here. This is
+//   the honest, code-only version of the fix.
+// ---------------------------------------------------------------------------
+const CONTEXT_CACHE_TTL_MS = 60_000;
+
+type ChatSections = {
+  docList: Array<{ filename: string; type: string | null; status: string | null; has_text: boolean; chars: number }>;
+  findings: Array<{
+    id: string;
+    category: string;
+    severity: string;
+    title: string;
+    description: string;
+    affected_party: string | null;
+  }>;
+  analysis: unknown;
+  agents: Array<{ agent_type: string | null; summary: string | null; findings: unknown }>;
+  score: unknown;
+  theories: Array<Record<string, unknown>>;
+  opportunities: Array<Record<string, unknown>>;
+  witnesses: Array<Record<string, unknown>>;
+  trial: unknown;
+  /** Goal-first block from the current report (question + direct answer). */
+  objective: unknown;
+  /** Latest "what changed" diff so the report reads as a living document. */
+  changeLog: unknown;
+};
+
+const sectionsCache = new Map<string, { builtAt: number; sections: ChatSections; corpus: string }>();
+// Backward-compat alias so any external references to the old name still resolve.
+const contextCache = sectionsCache;
+
+// Overall character budget for the assembled context string.
+//
+// This is sized deliberately small. The AI router refuses to send a prompt
+// to a provider whose input budget it would blow (Groq = 6,000 tokens), and
+// a chat prompt is system instruction + context + recent history. At the old
+// 100,000-char ceiling every single Talk-to-Case question was over budget,
+// so Groq was skipped 100% of the time and the question fell straight
+// through to fallback providers — the reason chat produced no answer at all
+// whenever those were rate-limited. 14,000 chars (~3.5k tokens) leaves room
+// for the ~3k-char system prompt and the history tail inside Groq's window,
+// so the user's own Groq keys can actually serve chat. Per-question
+// relevance ranking below decides WHAT survives this budget.
+const MAX_TOTAL_CONTEXT_CHARS = 14_000;
+
+// Recent-conversation tail sent with each question, in characters.
+const MAX_HISTORY_CHARS = 4_000;
+
+async function fetchChatSections(db: Db, caseId: string): Promise<{ sections: ChatSections; corpus: string }> {
+  const [findings, analysis, agents, score, theories, opps, witnesses, trial, docs, reportRow] = await Promise.all([
+    listFindings(db, caseId),
+    db.from("analyses").select("*").eq("case_id", caseId).maybeSingle(),
+    db.from("agent_findings").select("agent_type,summary,findings").eq("case_id", caseId),
+    db.from("case_scores").select("*").eq("case_id", caseId).maybeSingle(),
+    db.from("case_theories").select("*").eq("case_id", caseId),
+    db.from("case_opportunities").select("*").eq("case_id", caseId),
+    db.from("case_witnesses").select("*").eq("case_id", caseId),
+    db.from("case_trial_prep").select("*").eq("case_id", caseId).maybeSingle(),
+    db
+      .from("documents")
+      .select("filename,mime_type,status,size_bytes,extracted_text")
+      .eq("case_id", caseId)
+      .order("created_at", { ascending: true }),
+    db.from("reports").select("full_report,change_log,version").eq("case_id", caseId).maybeSingle(),
+  ]);
+
+  const docList = (docs.data ?? []).map((d) => ({
+    filename: d.filename,
+    type: d.mime_type,
+    status: d.status,
+    has_text: !!(d.extracted_text && d.extracted_text.length > 50),
+    chars: d.extracted_text?.length ?? 0,
+  }));
+
+  // Corpus text for grounding checks — reuses the same document rows already
+  // fetched for docList instead of an extra query.
+  const corpus = (docs.data ?? [])
+    .filter((d) => d.status === "extracted")
+    .map((d, i) => `=== DOC ${i + 1}: ${d.filename} ===\n${(d.extracted_text ?? "").slice(0, 12000)}`)
+    .join("\n\n")
+    .slice(0, 120_000);
+
+  const sections: ChatSections = {
+    docList,
+    findings: findings.map((f) => ({
+      id: f.id,
+      category: f.category,
+      severity: f.severity,
+      title: f.title,
+      description: f.description.slice(0, 300),
+      affected_party: f.affected_party,
+    })),
+    analysis: analysis.data,
+    agents: (agents.data ?? []) as ChatSections["agents"],
+    score: score.data,
+    theories: (theories.data ?? []) as Array<Record<string, unknown>>,
+    opportunities: (opps.data ?? []) as Array<Record<string, unknown>>,
+    witnesses: (witnesses.data ?? []) as Array<Record<string, unknown>>,
+    trial: trial.data,
+    objective:
+      ((reportRow.data?.full_report as Record<string, unknown> | null) ?? {})?.objective ?? null,
+    changeLog: reportRow.data?.change_log ?? null,
+  };
+
+  return { sections, corpus };
+}
+
+// ---------------------------------------------------------------------------
+// Question-relevance ranking.
+//
+// Previously every section was JSON.stringify'd in a fixed order and the
+// WHOLE assembled string was slice(0, MAX_TOTAL_CONTEXT_CHARS) — a raw tail
+// cut with no regard for relevance. On a data-heavy case (e.g. many
+// witnesses + a large trial-prep block) that meant WITNESSES/TRIAL PREP
+// could be silently dropped in their entirety just because they were
+// serialized last, even when the attorney's question was specifically about
+// a witness. This section reorders each list's ITEMS (not the section
+// order itself, which stays stable for readability) by lexical overlap with
+// the current question before truncation, so truncation drops the
+// least-relevant items within a section first instead of an arbitrary tail.
+// This is deliberately NOT semantic/embedding search — see the audit's
+// grounding-vs-retrieval distinction — just cheap token-overlap re-ranking
+// ahead of an existing character budget.
+// ---------------------------------------------------------------------------
+const STOPWORDS = new Set([
+  "the",
+  "a",
+  "an",
+  "and",
+  "or",
+  "of",
+  "to",
+  "in",
+  "on",
+  "for",
+  "by",
+  "with",
+  "from",
+  "that",
+  "this",
+  "is",
+  "are",
+  "was",
+  "were",
+  "be",
+  "been",
+  "as",
+  "at",
+  "it",
+  "what",
+  "which",
+  "who",
+  "whom",
+  "does",
+  "do",
+  "did",
+  "my",
+  "our",
+  "we",
+  "case",
+  "please",
+  "tell",
+  "me",
+  "about",
+]);
+
+function questionTokens(question: string): Set<string> {
+  return new Set(
+    question
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((t) => t.length >= 3 && !STOPWORDS.has(t)),
+  );
+}
+
+function relevanceScore(text: string, qTokens: Set<string>): number {
+  if (qTokens.size === 0) return 0;
+  const hay = text.toLowerCase();
+  let hits = 0;
+  for (const t of qTokens) if (hay.includes(t)) hits += 1;
+  return hits;
+}
+
+/** Stable-sorts items by relevance to the question, descending. Ties (including
+ *  the common "no keyword overlap at all" case) preserve original order, so
+ *  behavior degrades gracefully to today's ordering for generic questions
+ *  like "Summarize this case." */
+function rankByQuestion<T>(items: T[], question: string, textOf: (item: T) => string): T[] {
+  const qTokens = questionTokens(question);
+  if (qTokens.size === 0) return items;
+  return items
+    .map((item, idx) => ({ item, idx, score: relevanceScore(textOf(item), qTokens) }))
+    .sort((a, b) => b.score - a.score || a.idx - b.idx)
+    .map((x) => x.item);
+}
+
+/** Assembles the final prompt-ready context string for a specific question.
+ *  Cheap and synchronous over already-fetched/cached sections — safe to call
+ *  on every chat turn without hitting the DB again. */
+function assembleChatContext(sections: ChatSections, question: string): string {
+  const findings = rankByQuestion(sections.findings, question, (f) => `${f.title} ${f.description} ${f.category}`);
+  const theories = rankByQuestion(sections.theories, question, (t) => JSON.stringify(t));
+  const opportunities = rankByQuestion(sections.opportunities, question, (o) => JSON.stringify(o));
+  const witnesses = rankByQuestion(sections.witnesses, question, (w) => JSON.stringify(w));
+  const agents = rankByQuestion(sections.agents, question, (a) => `${a.agent_type ?? ""} ${a.summary ?? ""}`);
+
+  // Per-section ceilings are proportional to MAX_TOTAL_CONTEXT_CHARS so no
+  // single section can eat the whole budget and starve the rest before the
+  // final combined cap even applies. Items inside each section are already
+  // ordered most-relevant-first, so a ceiling drops the least relevant items.
+  let ctx = `
+CASE OBJECTIVE (the attorney's primary question and the report's current direct answer):
+${JSON.stringify(sections.objective).slice(0, 1200)}
+
+LAST REPORT REVISION (what changed and why — treat the report as a living document):
+${JSON.stringify(sections.changeLog).slice(0, 800)}
+
+EVIDENCE IN CASE FILE (${sections.docList.length} documents):
+${JSON.stringify(sections.docList).slice(0, 1500)}
+
+FINDINGS (${findings.length} total, most relevant to this question first):
+${JSON.stringify(findings).slice(0, 4500)}
+
+ANALYSIS:
+${JSON.stringify(sections.analysis).slice(0, 2500)}
+
+AGENT FINDINGS (most relevant first):
+${JSON.stringify(agents).slice(0, 1500)}
+
+SCORE:
+${JSON.stringify(sections.score).slice(0, 800)}
+
+THEORIES (most relevant first):
+${JSON.stringify(theories).slice(0, 1200)}
+
+OPPORTUNITIES (most relevant first):
+${JSON.stringify(opportunities).slice(0, 1200)}
+
+WITNESSES (most relevant first):
+${JSON.stringify(witnesses).slice(0, 1200)}
+
+TRIAL PREP:
+${JSON.stringify(sections.trial).slice(0, 1200)}`;
+
+  if (ctx.length > MAX_TOTAL_CONTEXT_CHARS) {
+    ctx = `${ctx.slice(0, MAX_TOTAL_CONTEXT_CHARS)}\n\n[...case intelligence truncated to fit context budget...]`;
+  }
+
+  return ctx;
+}
+
+export async function buildChatContext(
+  db: Db,
+  caseId: string,
+  question = "",
+): Promise<{ ctx: string; corpus: string }> {
+  const cached = sectionsCache.get(caseId);
+  if (cached && Date.now() - cached.builtAt < CONTEXT_CACHE_TTL_MS) {
+    return { ctx: assembleChatContext(cached.sections, question), corpus: cached.corpus };
+  }
+
+  const { sections, corpus } = await fetchChatSections(db, caseId);
+  sectionsCache.set(caseId, { builtAt: Date.now(), sections, corpus });
+  return { ctx: assembleChatContext(sections, question), corpus };
+}
+
+/** Invalidate the cached context for a case immediately — call this from any
+ *  engine/write path that changes case intelligence. The cache is keyed only
+ *  by caseId (never by user), so one invalidation clears the context for
+ *  every attorney viewing that case — there is no per-user copy that could
+ *  independently go stale. */
+export function invalidateChatContext(caseId: string) {
+  contextCache.delete(caseId);
+}
+
+/**
+ * Invalidate + eagerly rebuild the chat context for a case, and emit a
+ * structured diagnostic log line.
+ *
+ * This is the single required call site for "an intelligence rerun just
+ * finished" — it replaces relying on CONTEXT_CACHE_TTL_MS expiry. It:
+ *
+ *   1. Drops the cached context/corpus for the case immediately (no TTL
+ *      wait), so any in-flight or subsequent Talk to Case request cannot
+ *      read pre-rerun data.
+ *   2. Immediately rebuilds the context from the just-written intelligence
+ *      and repopulates the cache, so the very next chat request is both
+ *      correct AND fast — it does not pay a rebuild latency itself.
+ *   3. Logs case ID, run ID, cleared/rebuilt flags, and duration, so a
+ *      stale-context incident is diagnosable from logs alone.
+ *
+ * Rebuild failures are logged and swallowed, not thrown: cache invalidation
+ * must never be able to fail a pipeline run. If the eager rebuild fails, the
+ * cache is still left empty (cleared), so the next real chat request falls
+ * through to a fresh, correct buildChatContext() call instead of serving
+ * anything stale.
+ */
+export async function invalidateAndRebuildChatContext(
+  db: Db,
+  caseId: string,
+  opts: { runId: string; source?: string },
+): Promise<{ cleared: boolean; rebuilt: boolean; durationMs: number }> {
+  const start = Date.now();
+  invalidateChatContext(caseId);
+
+  let rebuilt = false;
+  try {
+    await buildChatContext(db, caseId);
+    rebuilt = true;
+  } catch (err) {
+    console.warn(
+      `[talk-to-case] context rebuild failed after rerun (case=${caseId}, run=${opts.runId}):`,
+      err instanceof Error ? err.message : err,
+    );
+  }
+
+  const durationMs = Date.now() - start;
+  console.info(
+    JSON.stringify({
+      event: "pipeline_completed",
+      case_id: caseId,
+      run_id: opts.runId,
+      source: opts.source ?? "pipeline.finalize",
+      talk_to_case_cache: "invalidated",
+      context: rebuilt ? "rebuilt" : "rebuild_failed",
+      duration_ms: durationMs,
+      timestamp: new Date().toISOString(),
+    }),
+  );
+
+  return { cleared: true, rebuilt, durationMs };
+}
+
+// ---------------------------------------------------------------------------
+// Report-update signal.
+//
+// The model is asked to end its reply with a marker line when — and only
+// when — the exchange resolves something the report already flags (a
+// documented gap gets filled, a contradiction gets clarified, a fact the
+// report got wrong gets corrected). This is deliberately advisory, not
+// automatic: the caller (CaseChatPanel) shows a "Regenerate report" button
+// rather than triggering a rerun by itself. A full pipeline rerun is a real
+// multi-agent LLM job, so it stays an explicit, attorney-confirmed action.
+// ---------------------------------------------------------------------------
+const RERUN_MARKER_RE = /\n?\[\[RERUN_SUGGESTED:\s*([^\]]{1,220})\]\]\s*$/;
+
+function extractRerunSignal(text: string): { clean: string; suggestsRerun: boolean; reason: string | null } {
+  const trimmed = text.trimEnd();
+  const match = trimmed.match(RERUN_MARKER_RE);
+  if (!match) return { clean: text, suggestsRerun: false, reason: null };
+  return {
+    clean: trimmed.slice(0, match.index).trimEnd(),
+    suggestsRerun: true,
+    reason: match[1].trim(),
+  };
+}
+
+export async function answerCaseQuestion(args: {
+  db: Db;
+  caseId: string;
+  userId: string;
+  apiKey: string;
+  apiKeys?: string[];
+  question: string;
+  // The language the attorney currently has the UI toggled to. The chat is
+  // a live back-and-forth, not a fixed generated document — it should
+  // answer in whatever language the attorney is reading the screen in
+  // right now, not whatever cases.report_language happened to be set to
+  // when the report was generated. Falls back to that stored report
+  // locale only when the client didn't send one (older clients).
+  locale?: "es" | "en";
+  // Voice Companion turns are spoken aloud, not read. Long markdown answers
+  // are unusable as speech (dozens of TTS chunks, minutes of monologue), so
+  // voice mode asks for a short conversational reply with no markdown.
+  voiceMode?: boolean;
+}) {
+  const { db, caseId, userId, apiKey, apiKeys, question, voiceMode } = args;
+
+  // Persist user message
+  await db.from("case_chat_messages").insert({
+    case_id: caseId,
+    user_id: userId,
+    role: "user",
+    content: question,
+  });
+
+  const locale = args.locale ?? (await getReportLocale(db, caseId));
+
+  // Voice turns are spoken, short, and latency-critical: a 14k-char case
+  // context plus 12 turns of history is the single biggest contributor to
+  // the pause between the attorney's question and hearing an answer. Voice
+  // mode reads a trimmed context and a shorter history window, which cuts
+  // prompt size (and time-to-first-token) roughly in half without changing
+  // what the model can cite for a short conversational reply.
+  const [built, history, profileRes, settingsRes, lastTurnRes, verifiedProceedingType] =
+    await Promise.all([
+      buildChatContext(db, caseId, question),
+      db
+        .from("case_chat_messages")
+        .select("role,content")
+        .eq("case_id", caseId)
+        .order("created_at")
+        .limit(voiceMode ? 6 : 12),
+      db.from("profiles").select("display_name,full_name,email").eq("id", userId).maybeSingle(),
+      // The attorney-editable name lives in user_settings.display_name (Account
+      // page). profiles.display_name is auto-filled at signup from the email
+      // local-part, so it must never be used as a human name.
+      db.from("user_settings").select("display_name").eq("user_id", userId).maybeSingle(),
+      // Second-to-last message overall (the one before the question we just
+      // persisted) tells us whether this is a fresh session or a turn inside an
+      // ongoing exchange. That drives whether the assistant greets by name.
+      db
+        .from("case_chat_messages")
+        .select("created_at")
+        .eq("case_id", caseId)
+        .order("created_at", { ascending: false })
+        .range(1, 1)
+        .maybeSingle(),
+      // Source-confirmed proceeding type/caption (e.g. "AMPARO DIRECTO EN
+      // REVISIÓN") — the procedural type lock below. null whenever the
+      // corpus hasn't source-confirmed a specific proceeding.
+      import("./case-classification.server").then((m) =>
+        m.resolveVerifiedProceedingType(db, caseId),
+      ),
+    ]);
+  const corpus = built.corpus;
+  const ctx = voiceMode && built.ctx.length > 6_000 ? `${built.ctx.slice(0, 6_000)}\n\n[...contexto abreviado para voz...]` : built.ctx;
+
+  // Personalization: greet by the attorney's first name, and only at the start
+  // of a session (first message ever, or after a 45-minute gap) so it doesn't
+  // become repetitive inside an active conversation.
+  const profile = profileRes.data as
+    | { display_name?: string | null; full_name?: string | null; email?: string | null }
+    | null;
+  const emailLocal = (profile?.email ?? "").split("@")[0]?.trim().toLowerCase() ?? "";
+  // Never greet with an email address or an email-derived handle.
+  const isEmailish = (v: string) => {
+    const s = v.trim().toLowerCase();
+    return !s || s.includes("@") || (emailLocal.length > 0 && s === emailLocal);
+  };
+  const rawName = [
+    (settingsRes.data as { display_name?: string | null } | null)?.display_name ?? "",
+    profile?.full_name ?? "",
+    profile?.display_name ?? "",
+  ].find((v) => !isEmailish(v ?? "")) ?? "";
+  const firstName = rawName.trim().split(/\s+/)[0] ?? "";
+
+  const prevAt = (lastTurnRes.data as { created_at?: string } | null)?.created_at;
+  const isReturning = Boolean(prevAt);
+  const gapMs = prevAt ? Date.now() - new Date(prevAt).getTime() : Number.POSITIVE_INFINITY;
+  const isNewSession = gapMs > 45 * 60 * 1000;
+  // Mexico City is the operating jurisdiction — time of day is computed there.
+  const hourMx = Number(
+    new Intl.DateTimeFormat("en-US", { timeZone: "America/Mexico_City", hour: "numeric", hour12: false }).format(new Date()),
+  );
+  const partOfDay = hourMx < 12 ? (locale === "en" ? "morning" : "mañana") : hourMx < 19 ? (locale === "en" ? "afternoon" : "tarde") : locale === "en" ? "evening" : "noche";
+
+
+
+  // Provider failure must never leave the conversation silent. Before this,
+  // a rate-limited / unavailable provider chain threw out of this function
+  // after the user's message was already persisted — the UI showed the
+  // question with no reply and no explanation, which reads as "the chat box
+  // is broken". The failure is now written back as an assistant turn stating
+  // exactly what happened, so the attorney can see it and act on it.
+  const { getProceduralTypeLock } = await import("./case-analysis-mode");
+  const proceduralTypeLock = getProceduralTypeLock(verifiedProceedingType, locale) ?? "";
+
+  // Chat never asked for a completion cap, so every provider defaulted to
+  // reserving 4096 output tokens (see reservedOutputTokens in
+  // ai/router.server.ts) even though this system prompt already demands
+  // "Concise. Concrete." replies (~60 words for voice). That reservation is
+  // subtracted from Groq's fixed 5,500-token free-tier input budget BEFORE
+  // checking whether the prompt fits — so a normal case-context chat prompt
+  // (routinely 3-5k tokens) left Groq only ~1,400 usable input tokens and it
+  // was skipped as payload_too_large on effectively every real question,
+  // even with a valid, in-quota Groq key configured. A real conversational
+  // reply is nowhere near 4096 tokens; requesting a realistic cap here
+  // reclaims that headroom so Groq is an actual usable fallback, not a
+  // provider that's silently unusable for chat.
+  const chatMaxTokens = voiceMode ? 300 : 900;
+
+  let r: Awaited<ReturnType<typeof callGroq>>;
+  try {
+    r = await callGroq({
+      apiKey,
+      apiKeys,
+      userId,
+      temperature: 0.35,
+      maxTokens: chatMaxTokens,
+
+      systemInstruction: `${mexicoLock(locale)}
+
+${groundingContract(locale)}
+
+${proceduralTypeLock}
+
+You are Nyrava Intelligence — the embedded legal investigator and litigation strategist for this specific case. You are NOT a generic chatbot.
+
+RESPONSE LANGUAGE: ${locale === "en" ? "English" : "Spanish (México)"}. Always reply in this language, regardless of the language the user writes in.
+
+PERSONALITY — HOW YOU SOUND:
+You are the best senior legal analyst the attorney has ever worked with: friendly, professional, confident, calm, supportive, curious, encouraging and respectful. Warm like a trusted colleague, never cold, mechanical or robotic — and never casual, familiar in a personal way, flirtatious or unprofessional. Your warmth comes from being attentive and genuinely useful.
+- Speak in natural, conversational language. Say "I've finished reviewing the evidence — here are the issues that matter most" instead of "Analysis complete." Say "I'm going through the expediente now" instead of "Searching documents."
+- Acknowledge progress and completed work when it's real ("that closes the gap we flagged on the cadena de custodia").
+- Offer genuine, occasional encouragement when the attorney raises a good point ("good catch — that could become a strong argument"). Never flatter, never repeat praise every turn.
+- Reference earlier work in this conversation only when it's actually relevant ("last time we focused on the cadena de custodia — want to continue there?").
+- Use collaborative language: "let's", "we", "here's what I'd do next".
+- ADAPTIVE TONE, same personality throughout: brainstorming → conversational and collaborative; drafting escritos/promociones → precise and formal; analyzing evidence → analytical; explaining legal concepts → educational and patient.
+- Warmth never overrides accuracy. Never soften, invent or inflate a fact to sound encouraging.
+
+ATTORNEY: ${firstName ? `${firstName} (address them as "${firstName}")` : "name unknown — do not invent one; address them respectfully without a name"}. Local time of day in México: ${partOfDay}.
+GREETING: ${
+        isNewSession
+          ? `This is the start of a new session${isReturning ? " with a returning attorney" : ""}. Open with ONE short, warm, natural greeting${firstName ? ` that uses their first name` : ""}${isReturning ? ", acknowledging that it's good to see them again" : ""}, appropriate to the time of day, then go straight into answering. Vary the wording — never reuse the same greeting sentence twice.`
+          : `You are mid-conversation. Do NOT greet again and do NOT repeat their name at the start of every reply — just continue naturally.`
+      }
+
+CONVERSATIONAL TURNS: Greetings, small talk, meta-questions ("¿me escuchas?", "hello", "you're supposed to talk to me"), requests for clarification, or questions about your own capabilities are NOT case-fact questions. Answer them naturally, warmly and briefly, and offer a concrete next step about the case. NEVER answer these with "No consta en el expediente."
+
+
+ABSOLUTE RULES — VIOLATION IS A CRITICAL FAILURE:
+
+1. EVIDENCE-FIRST REASONING. Before answering, read every cited fact in the case intelligence and identify which party each fact supports. An unpaid invoice supports the party owed the money. A late-filed policial report undermines its author's credibility. A properly recorded declaración ministerial supports whoever it corroborates. NEVER state that a fact supports a party whose position it actually contradicts.
+
+2. INFERENCE DIRECTION CHECK. Every time you cite a document or finding to support a legal conclusion, ask yourself: "If I were the contraparte, would I cite this same fact for the OPPOSITE conclusion?" If yes, you have inverted the inference — rewrite it.
+
+3. PARTY AWARENESS. Identify the user's client from the case record using Mexican procedural roles (actor, demandado, imputado, víctima u ofendido, quejoso, tercero interesado). When asked "what is my strongest [claim/defense]?", every argument you list must be one the user's side would actually advance — not the contraparte's argument restated.
+
+4. NO GENERIC NEXT STEPS. Do not suggest actions the case has already completed. Check the document list, findings, witnesses, opportunities, and preparation state before recommending anything. If the etapa de investigación is closed, do not say "gather more datos de prueba" generically. Recommendations must be specific to what is actually missing in THIS case.
+
+5. CITATION HONESTY. Cite documents by filename and quote specific text. If the user asks about a specific fact, document, date, party or amount and the intelligence does not contain it, say "No consta en el expediente." — and then say what the expediente DOES contain on that topic, or what document would answer it. This phrase applies ONLY to factual case questions, never to conversation. Never fabricate.
+
+6. EVIDENCE GAPS. When the user's question reveals a true gap (no dictamen pericial, no comprobantes, no testimonial), list the SPECIFIC documents to upload and explain how each would strengthen the case. The user can drag files into this chat. NEVER request a document merely because it would appear on a generic amparo/criminal-procedure checklist — a document request must be legally relevant to the PROCEDURAL TYPE LOCK above (if one applies) AND to the specific question asked. Do not ask for an auto de vinculación a proceso, auto de apertura a juicio, carpeta de investigación, or a "declaración de interés jurídico" unless the confirmed proceeding type and the actual legal issue make that specific document relevant — identify the proceeding and the applicable rule FIRST, then name only the evidence actually needed to answer it. If the corpus is insufficient, say exactly what is missing for THIS procedural posture, not a generic document list.
+
+7. REPORT UPDATE SIGNAL. If — and only if — this exchange resolves something the report already flags as missing, wrong, or unresolved (a newly uploaded document fills a documented evidence gap; the attorney corrects a fact the report got wrong; a flagged contradiction gets clarified with new information) — end your reply with exactly one line, after everything else, in this exact format: [[RERUN_SUGGESTED: <one sentence, under 25 words, naming what changed>]]. Do not include this line for ordinary questions, hypotheticals, requests for explanation, or anything that doesn't change the underlying case record. Never mention this marker to the user or explain that you're adding it — it is stripped before display.
+
+8. GOAL-FIRST ANSWERS. CASE OBJECTIVE above states the attorney's primary question for this materia and the report's current direct answer. Lead with the answer to what they actually asked — never with a document summary — and keep it consistent with that block. When you give a recommendation, attach in one line each: why it matters, what it impacts, and the next concrete action, framed in the procedural vocabulary of this materia.
+
+9. LIVING REPORT. LAST REPORT REVISION above says what changed in the report and why. When it is relevant, tell the attorney which sections moved and which new evidence caused it. If the record cannot support an answer, say what is missing and which document would resolve it — never speculate.
+
+10. STATUTORY CITATION HONESTY. When you name a statute, code, or article (e.g. "Artículo 14 CPEUM", "Art. 80 Ley de Amparo"), you are making an attorney-facing legal claim, not a stylistic flourish — the same standard as Rule 5 applies, specifically to legal authority rather than case documents. Only present a citation's number and jurisdiction as confirmed, and only quote "exact text" from an article, when that text is verified against the case record or the validated legal-source corpus (never invent or reconstruct statutory wording from memory, even when you are confident of the general rule). If you cannot verify a citation this way, say so plainly — name the concept or the general area of law instead of a specific article number, and tell the attorney it needs independent verification. A wrong or invented article number is worse than no citation at all.
+
+11. LAW VERIFIED ≠ CASE FACT VERIFIED — NEVER COMBINE THEM. "Is the legal rule verified?" and "Is this particular case fact verified?" are two different questions with two different answers. Never blend them into one label like "LAW VERIFIED (the classification is correct under Art. X)" when what you actually mean is "the statute says X, but whether it applies HERE is unconfirmed." When a question touches both a legal rule and its application to this case, answer in three explicit, separate lines:
+   LAW VERIFIED: <what the statute/rule establishes, only if independently verified per Rule 10>
+   CASE FACT: <ESTABLISHED (with citation) | NOT ESTABLISHED IN CORPUS | RECORD CONFLICT (documents disagree — show both)>
+   CONCLUSION: <state plainly whether the rule applies to this case, or that it cannot be determined from the available record — never let the LAW VERIFIED line imply the case fact is also settled>
+   A verified statute never upgrades an unverified case fact, and an established case fact never excuses an unverified citation — each half needs its own, independent verification.
+
+12. A SINGLE DOCUMENT IS NOT THE WHOLE EXPEDIENTE. If the case file contains only one or few documents, do not imply the full expediente was reviewed or that its silence on a topic is conclusive — say the available record is limited to what was uploaded and name what additional documents would be needed to go further (see the corpus_completeness signal in EVIDENCE IN CASE FILE above when present).
+
+13. PROPOSING A CORRECTION TO A FINDING. When the attorney disputes a finding and you propose a corrected version (a "Correction"/revised finding in your reply), the same Rule 5 citation-honesty standard applies to the corrected claim itself, not just to the original one — the correction must rest on a quote describing a case-specific FACT, never on a quote of the applicable rule or general doctrine alone. Do NOT strengthen a finding that says something was NOT found/argued in the corpus into a stronger affirmative claim (e.g. turning "no explicit argumentation was identified" into "an implicit argument exists") unless you can quote a case-specific fact that plainly supports that stronger claim — a quote of what the law permits or requires a judge to do does not, by itself, establish that anything was actually argued or done in this case. If you cannot meet that bar, say so plainly instead of proposing a correction: name what would need to appear in the record to support one. Also: when you refer to a finding by its on-screen number ("Finding #2"), that numbering is for the attorney's convenience only — the underlying correction workflow resolves your proposal by matching its content, not the number, so describe the finding specifically enough (title/topic) that it is unambiguous which one you mean.
+
+
+
+${
+  voiceMode
+    ? `OUTPUT FORMAT — SPOKEN CONVERSATION: Your reply is read aloud by a voice. Plain speech only: NO markdown, no headings, no asterisks, no bullet lists, no numbered lists, no brackets, no filenames unless the attorney asked for one. Maximum 3 short sentences (about 60 words), plus the session greeting when one is due. Speak like a warm, focused colleague on a phone call: answer the question directly, then ask one short follow-up question to keep the conversation going. Never dump a case summary unless explicitly asked, and even then keep it to three sentences.`
+    : `OUTPUT FORMAT: Markdown. Concise. Concrete. Attorney-grade, but written as a colleague speaking to a colleague — a natural opening line before the substance, never a bare data dump. Use Nyrava Intelligence terminology (Evidence Intelligence, Witness Intelligence, Motion Intelligence) — never "AI" language. Write like a senior litigator, direct and confident, not hedged AI prose. FORBIDDEN filler/hedge phrases: "significantly compromised", "heavily relies on", "characterized by", "overall risk", "aims to", "focuses on", "it is important to note", "plays a crucial role", "in order to".`
+}`,
+
+      userContent: `CASE INTELLIGENCE:
+${ctx}
+
+CONVERSATION SO FAR:
+${(history.data ?? [])
+  .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
+  .join("\n\n")
+  .slice(voiceMode ? -1_500 : -MAX_HISTORY_CHARS)}
+
+CURRENT QUESTION:
+${question}`,
+    });
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    const isSpanish = locale !== "en";
+    const notice = isSpanish
+      ? `⚠️ **No fue posible generar la respuesta en este momento.**\n\nNingún proveedor de inteligencia configurado pudo atender la consulta (límite de cuota, clave inactiva o servicio no disponible).\n\nRevise **Proveedores de Inteligencia** para confirmar que al menos una clave activa tenga cuota disponible, y vuelva a enviar la pregunta.\n\nDetalle técnico: ${detail.slice(0, 400)}`
+      : `⚠️ **The answer could not be generated right now.**\n\nNo configured intelligence provider was able to serve this question (quota limit, inactive key, or service unavailable).\n\nOpen **Intelligence Providers** to confirm at least one active key has quota available, then send the question again.\n\nTechnical detail: ${detail.slice(0, 400)}`;
+
+    await db.from("case_chat_messages").insert({
+      case_id: caseId,
+      user_id: userId,
+      role: "assistant",
+      content: notice,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ...({ metadata: { error: true, provider_error: detail.slice(0, 800) } } as any),
+    });
+
+    await db.from("ai_usage").insert({
+      user_id: userId,
+      case_id: caseId,
+      model: "unavailable",
+      operation: "chat",
+      success: false,
+    });
+
+    return { answer: notice, suggestsRerun: false, rerunReason: null, error: true };
+  }
+
+  // Strip the report-update marker (rule 7 above) before anything else
+  // touches the text — grounding checks and the stored/displayed content
+  // should never see the raw marker.
+  const { clean: cleanText, suggestsRerun, reason: rerunReason } = extractRerunSignal(r.text);
+
+  // Citation honesty (rule 5 above) is enforced by prompt instruction only for
+  // chat. The previous post-hoc grounding check prepended an advisory banner to
+  // nearly every answer and cost extra work per reply, so it was removed.
+  const finalAnswer = cleanText;
+
+  const { getKeyIdByIndex } = await import("../ai-key-router.server");
+  const groqKeyId = getKeyIdByIndex(userId, "groq", r.keyIndex);
+  await db.from("ai_usage").insert({
+    user_id: userId,
+    case_id: caseId,
+    model: r.model,
+    operation: "chat",
+    provider_type: r.provider ?? null,
+    input_tokens: r.inputTokens ?? null,
+    output_tokens: r.outputTokens ?? null,
+    total_tokens: r.totalTokens ?? null,
+    latency_ms: r.latencyMs,
+    success: true,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ...((groqKeyId ? { groq_key_id: groqKeyId } : {}) as any),
+  });
+
+  await db.from("case_chat_messages").insert({
+    case_id: caseId,
+    user_id: userId,
+    role: "assistant",
+    content: finalAnswer,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ...({
+      metadata: suggestsRerun ? { suggests_rerun: true, rerun_reason: rerunReason } : {},
+    } as any),
+  });
+
+  return { answer: finalAnswer, suggestsRerun, rerunReason };
+}

@@ -1,0 +1,524 @@
+// Evidence-grounding & hallucination-prevention helpers.
+//
+// Every conclusion produced by an engine must be traceable to a verbatim
+// quote that exists in the case corpus. This module provides three things:
+//   1. `verifyQuote` — substring presence check (normalized) against corpus.
+//   2. `verifyEvidenceRefs` — filters an array of citation objects, dropping
+//      any that don't match the corpus.
+//   3. `groundFindings` — given LLM output items expected to carry
+//      `evidence_refs: [{ doc_n?, page?, quote, doc_id? }]`, return only the
+//      items with at least one verified quote, and attach a
+//      `provenance` block listing the verified evidence.
+//
+// Anything that fails verification is suppressed and replaced (at the caller's
+// option) with the explicit "Insufficient evidence to support this conclusion."
+// statement so the user sees the gap instead of an invented fact.
+
+import { locateQuoteInText, pageForOffset, citationHash, sha256Hex } from "./evidence-provenance.server";
+
+export type RawCitation = {
+  doc_n?: number;
+  page?: number;
+  quote?: string;
+  doc_id?: string | null;
+  document_id?: string | null;
+  label?: string;
+};
+
+export type VerifiedCitation = Omit<RawCitation, "doc_n"> & {
+  verified: true;
+  /** Corrected to the document the quote was actually located in — see
+   *  the doc comment at this field's assignment site in
+   *  verifyEvidenceRefs for why this can differ from the raw, possibly
+   *  null/wrong value an LLM originally supplied. */
+  doc_n: number | null;
+  document_id: string | null;
+  filename: string | null;
+  /** Character offsets into the source document's raw extracted text. Null when only a fuzzy/soft match was possible — see evidence-provenance.server.ts. */
+  start_offset: number | null;
+  end_offset: number | null;
+  /** 1-indexed page derived from start_offset; null alongside the offsets. */
+  page_located: number | null;
+  /** SHA-256 of the source document's full raw text, at citation time. */
+  document_hash: string | null;
+  /** 0-indexed position into the source document's page/chunk array that start_offset falls in. Null alongside start_offset. */
+  chunk_index: number | null;
+  /** SHA-256 of just the chunk (page) the citation's start_offset falls in — finer-grained than document_hash: pinpoints which chunk of a multi-page document changed, not just that the document changed somewhere. */
+  chunk_hash: string | null;
+  /** Deterministic fingerprint of (document_id, quote, offsets) — see citationHash(). */
+  citation_hash: string;
+  /** True when the citation's claimed doc_n/document_id did NOT contain the quote, but a DIFFERENT document in the corpus did — the citation was re-attributed to the document that actually contains it. */
+  source_reattributed: boolean;
+};
+
+export type GroundingCorpus = {
+  /** Full concatenated paginated corpus text, normalized. */
+  text: string;
+  /** Per-doc lookup so we can resolve document_id from doc_n. */
+  docs: Array<{
+    doc_n: number;
+    document_id: string;
+    filename: string;
+    pages: string[];
+    /** SHA-256 of this document's full raw extracted text — see evidence-provenance.server.ts. */
+    document_hash: string;
+    /** SHA-256 of each entry in `pages`, same index — the chunk-level hash a citation's chunk_hash resolves to. */
+    pageHashes: string[];
+  }>;
+  /** Page size buildGroundingCorpus paginated with — needed to convert a character offset into a page number. */
+  pageChars: number;
+};
+
+function norm(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // fold accents (José -> jose) before ASCII filtering below,
+    // otherwise Spanish-language quotes and corpus text diverge whenever an
+    // LLM-produced citation drops/retypes a diacritic that the source text
+    // carries (or vice versa), causing verifyQuoteDetailed() to reject a
+    // substantively correct quote — see docs/BASELINE.md incident notes.
+    .replace(/[\u2010-\u2015]/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201c\u201d]/g, '"')
+    .replace(/[^a-z0-9'"$.%/]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function buildGroundingCorpus(
+  docs: Array<{ id: string; filename: string; extracted_text: string | null }>,
+  pageChars = 3000,
+): GroundingCorpus {
+  const out: GroundingCorpus = { text: "", docs: [], pageChars };
+  const blocks: string[] = [];
+  docs.forEach((d, i) => {
+    const text = (d.extracted_text ?? "").replace(/\r\n/g, "\n");
+    const pages: string[] = [];
+    if (text) {
+      for (let k = 0; k < text.length; k += pageChars) pages.push(text.slice(k, k + pageChars));
+    }
+    out.docs.push({
+      doc_n: i + 1,
+      document_id: d.id,
+      filename: d.filename,
+      pages,
+      document_hash: sha256Hex(text),
+      // Precomputed once here (not per-citation) since many citations from
+      // the same document land on the same page — hashing the whole
+      // document's pages up front is cheap and avoids redundant work later.
+      pageHashes: pages.map((p) => sha256Hex(p)),
+    });
+    blocks.push(text);
+  });
+  out.text = norm(blocks.join("\n\n"));
+  return out;
+}
+
+export type QuoteVerification = {
+  verified: boolean;
+  reason: "verified_exact" | "verified_soft" | "missing_quote" | "quote_too_short" | "citation_mismatch";
+  score: number;
+};
+
+function meaningfulTokens(s: string): string[] {
+  const stop = new Set(["the", "and", "or", "to", "of", "a", "an", "in", "on", "for", "by", "with", "from", "that", "this", "is", "are", "was", "were", "be", "been", "as", "at", "it"]);
+  return norm(s)
+    .split(" ")
+    .map((t) => t.trim())
+    .filter((t) => t.length >= 3 && !stop.has(t));
+}
+
+export function verifyQuoteDetailed(quote: string, corpus: GroundingCorpus): QuoteVerification {
+  if (!quote) return { verified: false, reason: "missing_quote", score: 0 };
+  const q = norm(quote);
+  // Reject very short or obviously synthetic quotes.
+  if (q.length < 8) return { verified: false, reason: "quote_too_short", score: 0 };
+  // Substring check against the entire corpus.
+  if (corpus.text.includes(q)) return { verified: true, reason: "verified_exact", score: 1 };
+  // Allow soft match: 85% of the quote as a sliding window of length-12 shingle.
+  if (q.length >= 24) {
+    const shingleLen = 16;
+    const shingles: string[] = [];
+    for (let i = 0; i + shingleLen <= q.length; i += Math.max(4, Math.floor(shingleLen / 2))) {
+      shingles.push(q.slice(i, i + shingleLen));
+    }
+    if (shingles.length === 0) return { verified: false, reason: "citation_mismatch", score: 0 };
+    const hits = shingles.filter((s) => corpus.text.includes(s)).length;
+    const score = hits / shingles.length;
+    if (score >= 0.6) return { verified: true, reason: "verified_soft", score };
+  }
+  // Short legal/evidence phrases often vary only by punctuation/hyphenation
+  // ("owner requested changes" vs "owner-requested changes"). Keep this
+  // conservative: require at least three meaningful tokens and all of them in
+  // the corpus; this validates a cited passage exists without accepting generic
+  // one-word topic labels.
+  const tokens = meaningfulTokens(q);
+  if (tokens.length >= 3) {
+    const hits = tokens.filter((t) => corpus.text.includes(t)).length;
+    const score = hits / tokens.length;
+    if (score >= 0.9) return { verified: true, reason: "verified_soft", score };
+    return { verified: false, reason: "citation_mismatch", score };
+  }
+  return { verified: false, reason: "citation_mismatch", score: 0 };
+}
+
+/** Returns true if a verbatim or conservative soft match exists in the corpus. */
+export function verifyQuote(quote: string, corpus: GroundingCorpus): boolean {
+  return verifyQuoteDetailed(quote, corpus).verified;
+}
+
+/**
+ * Reconstruct a document's exact raw (unnormalized) text from its paginated
+ * chunks. buildGroundingCorpus slices with no separator between pages, so
+ * joining with "" losslessly recovers the original extracted_text.
+ */
+function rawDocText(doc: GroundingCorpus["docs"][number]): string {
+  return doc.pages.join("");
+}
+
+export function verifyEvidenceRefs(
+  refs: RawCitation[] | undefined,
+  corpus: GroundingCorpus,
+): VerifiedCitation[] {
+  if (!Array.isArray(refs)) return [];
+  const verified: VerifiedCitation[] = [];
+  for (const r of refs) {
+    if (!r || typeof r !== "object") continue;
+    const quote = typeof r.quote === "string" ? r.quote.trim() : "";
+    if (!quote) continue;
+    if (!verifyQuote(quote, corpus)) continue;
+
+    const docN = typeof r.doc_n === "number" ? r.doc_n : null;
+    const claimedDoc = docN ? corpus.docs.find((d) => d.doc_n === docN) : null;
+    const claimedId =
+      (r.document_id as string | undefined) ?? (r.doc_id as string | undefined) ?? claimedDoc?.document_id ?? null;
+
+    // Try to locate the quote in its claimed document first — this is the
+    // common, cheap case and avoids scanning the whole corpus when the LLM's
+    // attribution was correct (the usual outcome).
+    let locatedDoc = claimedDoc ?? null;
+    let loc = claimedDoc ? locateQuoteInText(quote, rawDocText(claimedDoc)) : null;
+    let sourceReattributed = false;
+
+    // Claimed document didn't actually contain it (wrong doc_n, or no doc_n
+    // supplied at all) — search every document in the corpus. If found
+    // elsewhere, the citation was mislabeled; correct it rather than keep
+    // the wrong attribution just because the LLM asserted it.
+    if (!loc) {
+      for (const d of corpus.docs) {
+        if (d === claimedDoc) continue;
+        const found = locateQuoteInText(quote, rawDocText(d));
+        if (found) {
+          locatedDoc = d;
+          loc = found;
+          sourceReattributed = claimedDoc != null || claimedId != null;
+          break;
+        }
+      }
+    }
+
+    // Token overlap is useful for relevance, never proof of a quotation.
+    // Only retain citations with a real contiguous source span.
+    if (!loc || !locatedDoc) continue;
+    const documentId = locatedDoc.document_id;
+    // Never fabricate a chunk hash for a span that isn't actually located —
+    // same "never fabricate precision" rule start_offset/end_offset follow.
+    const chunkIndex = loc ? Math.floor(loc.start / corpus.pageChars) : null;
+    const chunkHash =
+      loc && locatedDoc && chunkIndex !== null ? (locatedDoc.pageHashes[chunkIndex] ?? null) : null;
+    verified.push({
+      ...r,
+      quote: rawDocText(locatedDoc).slice(loc.start, loc.end),
+      verified: true,
+      // FIX (2026-08-18, ADR-5829/2025 second audit): document_id/filename
+      // below were already corrected to the document the quote was ACTUALLY
+      // located in (claimedDoc's doc_n can be wrong, or absent entirely —
+      // the `if (!loc)` re-attribution search above exists for exactly
+      // that) — but doc_n itself was left untouched from the raw spread,
+      // so a citation whose original doc_n was null/wrong stayed null/wrong
+      // in the rendered output even after successful re-attribution. Real
+      // case: citation "F2-3" verified and re-attributed correctly
+      // internally (document_id set), but rendered with an empty
+      // "Documento" column in the PDF's citation appendix because doc_n
+      // was never patched to match. Every renderer keys off doc_n
+      // (citeLabel, resolveDocTitle), not document_id, so this silently
+      // broke the exact information the appendix exists to provide.
+      doc_n: locatedDoc?.doc_n ?? docN ?? null,
+      document_id: documentId,
+      filename: locatedDoc?.filename ?? claimedDoc?.filename ?? null,
+      start_offset: loc?.start ?? null,
+      end_offset: loc?.end ?? null,
+      page_located: loc ? pageForOffset(loc.start, corpus.pageChars) : null,
+      document_hash: locatedDoc?.document_hash ?? null,
+      chunk_index: chunkIndex,
+      chunk_hash: chunkHash,
+      citation_hash: citationHash({ documentId, quote, start: loc?.start ?? null, end: loc?.end ?? null }),
+      source_reattributed: sourceReattributed,
+    });
+  }
+  return verified;
+}
+
+export type GroundableItem = Record<string, unknown> & {
+  evidence_refs?: RawCitation[];
+  citations?: RawCitation[];
+};
+
+export type GroundedItem<T extends GroundableItem> = T & {
+  evidence_refs: VerifiedCitation[];
+  provenance: {
+    verified_count: number;
+    sources: Array<{
+      document_id: string | null;
+      filename: string | null;
+      quote: string;
+      page?: number;
+      doc_n: number | null;
+      start_offset: number | null;
+      end_offset: number | null;
+      page_located: number | null;
+      document_hash: string | null;
+      chunk_index: number | null;
+      chunk_hash: string | null;
+      citation_hash: string;
+      source_reattributed: boolean;
+    }>;
+    confidence_adjusted: number;
+  };
+};
+
+/**
+ * Filter an array of LLM-produced items to those with at least one verified
+ * citation. Items that fail validation are dropped — the caller emits the
+ * explicit "Insufficient evidence" placeholder where appropriate.
+ *
+ * Confidence is rescaled by the share of citations that verified, so an item
+ * with 1 of 3 quotes confirmed comes back with ~1/3 of its self-reported
+ * confidence — never amplified above the input value.
+ */
+export function groundItems<T extends GroundableItem>(
+  items: T[] | undefined,
+  corpus: GroundingCorpus,
+  opts: { minVerified?: number; confidenceFloor?: number } = {},
+): GroundedItem<T>[] {
+  const minVerified = opts.minVerified ?? 1;
+  if (!Array.isArray(items)) return [];
+  const out: GroundedItem<T>[] = [];
+  for (const it of items) {
+    const raw = (it.evidence_refs ?? it.citations ?? []) as RawCitation[];
+    if (!Array.isArray(raw) || raw.length === 0) continue;
+    const verified = verifyEvidenceRefs(raw, corpus);
+    if (verified.length < minVerified) continue;
+    const conf = (it as unknown as { confidence?: unknown }).confidence;
+    const inputConfidence = typeof conf === "number" ? Math.max(0, Math.min(1, conf)) : 0.6;
+    const verifyRatio = verified.length / Math.max(1, raw.length);
+    const adjusted = Math.max(opts.confidenceFloor ?? 0.3, inputConfidence * verifyRatio);
+    out.push({
+      ...it,
+      evidence_refs: verified,
+      provenance: {
+        verified_count: verified.length,
+        sources: verified.map((v) => ({
+          document_id: v.document_id,
+          filename: v.filename,
+          quote: v.quote ?? "",
+          page: v.page,
+          doc_n: v.doc_n,
+          start_offset: v.start_offset,
+          end_offset: v.end_offset,
+          page_located: v.page_located,
+          document_hash: v.document_hash,
+          chunk_index: v.chunk_index,
+          chunk_hash: v.chunk_hash,
+          citation_hash: v.citation_hash,
+          source_reattributed: v.source_reattributed,
+        })),
+        confidence_adjusted: Number(adjusted.toFixed(2)),
+      },
+    });
+  }
+  return out;
+}
+
+export const INSUFFICIENT_EVIDENCE = "Insufficient evidence to support this conclusion.";
+
+// ---------------------------------------------------------------------------
+// Legal-authority citations (Amparo / constitutional / statutory / tesis).
+//
+// A reference to "CPEUM Art. 16" or "Tesis: 1a./J. 15/2019 (10a.)" is a
+// citation to public law, not a factual assertion about the case record. It
+// cannot be verified by verbatim substring matching against the evidentiary
+// corpus, because the text lives in the Constitution/SCJN registry, not in the
+// party's documents. Requiring a verbatim corpus match for those references
+// produced false "unverified" flags on Amparo and federal-administrative
+// matters and blocked the release gate.
+//
+// IMPORTANT: the exemption below is narrower than "the quote contains a
+// citation-shaped substring". A pattern-only check was tried first and
+// confirmed, by direct reproduction, to exempt fabricated factual claims
+// merely because they were phrased alongside a real (or even a fabricated)
+// article number — e.g. "Conforme al art. 16 constitucional, la audiencia se
+// celebró el 15 de marzo... testigo Juan Pérez confirmó..." would pass
+// ungrounded, because the string contains "art. 16". That defeats the
+// purpose of the hallucination gate for exactly the claims it exists to
+// catch. isLegalAuthorityCitation therefore only exempts a quote when it is
+// SUBSTANTIALLY JUST the citation — after stripping recognized citation
+// structure words, grammatical connectors, and the common words that appear
+// inside official Mexican legal-source names (so "Constitución Política de
+// los Estados Unidos Mexicanos" normalizes to ~nothing, the same as
+// "Artículo 16" does), at most 2 meaningful tokens may remain. A quote
+// carrying an independent factual assertion alongside a citation — dates,
+// names, events, outcomes — retains far more than that and is correctly
+// NOT exempted, still subject to real verbatim corpus verification.
+// ---------------------------------------------------------------------------
+
+const AUTHORITY_PATTERNS: RegExp[] = [
+  // Article references: "Art. 16", "Artículo 1o. constitucional", "arts. 14 y 16"
+  /\barts?\.?\s*\d+/i,
+  /\bart[íi]culos?\s+\d+/i,
+  // Tesis / jurisprudencia registry numbers
+  /\btesis\b/i,
+  /\bjurisprudencia\b/i,
+  /\b(?:1a|2a|P|PC)\.\s*\/\s*J\.\s*\d+\/\d{4}/i,
+  /\bregistro\s+(?:digital\s+)?\d{5,}/i,
+  // Official publications
+  /\bDOF\b/,
+  /\bSemanario\s+Judicial\b/i,
+];
+
+// Grammatical connectors, citation-structure words, and words that commonly
+// appear inside the full official names of Mexican legal sources — a
+// curated, bounded list, in keeping with this codebase's existing
+// convention of explicit Mexican-law-specific vocabulary (see
+// mx-pipeline.ts's MX_PARTY_ROLES) rather than a general heuristic.
+const CITATION_STOPWORDS = new Set([
+  "de", "del", "la", "las", "el", "los", "en", "y", "o", "u", "a", "al", "con", "por",
+  "para", "segun", "conforme", "respecto", "asi", "como", "que", "su", "sus",
+  "articulo", "articulos", "art", "arts", "fraccion", "fracciones", "apartado",
+  "apartados", "inciso", "incisos", "parrafo", "parrafos", "numeral", "numerales",
+  "tesis", "jurisprudencia", "registro", "digital", "semanario", "judicial",
+  "gaceta", "epoca", "sala", "pleno", "tomo",
+  "politica", "estados", "unidos", "mexicanos", "nacional", "nacionales",
+  "procedimientos", "procedimiento", "penales", "penal", "civiles", "civil",
+  "familiares", "familiar", "mercantil", "mercantiles", "laboral", "laborales",
+  "federal", "federales", "general", "generales", "humanos", "humano", "americana",
+  "americano", "sobre", "san", "jose", "codigo", "constitucion", "constitucional",
+  "ley", "amparo", "reglamento", "pacto", "otras",
+  "i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x", "xi", "xii", "xiii",
+  "xiv", "xv", "xvi", "xvii", "xviii", "xix", "xx", "xxi", "xxii", "xxiii", "xxiv", "xxv",
+]);
+
+function stripDiacritics(s: string): string {
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+/**
+ * True when a citation string is SUBSTANTIALLY JUST a reference to public
+ * legal authority (constitutional/statutory article, tesis, jurisprudencia,
+ * official gazette) — not a factual claim about the case that happens to
+ * mention one. See the module comment above for why this distinction is
+ * load-bearing, not cosmetic.
+ */
+export function isLegalAuthorityCitation(quote: string | null | undefined): boolean {
+  const q = (quote ?? "").trim();
+  if (q.length < 3) return false;
+  const hasAuthorityPattern = AUTHORITY_PATTERNS.some((rx) => rx.test(q));
+  if (!hasAuthorityPattern) return false;
+
+  const tokens = stripDiacritics(q.toLowerCase())
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+  const remaining = tokens.filter((t) => {
+    if (/^\d+$/.test(t)) return false; // bare numbers: article numbers, years
+    if (t.length < 3) return false;
+    return !CITATION_STOPWORDS.has(t);
+  });
+  // Almost nothing meaningful survives stripping citation vocabulary and
+  // connectors -> this quote IS the citation, nothing more.
+  return remaining.length <= 2;
+}
+
+// ---------------------------------------------------------------------------
+// Judicial-decision voice detection.
+//
+// FIX (Amparo Directo en Revisión 2239/2018): the witness_credibility agent
+// (pipeline.server.ts AGENTS) runs unconditionally on every case
+// (UNIVERSAL_FINDING_MODULES) with a source-type-blind prompt — it just
+// grounds "credibility" findings in a verbatim corpus quote, with no check
+// on WHAT KIND of document that quote came from. On a case with no actual
+// witness testimony in the corpus (a pure SCJN judicial-review record), it
+// quoted the court's OWN resolution language and analyzed it as if it were a
+// witness's statement, producing a "Testimonio de Testigo" finding out of a
+// judgment. Unlike isLegalAuthorityCitation above (a quote that is
+// SUBSTANTIALLY JUST a bare citation), a court speaking in its own
+// resolutional voice — "esta Primera Sala resuelve...", "por unanimidad de
+// votos", "SEGUNDO. Se sobresee..." — is a full sentence with real content,
+// so that narrower check doesn't catch it; this one is deliberately broader
+// and keyed to vocabulary a genuine witness/party statement would essentially
+// never use on its own behalf.
+// ---------------------------------------------------------------------------
+const JUDICIAL_VOICE_PATTERNS: RegExp[] = [
+  /\b(esta|la)\s+(primera|segunda)\s+sala\b/i,
+  /\bel\s+pleno\s+(de\s+la\s+)?(suprema\s+corte)?\b/i,
+  /\btribunal(?:es)?\s+colegiados?\s+de\s+circuito\b/i,
+  /\bsuprema\s+corte\s+de\s+justicia\s+de\s+la\s+naci[oó]n\b/i,
+  /\bscjn\b/i,
+  /\bministr[oa]\s+ponente\b/i,
+  /\bpor\s+unanimidad\s+de\s+votos\b/i,
+  /\bpor\s+mayor[ií]a\s+de\s+votos\b/i,
+  /\bse\s+resuelve\s*:/i,
+  /\bresuelve\s*:/i,
+  /\bconsiderando\b/i,
+  /\bse\s+(concede|niega)\s+el\s+amparo\b/i,
+  /\bse\s+sobresee\b/i,
+  /\bamparo\s+directo\s+en\s+revisi[oó]n\b/i,
+  /\brecurso\s+de\s+revisi[oó]n\b/i,
+  /\bengrose\b/i,
+];
+
+/**
+ * True when a quote reads as JUDICIAL DECISION or STATUTORY/CONSTITUTIONAL
+ * text — a court resolving a matter in its own institutional voice, or a
+ * bare legal-authority citation — rather than a first-person party or
+ * witness statement. Used to keep the witness_credibility agent from
+ * analyzing a judgment's own language as if it were testimony.
+ */
+export function isJudicialOrStatutoryText(quote: string | null | undefined): boolean {
+  const q = (quote ?? "").trim();
+  if (q.length < 3) return false;
+  return isLegalAuthorityCitation(q) || JUDICIAL_VOICE_PATTERNS.some((rx) => rx.test(q));
+}
+
+/**
+ * Drops any item whose EVERY evidence_refs quote is judicial-decision or
+ * statutory/constitutional text — a witness-credibility finding grounded
+ * entirely in the court's own resolution language, not a witness or party
+ * statement, is not witness testimony and must not be presented as such. An
+ * item with at least one genuinely non-judicial quote is kept (its other
+ * grounding is real testimony); only the fully-misattributed case is
+ * suppressed. Mirrors the existing convention of dropping ungroundable
+ * items outright (see groundItems above) rather than silently mislabeling.
+ */
+export function dropJudicialTextFindings<T extends { evidence_refs?: unknown }>(
+  items: T[],
+): { items: T[]; dropped: number } {
+  let dropped = 0;
+  const kept = items.filter((item) => {
+    const refs = Array.isArray(item.evidence_refs)
+      ? (item.evidence_refs as Array<{ quote?: unknown }>)
+      : [];
+    if (refs.length === 0) return true; // nothing to classify — leave to the existing grounding gate
+    const allJudicial = refs.every((r) =>
+      isJudicialOrStatutoryText(typeof r?.quote === "string" ? r.quote : null),
+    );
+    if (allJudicial) {
+      dropped += 1;
+      return false;
+    }
+    return true;
+  });
+  return { items: kept, dropped };
+}
