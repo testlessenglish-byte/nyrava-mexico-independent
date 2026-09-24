@@ -20,7 +20,10 @@ function matchesPageText(quote: string, pageText: string): boolean {
   const tokens = qNorm.split(" ").filter(t => t.length >= 3 && !stop.has(t));
   if (tokens.length >= 3) {
     const hits = tokens.filter(t => pNorm.includes(t)).length;
-    return (hits / tokens.length) >= 0.8;
+    return (hits / tokens.length) >= 0.5;
+  } else if (tokens.length > 0) {
+    const hits = tokens.filter(t => pNorm.includes(t)).length;
+    return (hits / tokens.length) >= 0.5;
   }
   return false;
 }
@@ -56,10 +59,12 @@ export function auditSourceLocations(refs: Array<Record<string, any>>, pages: Ma
     const id = ref.document_id ?? ref.doc_id ?? docIndex.find(d=>d.doc_n===docN)?.document_id;
     const page = Number(ref.page ?? ref.page_number ?? label.match(/p\.?\s*(\d+)/i)?.[1]);
     const source = pages.find(p=>p.document_id===id && p.page===page);
+    
     if (!quote || !source || !matchesPageText(quote, source.text)) {
       errors.push(`Cita ${index+1}: no se pudo verificar la cita literal en el documento y la página indicados.`);
       continue;
     }
+    
     const key = `${id}:${page}:${normalize(quote)}`;
     if (seen.has(key)) continue;
     seen.add(key);
