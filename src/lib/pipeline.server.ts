@@ -8204,9 +8204,8 @@ ${paginationTail}`;
     source_refs: relocateSourceRefs(item.source_refs, reportSourcePages, docIndex),
   }));
   mandatoryDecisionCore = repairedMandatoryDecisionCore;
-  if ((reportRow.full_report as any).mandatory_decision_core) {
-    (reportRow.full_report as any).mandatory_decision_core.items = repairedMandatoryDecisionCore;
-  }
+  // NOTE: reportRow is built later in this function; mandatory_decision_core
+  // items are already stored in repairedMandatoryDecisionCore and applied there.
   if (mandatoryDecisionCoreRequired && narrativeFallback) {
     const {auditSourceLocations} = await import('./reporting/source-location-audit');
     const {groundedDecisionSummary} = await import('./intelligence/decision-summary');

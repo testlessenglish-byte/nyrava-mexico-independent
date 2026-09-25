@@ -11,21 +11,25 @@ await db.exec(`
  create type public.case_status as enum ('processing','released','needs_revision');
  create table cases(id uuid primary key, execution_id uuid, status case_status default 'processing',
    progress integer, completed_at timestamptz,report_at timestamptz,next_stage text,worker_lease_until timestamptz,status_message text,error text);
- create table reports(id uuid primary key,case_id uuid,full_report jsonb,quality_blocked boolean default false,quality_block_reasons jsonb);
+ create table reports(id uuid primary key,case_id uuid,full_report jsonb,quality_blocked boolean default false,quality_block_reasons jsonb,
+   executive_summary text default 'Reviewed summary', recommendations text default 'Reviewed recommendations');
 `);
 await db.exec(readFileSync(resolve(root,"supabase/migrations/20260830070000_authoritative_report_release.sql"),"utf8"));
+await db.exec(readFileSync(resolve(root,"supabase/migrations/20260924030000_report_release_snapshot.sql"),"utf8"));
 const id="00000000-0000-0000-0000-000000000001";
 const execution="00000000-0000-0000-0000-000000000002";
 const good={release_decision:"PASS",release_gate:{ok:true},final_review:{released:true},
   final_report_contract_validation:{ok:true},qa_statuses:[]};
+let expectedReport;
 async function reset(){
   await db.exec("truncate reports,cases");
   await db.query("insert into cases(id,execution_id) values($1,$2)",[id,execution]);
   await db.query("insert into reports(id,case_id,full_report) values($1,$1,'{}')",[id]);
+  expectedReport=(await db.query("select to_jsonb(reports) as snapshot from reports")).rows[0].snapshot;
 }
 async function run(full=good,exec=execution,expected={},released=true,errors=[]){
-  return db.query("select finalize_report_release($1,$2,$1,$3,$4,$5,$6,'test')",
-    [id,exec,JSON.stringify(expected),JSON.stringify(full),released,JSON.stringify(errors)]);
+  return db.query("select finalize_report_release($1,$2,$1,$3,$4,$5,$6,'test',$7)",
+    [id,exec,JSON.stringify(expected),JSON.stringify(full),released,JSON.stringify(errors),JSON.stringify(expectedReport)]);
 }
 const tests=[];
 async function test(name,fn){await reset();await fn();tests.push(name);console.log("PASS "+name);}
@@ -40,9 +44,19 @@ await test("nonblocking warning commits both mirrors",async()=>{
 });
 await test("stale execution rejected",async()=>assert.rejects(run(good,id),/RELEASE_EXECUTION_SUPERSEDED/));
 await test("changed report rejected",async()=>assert.rejects(run(good,execution,{changed:true}),/RELEASE_REPORT_CHANGED/));
+await test("top-level narrative edit after review rejects stale release",async()=>{
+  await db.exec("update reports set executive_summary='Unreviewed replacement'");
+  await assert.rejects(run(),/RELEASE_REPORT_CHANGED/);
+  assert.equal((await db.query("select status from cases")).rows[0].status,"processing");
+});
 await test("existing quality block rejected",async()=>{
   await db.exec("update reports set quality_blocked=true");
+  expectedReport=(await db.query("select to_jsonb(reports) as snapshot from reports")).rows[0].snapshot;
   await assert.rejects(run(),/BLOCKING_QA_CANNOT_RELEASE/);
+});
+await test("legacy caller without snapshot cannot release",async()=>{
+  await assert.rejects(db.query("select finalize_report_release($1,$2,$1,'{}',$3,true,'[]','legacy')",
+    [id,execution,JSON.stringify(good)]),/RELEASE_REPORT_SNAPSHOT_REQUIRED/);
 });
 await test("missing contract validation rejected",async()=>{
   await assert.rejects(run({...good,final_report_contract_validation:null}),/BLOCKING_QA_CANNOT_RELEASE/);

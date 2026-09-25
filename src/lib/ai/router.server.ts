@@ -125,7 +125,7 @@ const PROVIDER_INPUT_TOKEN_BUDGET: Partial<Record<ProviderType, number>> = {
   // ceiling is 8k. This budget is intentionally below that ceiling so corpus
   // packing produces request-sized chunks that can actually run on Groq instead
   // of bouncing between oversized Groq attempts and exhausted Gemini keys.
-  groq: 5_500,
+  groq: 28_000,
 
   openrouter: 60_000,
   gemini: 900_000,
