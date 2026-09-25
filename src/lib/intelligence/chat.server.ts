@@ -635,22 +635,35 @@ ${question}`,
   // nearly every answer and cost extra work per reply, so it was removed.
   const finalAnswer = cleanText;
 
-  const { getKeyIdByIndex } = await import("../ai-key-router.server");
-  const groqKeyId = getKeyIdByIndex(userId, "groq", r.keyIndex);
-  await db.from("ai_usage").insert({
-    user_id: userId,
-    case_id: caseId,
-    model: r.model,
-    operation: "chat",
-    provider_type: r.provider ?? null,
-    input_tokens: r.inputTokens ?? null,
-    output_tokens: r.outputTokens ?? null,
-    total_tokens: r.totalTokens ?? null,
-    latency_ms: r.latencyMs,
-    success: true,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ...((groqKeyId ? { groq_key_id: groqKeyId } : {}) as any),
-  });
+  try {
+    const { getKeyIdByIndex } = await import("../ai-key-router.server");
+    const { calculateEstimatedCost } = await import("../ai/pricing");
+    const groqKeyId = getKeyIdByIndex(userId, "groq", r.keyIndex);
+    const estimatedCostUsd = calculateEstimatedCost({
+      provider: r.provider,
+      model: r.model,
+      inputTokens: r.inputTokens,
+      outputTokens: r.outputTokens,
+      totalTokens: r.totalTokens,
+    });
+    await db.from("ai_usage").insert({
+      user_id: userId,
+      case_id: caseId,
+      model: r.model,
+      operation: "chat",
+      provider_type: r.provider ?? null,
+      input_tokens: r.inputTokens ?? null,
+      output_tokens: r.outputTokens ?? null,
+      total_tokens: r.totalTokens ?? null,
+      latency_ms: r.latencyMs,
+      success: true,
+      estimated_cost_usd: estimatedCostUsd,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ...((groqKeyId ? { groq_key_id: groqKeyId } : {}) as any),
+    } as any);
+  } catch (meteringErr) {
+    console.warn("[chat.ai_usage] Non-blocking metering error:", meteringErr);
+  }
 
   await db.from("case_chat_messages").insert({
     case_id: caseId,

@@ -129,24 +129,37 @@ export async function logUsage(
     keyIndex?: number;
   },
 ) {
-  const { getKeyIdByIndex } = await import("../ai-key-router.server");
-  const provider = (args.provider ?? "groq") as "groq" | "openai" | "gemini" | "anthropic" | "openrouter";
-  const groqKeyId = getKeyIdByIndex(args.userId, provider, args.keyIndex);
-  await db.from("ai_usage").insert({
-    user_id: args.userId,
-    case_id: args.caseId,
-    model: args.model,
-    operation: args.operation,
-    provider_type: args.provider ?? null,
-    input_tokens: args.inputTokens ?? null,
-    output_tokens: args.outputTokens ?? null,
-    total_tokens: args.totalTokens ?? null,
-    latency_ms: args.latencyMs,
-    success: args.success,
-    error: args.error ?? null,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ...((groqKeyId ? { groq_key_id: groqKeyId } : {}) as any),
-  });
+  try {
+    const { getKeyIdByIndex } = await import("../ai-key-router.server");
+    const { calculateEstimatedCost } = await import("../ai/pricing");
+    const provider = (args.provider ?? "groq") as "groq" | "openai" | "gemini" | "anthropic" | "openrouter";
+    const groqKeyId = getKeyIdByIndex(args.userId, provider, args.keyIndex);
+    const estimatedCostUsd = calculateEstimatedCost({
+      provider: args.provider,
+      model: args.model,
+      inputTokens: args.inputTokens,
+      outputTokens: args.outputTokens,
+      totalTokens: args.totalTokens,
+    });
+    await db.from("ai_usage").insert({
+      user_id: args.userId,
+      case_id: args.caseId,
+      model: args.model,
+      operation: args.operation,
+      provider_type: args.provider ?? null,
+      input_tokens: args.inputTokens ?? null,
+      output_tokens: args.outputTokens ?? null,
+      total_tokens: args.totalTokens ?? null,
+      latency_ms: args.latencyMs,
+      success: args.success,
+      error: args.error ?? null,
+      estimated_cost_usd: estimatedCostUsd,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ...((groqKeyId ? { groq_key_id: groqKeyId } : {}) as any),
+    } as any);
+  } catch (meteringErr) {
+    console.warn("[engines.logUsage] Non-blocking metering error:", meteringErr);
+  }
 }
 
 async function setCase(db: Db, caseId: string, patch: Record<string, unknown>) {
