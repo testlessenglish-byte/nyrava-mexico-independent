@@ -51,11 +51,13 @@ export async function runReportReleaseWatchdog(
       const caseId = c.id;
 
       // 1. Fetch corresponding report row
-      const { data: reportRow } = await (db as any)
+      const { data: initialReportRow } = await (db as any)
         .from("reports")
         .select("*")
         .eq("case_id", caseId)
         .maybeSingle();
+
+      let reportRow = initialReportRow;
 
       if (!reportRow) {
         // No report generated yet for this case
@@ -80,7 +82,7 @@ export async function runReportReleaseWatchdog(
 
       // 1.5 Apply Claim-Level Reconciliation (NYRAVA RELEASE INVARIANT)
       const { reconcileCaseFindingsClaims } = await import("@/lib/intelligence/claim-level-reconciliation.server");
-      await reconcileCaseFindingsClaims(db, caseId);
+      await reconcileCaseFindingsClaims(db, caseId, (c as any).execution_id);
 
       // Re-fetch reportRow after reconciliation
       const { data: refreshedReport } = await (db as any)

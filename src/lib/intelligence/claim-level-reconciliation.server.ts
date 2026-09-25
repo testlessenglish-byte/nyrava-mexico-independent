@@ -34,11 +34,17 @@ export interface ClaimReconciliationResult {
 export async function reconcileCaseFindingsClaims(
   db: Db,
   caseId: string,
+  executionId?: string,
 ): Promise<ClaimReconciliationResult> {
-  const { data: rawRows, error } = await (db as any)
+  const { data: allRawRows, error } = await (db as any)
     .from("case_findings")
     .select("*")
     .eq("case_id", caseId);
+
+  const rawRows = (allRawRows ?? []).filter((r: any) => {
+    const fExec = r.execution_id ?? r.metadata?.execution_id ?? null;
+    return !executionId || !fExec || fExec === executionId;
+  });
 
   if (error || !rawRows || rawRows.length === 0) {
     return {
@@ -287,9 +293,10 @@ export async function reconcileCaseFindingsClaims(
 
   // Persist all finding updates to Supabase
   for (const { id, patch } of updates) {
+    const patchWithExec = executionId ? { ...patch, execution_id: executionId } : patch;
     const { error: updErr } = await (db as any)
       .from("case_findings")
-      .update(patch)
+      .update(patchWithExec)
       .eq("id", id);
     if (updErr) {
       console.warn(`[claim-reconciliation] failed to update finding ${id}:`, updErr);
@@ -312,6 +319,7 @@ export async function reconcileCaseFindingsClaims(
 
   if (reportRow) {
     const full = reportRow.full_report ?? {};
+    const activeVerifiedCount = activeFindings.filter((f) => f.finding_status === "verified").length;
     const sanitizedFull = {
       ...full,
       consolidated_findings: activeFindings,
@@ -331,6 +339,20 @@ export async function reconcileCaseFindingsClaims(
       },
       claim_entailment_audit: diagnostics,
       verification_status: "RELEASED",
+      validation: {
+        ...(full.validation ?? {}),
+        finding_counters: {
+          rendered: activeFindings.length,
+          verified: activeVerifiedCount,
+          generated: allFindings.length,
+        },
+      },
+      findings_summary: {
+        ...(full.findings_summary ?? {}),
+        displayed: activeFindings.length,
+        suppressed: removedFindings.length,
+        total_generated: allFindings.length,
+      },
     };
 
     // Filter out claim-level blocking reasons from report.quality_block_reasons
@@ -352,6 +374,7 @@ export async function reconcileCaseFindingsClaims(
       .from("reports")
       .update({
         full_report: sanitizedFull,
+        findings_count: activeFindings.length,
         quality_blocked: nonClaimReasons.length > 0,
         quality_block_reasons: nonClaimReasons,
         updated_at: new Date().toISOString(),

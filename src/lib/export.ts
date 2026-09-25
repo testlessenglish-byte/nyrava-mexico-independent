@@ -2461,7 +2461,14 @@ function renderCover(
   // evidence-gate.server.ts's classifyFindingType — never re-derived here)
   // so the dashboard cannot imply a stronger evidentiary basis than what
   // was actually established.
-  const findingTypeCounts = computeFindingTypeCounts(data.findings ?? []);
+  const activeFindingsForCover = (data.findings ?? []).filter((f: any) =>
+    f.lifecycle_status !== 'superseded' &&
+    f.lifecycle_status !== 'quarantined' &&
+    f.lifecycle_status !== 'rejected' &&
+    !f.superseded_at &&
+    !f.metadata?.quarantined
+  );
+  const findingTypeCounts = computeFindingTypeCounts(activeFindingsForCover);
   if (findingTypeCounts.direct + findingTypeCounts.inference + findingTypeCounts.theory > 0) {
     cards.push({ label: "Direct Evidence", value: String(findingTypeCounts.direct), color: SUCCESS });
     cards.push({ label: "Evidence-Based Inference", value: String(findingTypeCounts.inference) });
@@ -5469,13 +5476,20 @@ async function renderPdf(
   // download. Live rendered count is authoritative; raise the stale
   // upper-bound counters to stay monotonic instead of failing the export.
   const rawCounters = getFindingCounters(reportRow);
-  const renderedCount = (data.findings ?? []).length;
-  const verifiedCount = Math.max(rawCounters.verified, renderedCount);
+  const activeFindingsForPdf = (data.findings ?? []).filter((f: any) =>
+    f.lifecycle_status !== 'superseded' &&
+    f.lifecycle_status !== 'quarantined' &&
+    f.lifecycle_status !== 'rejected' &&
+    !f.superseded_at &&
+    !f.metadata?.quarantined
+  );
+  const renderedCount = activeFindingsForPdf.length;
+  const verifiedCount = activeFindingsForPdf.filter((f: any) => f.finding_status === 'verified').length;
   const counters = {
     ...rawCounters,
     rendered: renderedCount,
     verified: verifiedCount,
-    generated: Math.max(rawCounters.generated, verifiedCount),
+    generated: Math.max(rawCounters.generated, renderedCount),
   };
   const parity = paritySignature(reportRow);
   const ess = getEssState(reportRow);

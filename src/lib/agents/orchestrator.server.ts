@@ -1009,7 +1009,7 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
   const { dedupeCaseFindingsInDatabase } = await import("@/lib/intelligence/findings.server");
   await dedupeCaseFindingsInDatabase(args.db, args.caseId);
   const { reconcileCaseFindingsClaims } = await import("@/lib/intelligence/claim-level-reconciliation.server");
-  await reconcileCaseFindingsClaims(args.db, args.caseId);
+  await reconcileCaseFindingsClaims(args.db, args.caseId, args.executionId);
 
   const analysisMode = (await getAnalysisMode(args.db, args.caseId)) as AnalysisMode;
   const ctx: RunCtx = { ...args, runId, analysisMode };

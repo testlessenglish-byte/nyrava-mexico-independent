@@ -1267,8 +1267,11 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
         ? [resolvedDocId]
         : [];
 
+    const execution_id = (r as any).execution_id ?? (r.metadata as any)?.execution_id ?? null;
+
     payload.push({
       case_id: r.case_id,
+      execution_id,
       user_id: r.user_id,
       source_module: r.source_module,
       category: r.category,
@@ -1303,6 +1306,7 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
       tags: [...new Set([...(r.tags ?? []), ...computeDimensionTags(r)])],
       metadata: {
         ...(r.metadata ?? {}),
+        execution_id,
         // Documentary court holdings require source verification too.
         is_authority_exempt: false,
         ...(postPromotionNeutralized
@@ -1419,6 +1423,7 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
     // to the full known-optional bundle when the error doesn't name a
     // column in that set (e.g. a different kind of failure entirely).
     const OPTIONAL_COLUMNS = [
+      "execution_id",
       "speaker_role",
       "proposition_type",
       "adoption_status",
@@ -1873,8 +1878,9 @@ export function normalizeLlmFindings(args: {
   defaultCategory: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   items: any[];
+  executionId?: string;
 }): NewFinding[] {
-  const { caseId, userId, sourceModule, defaultCategory, items } = args;
+  const { caseId, userId, sourceModule, defaultCategory, items, executionId } = args;
   if (!Array.isArray(items)) return [];
   return items.map((it) => {
     const i = it ?? {};
@@ -1922,6 +1928,7 @@ export function normalizeLlmFindings(args: {
 
     return {
       case_id: caseId,
+      execution_id: executionId ?? (i as any).execution_id ?? null,
       user_id: userId,
       source_module: sourceModule,
       category: resolvedCategory,
@@ -2014,6 +2021,7 @@ function sourceDocIdsFromRefs(refs: Array<Record<string, unknown>>): string[] {
 export function normalizeReportWriterFindings(args: {
   caseId: string;
   userId: string;
+  executionId?: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   contradictions: Array<Record<string, any>>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -2038,13 +2046,14 @@ export function normalizeReportWriterFindings(args: {
   nextActionRows: NewFinding[];
   crossExaminationRows: NewFinding[];
 } {
-  const { caseId, userId, docNToId } = args;
+  const { caseId, userId, docNToId, executionId } = args;
 
   const contradictionRows: NewFinding[] = args.contradictions.map((c) => {
     const citations = Array.isArray(c.citations) ? c.citations : [];
     const evidence_refs = citationEvidenceRefs([c.document_a, c.document_b, ...citations], docNToId);
     return {
       case_id: caseId,
+      execution_id: executionId ?? null,
       user_id: userId,
       source_module: "report_writer:contradiction",
       category: "contradiction",
@@ -2070,6 +2079,7 @@ export function normalizeReportWriterFindings(args: {
     (m) =>
       ({
         case_id: caseId,
+        execution_id: executionId ?? null,
         user_id: userId,
         // Full "missing_evidence" (not the abbreviated "missing" the
         // analyzer's own source_module uses) — isFindingAllowed's backstop
@@ -2103,6 +2113,7 @@ export function normalizeReportWriterFindings(args: {
         : null;
     return {
       case_id: caseId,
+      execution_id: executionId ?? null,
       user_id: userId,
       // Full "constitutional_issue" (matches the category exactly) — the
       // isFindingAllowed backstop in addFindings checks this row's own
@@ -2145,6 +2156,7 @@ export function normalizeReportWriterFindings(args: {
     const likelihood = String(mo.likelihood_of_success ?? "").toLowerCase();
     return {
       case_id: caseId,
+      execution_id: executionId ?? null,
       user_id: userId,
       source_module: "report_writer:motion_opportunity",
       category: "motion_opportunity",
@@ -2168,6 +2180,7 @@ export function normalizeReportWriterFindings(args: {
     (sr) =>
       ({
         case_id: caseId,
+        execution_id: executionId ?? null,
         user_id: userId,
         source_module: "report_writer:strategy_recommendation",
         category: "strategy_recommendation",
@@ -2189,6 +2202,7 @@ export function normalizeReportWriterFindings(args: {
     (na) =>
       ({
         case_id: caseId,
+        execution_id: executionId ?? null,
         user_id: userId,
         source_module: "report_writer:next_action",
         category: "next_action",
@@ -2214,6 +2228,7 @@ export function normalizeReportWriterFindings(args: {
     const witness = typeof ce.witness === "string" ? ce.witness : "testigo";
     return {
       case_id: caseId,
+      execution_id: executionId ?? null,
       user_id: userId,
       source_module: "report_writer:cross_examination",
       category: "cross_examination",

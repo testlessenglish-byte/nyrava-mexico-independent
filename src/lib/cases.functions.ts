@@ -4055,7 +4055,16 @@ export const getCase = createServerFn({ method: "POST" })
       // right where it's inferred) avoids that collapse.
       findings: (() => {
         const rawRows = findings.data ?? [];
-        const all = consolidateFindings(rawRows) as typeof rawRows;
+        const currentExecutionId = (caseRow as any)?.execution_id ?? null;
+        const activeRows = rawRows.filter((f: any) => {
+          const fExec = f.execution_id ?? f.metadata?.execution_id ?? null;
+          if (currentExecutionId && fExec && fExec !== currentExecutionId) return false;
+          if (f.lifecycle_status === 'superseded' || f.lifecycle_status === 'quarantined' || f.lifecycle_status === 'rejected') return false;
+          if (f.superseded_at) return false;
+          if (f.metadata?.quarantined === true) return false;
+          return true;
+        });
+        const all = consolidateFindings(activeRows) as typeof activeRows;
         // Cast only at the per-item predicate boundary (not the array
         // itself) so `canonical` keeps the full Supabase row type instead
         // of widening to the structural SelectableFinding shape — a
@@ -4065,8 +4074,14 @@ export const getCase = createServerFn({ method: "POST" })
         const canonical = all.filter((f) => isCanonicalFinding(f as unknown as SelectableFinding));
         return canonical.length > 0 ? canonical : all;
       })(),
-      theories: theories.data ?? [],
-      opportunities: opps.data ?? [],
+      theories: (() => {
+        const currentExecutionId = (caseRow as any)?.execution_id ?? null;
+        return (theories.data ?? []).filter((t: any) => !currentExecutionId || !t.execution_id || t.execution_id === currentExecutionId);
+      })(),
+      opportunities: (() => {
+        const currentExecutionId = (caseRow as any)?.execution_id ?? null;
+        return (opps.data ?? []).filter((o: any) => !currentExecutionId || !o.execution_id || o.execution_id === currentExecutionId);
+      })(),
       witnesses: witnesses.data ?? [],
       trial_prep: trial.data,
       work_product: work.data ?? [],
@@ -4651,7 +4666,22 @@ export const deleteCaseDocument = createServerFn({ method: "POST" })
     if (doc.storage_path) {
       await supabase.storage.from("case-files").remove([doc.storage_path]);
     }
+    await supabase.from("document_pages").delete().eq("document_id", data.documentId);
     await supabase.from("documents").delete().eq("id", data.documentId);
+    await supabase
+      .from("case_findings")
+      .update({
+        lifecycle_status: "superseded",
+        superseded_at: new Date().toISOString(),
+        superseded_reason: `Source document ${data.documentId} deleted`
+      })
+      .eq("case_id", data.caseId)
+      .eq("source_document_id", data.documentId);
+    await supabase
+      .from("pipeline_engine_runs")
+      .delete()
+      .eq("case_id", data.caseId)
+      .contains("meta", { docIds: [data.documentId] });
     return { ok: true };
   });
 

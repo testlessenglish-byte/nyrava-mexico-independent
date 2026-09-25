@@ -138,6 +138,9 @@ export function composeFinalReportPayload(input: CaseExportData): FinalReportPay
   const withheld: ReportPresentation["withheld_findings"] = [];
   const findings = arr(data.findings).map((f): Row | null => {
     if (historicalFindingIds.has(f.id)) return null;
+    if (f.lifecycle_status === 'superseded' || f.lifecycle_status === 'quarantined' || f.lifecycle_status === 'rejected') return null;
+    if (f.superseded_at) return null;
+    if (f.metadata?.quarantined === true) return null;
     const checked = validateReincidenciaEvidence(f);
     if (checked.report_suppressed) {
       withheld.push({ id: f.id, category: checked.category, attorney_review_required: true });

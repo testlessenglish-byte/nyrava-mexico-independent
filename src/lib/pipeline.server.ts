@@ -4855,6 +4855,7 @@ export async function runAgents(args: {
           const normalizedRows = normalizeLlmFindings({
             caseId,
             userId,
+            executionId,
             sourceModule: `agent:${agent.type}`,
             defaultCategory: agent.category,
             items: findingsForNormalize,
@@ -6312,8 +6313,17 @@ async function _runReportInner(args: {
     .select("*")
     .eq("case_id", caseId);
 
+  const executionCleanFindings = (cleanRawFindings ?? rawFindings ?? []).filter((f: any) => {
+    const fExec = f.execution_id ?? f.metadata?.execution_id ?? null;
+    if (executionId && fExec && fExec !== executionId) return false;
+    if (f.lifecycle_status === 'superseded' || f.lifecycle_status === 'quarantined' || f.lifecycle_status === 'rejected') return false;
+    if (f.superseded_at) return false;
+    if (f.metadata?.quarantined === true) return false;
+    return true;
+  });
+
   const dedupeResult = dedupeReportableFindingsByCanonicalId(
-    (cleanRawFindings ?? rawFindings) as Array<Record<string, unknown>>,
+    executionCleanFindings as Array<Record<string, unknown>>,
   );
 
   if (!dedupeResult.final_reportable_canonical_ids_unique) {
@@ -8926,6 +8936,7 @@ ${paginationTail}`;
     } = normalizeReportWriterFindings({
       caseId,
       userId,
+      executionId,
       contradictions: allContradictions,
       missingEvidence: missingGuarded.items,
       constitutionalIssues: constGuarded.items,
@@ -10474,6 +10485,18 @@ ${paginationTail}`;
     const locations = auditSourceLocations(relocateSourceRefs(refs as any[], pages, docIndex), pages, docIndex);
     (reportRow.full_report as any).source_location_audit = locations;
     (reportRow.full_report as any).source_identity_audit = sourceIdentityAudit;
+    try {
+      const { getGitCommit, PIPELINE_VERSION } = await import("./version");
+      (reportRow.full_report as any).execution_provenance = {
+        execution_id: finalExecutionId,
+        git_commit: getGitCommit(),
+        pipeline_version: PIPELINE_VERSION,
+        started_at: (caseTsRow as any)?.execution_started_at ?? new Date().toISOString(),
+        completed_at: new Date().toISOString(),
+      };
+    } catch {
+      // Non-fatal provenance attachment
+    }
     if (!locations.ok) {
       (reportRow as any).quality_blocked = true;
       (reportRow as any).quality_block_reasons = [...((reportRow as any).quality_block_reasons ?? []),
