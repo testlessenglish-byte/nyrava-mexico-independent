@@ -1530,6 +1530,32 @@ function formatAffectedParty(party: string | null | undefined, locale: string): 
   return party;
 }
 
+function formatEvidenceType(type: string | null | undefined, locale: string): string {
+  if (!type) return "";
+  if (locale === "es") {
+    switch (type.toLowerCase()) {
+      case "inculpatory": return "Inculpatorio";
+      case "exculpatory": return "Exculpatorio";
+      case "neutral": return "Neutral";
+      default: return type;
+    }
+  }
+  return type;
+}
+
+function formatImpactDirection(impact: string | null | undefined, locale: string): string {
+  if (!impact) return "";
+  if (locale === "es") {
+    switch (impact.toLowerCase()) {
+      case "weakens": return "Debilita";
+      case "strengthens": return "Fortalece";
+      case "neutral": return "Neutral";
+      default: return impact;
+    }
+  }
+  return impact;
+}
+
 function FindingsTab({ findings, sourceLocale = "es" }: { findings: Finding[]; sourceLocale?: "es" | "en" }) {
   const { t, locale } = useI18n();
   const [sev, setSev] = useState<string>("all");
@@ -1746,11 +1772,13 @@ function IntelTab({ docs, caseId, invalidate, defaultPurpose }: { docs: Doc[]; c
   return (
     <div className="space-y-3">
       <AddEvidenceBlock caseId={caseId} invalidate={invalidate} defaultPurpose={defaultPurpose} />
-      {docs.length === 0 ? <Empty msg="No documents uploaded yet." /> : null}
+      {docs.length === 0 ? <Empty msg={L("No hay documentos subidos aún.", "No documents uploaded yet.")} /> : null}
 
       {failedCount > 0 && (
         <div className="flex items-center justify-between rounded border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs">
-          <span className="text-destructive">{failedCount} document(s) failed extraction</span>
+          <span className="text-destructive">
+            {failedCount} {L("documento(s) fallaron en la extracción", "document(s) failed extraction")}
+          </span>
           <button
             type="button"
             disabled={retryAllBusy}
@@ -1775,6 +1803,14 @@ function IntelTab({ docs, caseId, invalidate, defaultPurpose }: { docs: Doc[]; c
       )}
       {docs.map((d) => {
         const open = openId === d.id;
+        const statusLabel =
+          d.status === "extracted"
+            ? L("Extraído", "Extracted")
+            : d.status === "failed"
+              ? L("Fallido", "Failed")
+              : d.status === "extracting"
+                ? L("Extrayendo…", "Extracting…")
+                : d.status;
         return (
           <div key={d.id} className="rounded-lg border border-border bg-card">
             <button
@@ -1799,7 +1835,7 @@ function IntelTab({ docs, caseId, invalidate, defaultPurpose }: { docs: Doc[]; c
                         : "text-muted-foreground"
                 }`}
               >
-                {d.status}
+                {statusLabel}
               </span>
             </button>
             {open && (
@@ -2026,7 +2062,7 @@ function AddEvidenceBlock({ caseId, invalidate, defaultPurpose }: { caseId: stri
             onClick={() => fileRef.current?.click()}
             className="inline-flex items-center gap-1 rounded bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
-            <FileText size={12} /> {busy ? "Working…" : "Add Evidence"}
+            <FileText size={12} /> {busy ? L("Procesando…", "Working…") : L("Agregar pruebas", "Add Evidence")}
           </button>
         </div>
       </div>
@@ -2041,14 +2077,22 @@ function AddEvidenceBlock({ caseId, invalidate, defaultPurpose }: { caseId: stri
 }
 
 function AnalyzersTab({ a }: { a: Record<string, unknown> | null | undefined }) {
-  if (!a) return <Empty msg="No analyzer output yet. Run Analyzers to populate this view." />;
+  if (!a)
+    return (
+      <Empty
+        msg={L(
+          "Aún no hay resultados de analizadores. Ejecute Analizadores para poblar esta vista.",
+          "No analyzer output yet. Run Analyzers to populate this view.",
+        )}
+      />
+    );
   const blocks: [string, unknown][] = [
-    ["L�nea de tiempo", a.timeline],
-    ["Contradicciones", a.contradictions],
-    ["Evidencia faltante", a.missing_evidence],
-    ["Problemas procesales", a.procedural_issues],
-    ["Relaciones de evidencia", a.evidence_relationships],
-    ["Hallazgos clave", a.key_findings],
+    [L("Línea de tiempo", "Timeline"), a.timeline],
+    [L("Contradicciones", "Contradictions"), a.contradictions],
+    [L("Evidencia faltante", "Missing evidence"), a.missing_evidence],
+    [L("Problemas procesales", "Procedural issues"), a.procedural_issues],
+    [L("Relaciones de evidencia", "Evidence relationships"), a.evidence_relationships],
+    [L("Hallazgos clave", "Key findings"), a.key_findings],
   ];
   return (
     <div className="space-y-4">
@@ -2074,7 +2118,15 @@ type Agent = {
 };
 
 function AgentsTab({ agents }: { agents: Agent[] }) {
-  if (agents.length === 0) return <Empty msg="No agents have run yet. Run Agents to dispatch the investigators." />;
+  if (agents.length === 0)
+    return (
+      <Empty
+        msg={L(
+          "Ningún agente se ha ejecutado aún. Ejecute Agentes para despachar a los investigadores.",
+          "No agents have run yet. Run Agents to dispatch the investigators.",
+        )}
+      />
+    );
   return (
     <div className="grid gap-3 md:grid-cols-2">
       {agents.map((a) => (
@@ -2082,7 +2134,7 @@ function AgentsTab({ agents }: { agents: Agent[] }) {
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold capitalize">{(AGENT_LABELS[a.agent_type] || a.agent_type.replace(/_/g, " "))}</h3>
             <span className={`text-xs ${a.status === "complete" ? "text-success" : "text-destructive"}`}>
-              {a.status}
+              {a.status === "complete" ? L("Completado", "Complete") : a.status === "failed" ? L("Fallido", "Failed") : a.status}
             </span>
           </div>
           {typeof a.confidence === "number" && (
@@ -2113,13 +2165,24 @@ function AgentsTab({ agents }: { agents: Agent[] }) {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function TheoriesTab({ theories }: { theories: any[] }) {
+  const { locale } = useI18n();
   if (theories.length === 0) return <Empty msg={L("Aún no hay teorías. Ejecuta Teorías del Caso.", "No theories yet. Run Theories of the Case.")} />;
+  const formatTheoryType = (type: string) => {
+    const low = type.toLowerCase();
+    if (locale === "es") {
+      if (low.includes("defense") || low.includes("defensa")) return "Teoría de la defensa";
+      if (low.includes("prosecution") || low.includes("fiscal") || low.includes("acus")) return "Teoría de la acusación";
+      if (low.includes("plaintiff") || low.includes("actor")) return "Teoría de la parte actora";
+      return `Teoría: ${type}`;
+    }
+    return `${type} theory`;
+  };
   return (
     <div className="grid gap-4 md:grid-cols-2">
       {theories.map((t) => (
         <div key={t.id} className="rounded-lg border border-border bg-card p-5">
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold capitalize">{t.theory_type} {L("teoría", "theory")}</h3>
+            <h3 className="text-base font-semibold capitalize">{formatTheoryType(t.theory_type)}</h3>
             <span className="text-xs text-muted-foreground">{L("Confianza", "Confidence")} {Math.round((t.confidence ?? 0) * 100)}%</span>
           </div>
           <p className="mt-3 text-sm text-foreground/90">{t.narrative}</p>
@@ -2127,7 +2190,7 @@ function TheoriesTab({ theories }: { theories: any[] }) {
           <ListSection title={L("Pruebas contradictorias", "Contradicting evidence")} items={t.contradicting_evidence} />
           <ListSection title={L("Pruebas faltantes", "Missing evidence")} items={t.missing_evidence} />
           <ListSection title={L("Supuestos clave", "Key assumptions")} items={t.key_assumptions} />
-          {t.risk && <FieldRow label="Risk" v={t.risk} />}
+          {t.risk && <FieldRow label={L("Riesgo", "Risk")} v={t.risk} />}
         </div>
       ))}
     </div>
@@ -2136,49 +2199,62 @@ function TheoriesTab({ theories }: { theories: any[] }) {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function OpportunitiesTab({ opps, ranAt }: { opps: any[]; ranAt?: string | null }) {
+  const { locale } = useI18n();
   if (opps.length === 0)
     return (
       <Empty
         msg={
           ranAt
-            ? "No defense opportunities identified in the source documents. The Opportunity Engine ran successfully but found no actionable openings supported by the current evidence corpus."
-            : "No opportunities yet. Run Defense Opportunities."
+            ? L(
+                "No se identificaron oportunidades procesales en los documentos de origen. El motor de oportunidades se ejecutó exitosamente pero no halló aperturas procesales viables con el corpus probatorio actual.",
+                "No defense opportunities identified in the source documents. The Opportunity Engine ran successfully but found no actionable openings supported by the current evidence corpus.",
+              )
+            : L("Aún no hay oportunidades registradas. Ejecute Oportunidades Procesales.", "No opportunities yet. Run Defense Opportunities.")
         }
       />
     );
   return (
     <div className="space-y-3">
-      {opps.map((o) => (
-        <div key={o.id} className="rounded-lg border border-border bg-card p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <span
-                  className={`rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-wider ${sevColor(o.severity)}`}
-                >
-                  {o.severity}
-                </span>
-                <span className="text-xs uppercase tracking-wider text-accent">{o.side}</span>
-                <span className="text-xs text-muted-foreground">{o.opportunity_type}</span>
+      {opps.map((o) => {
+        const sideLabel = o.side === "defense" ? L("Defensa", "Defense") : o.side === "prosecution" ? L("Fiscalía / Actor", "Prosecution") : o.side;
+        const oppTypeLabel =
+          o.opportunity_type === "exclusion"
+            ? L("Exclusión", "Exclusion")
+            : o.opportunity_type === "impeachment"
+              ? L("Impugnación", "Impeachment")
+              : String(o.opportunity_type ?? "").replace(/_/g, " ");
+        return (
+          <div key={o.id} className="rounded-lg border border-border bg-card p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-wider ${sevColor(o.severity)}`}
+                  >
+                    {formatSeverity(o.severity, locale)}
+                  </span>
+                  {sideLabel && <span className="text-xs uppercase tracking-wider text-accent">{sideLabel}</span>}
+                  {oppTypeLabel && <span className="text-xs text-muted-foreground">{oppTypeLabel}</span>}
+                </div>
+                <h3 className="mt-1 text-sm font-semibold">{o.title}</h3>
               </div>
-              <h3 className="mt-1 text-sm font-semibold">{o.title}</h3>
+              <span className="text-xs text-muted-foreground">{Math.round((o.confidence ?? 0) * 100)}%</span>
             </div>
-            <span className="text-xs text-muted-foreground">{Math.round((o.confidence ?? 0) * 100)}%</span>
+            <p className="mt-2 text-sm text-foreground/90">{o.description}</p>
+            <ListSection title={L("Promociones recomendadas", "Recommended motions")} items={o.recommended_motions} />
+            <ListSection title={L("Preguntas recomendadas", "Recommended questions")} items={o.recommended_questions} />
+            <ListSection title={L("Investigaciones recomendadas", "Recommended investigations")} items={o.recommended_investigations} />
+            {o.counter_response && (
+              <div className="mt-3 rounded border border-warning/30 bg-warning/5 p-3">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-warning">
+                  {L("Réplica de la fiscalía / contraparte", "Prosecution recovery")}
+                </div>
+                <p className="mt-1 text-sm text-foreground/90">{o.counter_response}</p>
+              </div>
+            )}
           </div>
-          <p className="mt-2 text-sm text-foreground/90">{o.description}</p>
-          <ListSection title={L("Promociones recomendadas", "Recommended motions")} items={o.recommended_motions} />
-          <ListSection title={L("Preguntas recomendadas", "Recommended questions")} items={o.recommended_questions} />
-          <ListSection title={L("Investigaciones recomendadas", "Recommended investigations")} items={o.recommended_investigations} />
-          {o.counter_response && (
-            <div className="mt-3 rounded border border-warning/30 bg-warning/5 p-3">
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-warning">
-                {L("Réplica de la fiscalía", "Prosecution recovery")}
-              </div>
-              <p className="mt-1 text-sm text-foreground/90">{o.counter_response}</p>
-            </div>
-          )}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -2204,8 +2280,11 @@ function WitnessesTab({ witnesses, ranAt }: { witnesses: any[]; ranAt?: string |
       <Empty
         msg={
           ranAt
-            ? "No witnesses identified in the source documents. The Witness Intelligence engine ran successfully but found no named individuals with testimony that could be verified against the evidence corpus."
-            : "No witness profiles. Run Witness Intelligence."
+            ? L(
+                "No se identificaron testigos en los documentos de origen. El motor de inteligencia de testigos se ejecutó exitosamente pero no halló personas con testimonio corroborable en el corpus probatorio.",
+                "No witnesses identified in the source documents. The Witness Intelligence engine ran successfully but found no named individuals with testimony that could be verified against the evidence corpus.",
+              )
+            : L("Aún no hay perfiles de testigos. Ejecute Inteligencia de Testigos.", "No witness profiles. Run Witness Intelligence.")
         }
       />
     );
@@ -2219,12 +2298,12 @@ function WitnessesTab({ witnesses, ranAt }: { witnesses: any[]; ranAt?: string |
               <div className="text-xs text-muted-foreground">{w.role ?? "—"}</div>
             </div>
             <div className="grid grid-cols-3 gap-3 text-xs text-muted-foreground sm:grid-cols-6">
-              <Metric label="Reliab" v={w.reliability} />
-              <Metric label="Bias" v={w.bias} inverse />
-              <Metric label="Consist" v={w.consistency} />
-              <Metric label="Corrob" v={w.corroboration} />
-              <Metric label="Observ" v={w.observation_opportunity} />
-              <Metric label="Risk" v={w.credibility_risk} inverse />
+              <Metric label={L("Fiab.", "Reliab")} v={w.reliability} />
+              <Metric label={L("Sesgo", "Bias")} v={w.bias} inverse />
+              <Metric label={L("Consist.", "Consist")} v={w.consistency} />
+              <Metric label={L("Corrob.", "Corrob")} v={w.corroboration} />
+              <Metric label={L("Observ.", "Observ")} v={w.observation_opportunity} />
+              <Metric label={L("Riesgo", "Risk")} v={w.credibility_risk} inverse />
             </div>
           </summary>
           <div className="border-t border-border px-4 py-3">
@@ -2290,10 +2369,10 @@ function TrialPrepTab({ t, ranAt }: { t: any; ranAt?: string | null }) {
             </>
           ) : (
             <>
-              <BigMetric label="Plaintiff success" v={cm.plaintiff_success_pct ?? null} />
-              <BigMetric label="Defense success" v={cm.defense_success_pct ?? null} />
-              <BigMetric label="Settlement" v={cm.settlement_probability_pct ?? t.jury_settlement_pct} />
-              <BigMetric label="Comparative fault" v={cm.comparative_fault_estimate_pct ?? null} />
+              <BigMetric label={L("Éxito de parte actora", "Plaintiff success")} v={cm.plaintiff_success_pct ?? null} />
+              <BigMetric label={L("Éxito de la defensa", "Defense success")} v={cm.defense_success_pct ?? null} />
+              <BigMetric label={L("Probabilidad de convenio", "Settlement")} v={cm.settlement_probability_pct ?? t.jury_settlement_pct} />
+              <BigMetric label={L("Responsabilidad concurrente", "Comparative fault")} v={cm.comparative_fault_estimate_pct ?? null} />
             </>
           )}
         </div>
@@ -2361,7 +2440,8 @@ function Block({ title, items }: { title: string; items: unknown }) {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function WorkProductTab({ docs }: { docs: any[] }) {
-  if (docs.length === 0) return <Empty msg="No work product yet. Run Attorney Work Product." />;
+  if (docs.length === 0)
+    return <Empty msg={L("Aún no hay productos de trabajo generados. Ejecute Producto de Trabajo del Abogado.", "No work product yet. Run Attorney Work Product.")} />;
   return (
     <div className="space-y-3">
       {docs.map((d) => {
@@ -2376,23 +2456,30 @@ function WorkProductTab({ docs }: { docs: any[] }) {
               </span>
               {failed && (
                 <span className="ml-2 rounded-full border border-destructive/40 bg-destructive/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-destructive">
-                  Generation failed
+                  {L("Generación fallida", "Generation failed")}
                 </span>
               )}
               {empty && !failed && (
                 <span className="ml-2 rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                  Empty
+                  {L("Vacío", "Empty")}
                 </span>
               )}
             </summary>
             <div className="border-t border-border p-4">
               {failed ? (
                 <p className="text-sm text-muted-foreground">
-                  {d.error_message ?? "This draft was not produced. Re-run Attorney Work Product to retry."}
+                  {d.error_message ??
+                    L(
+                      "Este borrador no fue producido. Vuelva a ejecutar Producto de Trabajo para reintentar.",
+                      "This draft was not produced. Re-run Attorney Work Product to retry.",
+                    )}
                 </p>
               ) : empty ? (
                 <p className="text-sm text-muted-foreground">
-                  No content was generated for this draft. Re-run Attorney Work Product to retry.
+                  {L(
+                    "No se generó contenido para este borrador. Vuelva a ejecutar Producto de Trabajo para reintentar.",
+                    "No content was generated for this draft. Re-run Attorney Work Product to retry.",
+                  )}
                 </p>
               ) : (
                 <pre className="whitespace-pre-wrap font-sans text-sm text-foreground/90">{d.body_markdown}</pre>
@@ -2431,7 +2518,7 @@ type Score = Record<string, unknown> & {
 };
 
 function ScorecardTab({ s }: { s: Score | null | undefined }) {
-  if (!s) return <Empty msg="No scorecard yet. Run Score Case." />;
+  if (!s) return <Empty msg={L("Aún no hay valoración. Ejecute Valoración del Caso.", "No scorecard yet. Run Score Case.")} />;
   // Render dimensions from the deterministic scorecard when available so the
   // displayed metrics always reflect the case type (civil vs criminal). Any
   // legacy column the runScoring step set to null is hidden entirely.
@@ -2445,16 +2532,16 @@ function ScorecardTab({ s }: { s: Score | null | undefined }) {
   const detKeys = Object.keys(detDims);
   const INVERSE = new Set(["conviction_risk", "appeal_risk", "litigation_risk", "settlement_pressure"]);
   const LEGACY_LABELS: Record<string, string> = {
-    overall_confidence: "Overall confidence",
-    case_quality: "Case quality",
-    evidence_strength: "Evidence strength",
-    witness_reliability: "Witness reliability",
-    timeline_integrity: "Timeline integrity",
-    chain_of_custody: "Chain of custody",
-    constitutional_compliance: "Constitutional compliance",
-    investigation_completeness: "Investigation completeness",
-    conviction_risk: "Conviction risk",
-    appeal_risk: "Appeal risk",
+    overall_confidence: L("Confianza general", "Overall confidence"),
+    case_quality: L("Calidad del caso", "Case quality"),
+    evidence_strength: L("Fuerza probatoria", "Evidence strength"),
+    witness_reliability: L("Fiabilidad de testigos", "Witness reliability"),
+    timeline_integrity: L("Integridad cronológica", "Timeline integrity"),
+    chain_of_custody: L("Cadena de custodia", "Chain of custody"),
+    constitutional_compliance: L("Cumplimiento constitucional", "Constitutional compliance"),
+    investigation_completeness: L("Exhaustividad de la investigación", "Investigation completeness"),
+    conviction_risk: L("Riesgo de condena", "Conviction risk"),
+    appeal_risk: L("Riesgo en apelación / recurso", "Appeal risk"),
   };
   const dims: { k: string; label: string; inverse?: boolean }[] = [
     { k: "overall_confidence", label: L("Confianza general", "Overall confidence") },
@@ -2548,7 +2635,7 @@ function ScorecardTab({ s }: { s: Score | null | undefined }) {
       )}
       <div className="grid gap-3 md:grid-cols-2">
         <div className="rounded-lg border border-border bg-card p-4">
-          <h3 className="text-sm font-semibold text-success">Top positive contributors</h3>
+          <h3 className="text-sm font-semibold text-success">{L("Factores positivos principales", "Top positive contributors")}</h3>
           <ul className="mt-2 space-y-1 text-sm">
             {(s.positive_contributors ?? []).slice(0, 10).map((p, i) => (
               <li key={i} className="flex justify-between gap-2">
@@ -2559,7 +2646,7 @@ function ScorecardTab({ s }: { s: Score | null | undefined }) {
           </ul>
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
-          <h3 className="text-sm font-semibold text-destructive">Top negative contributors</h3>
+          <h3 className="text-sm font-semibold text-destructive">{L("Factores de riesgo principales", "Top negative contributors")}</h3>
           <ul className="mt-2 space-y-1 text-sm">
             {(s.negative_contributors ?? []).slice(0, 10).map((p, i) => (
               <li key={i} className="flex justify-between gap-2">
@@ -2990,14 +3077,22 @@ function ReportTab({
   r: Report | null | undefined;
   documents?: Array<{ id: string; filename: string }>;
 }) {
-  if (!r) return <Empty msg="No report generated yet. Complete the pipeline then Generate Report." />;
+  if (!r)
+    return (
+      <Empty
+        msg={L(
+          "Aún no se ha generado el informe. Complete el pipeline y ejecute Generar Informe.",
+          "No report generated yet. Complete the pipeline then Generate Report.",
+        )}
+      />
+    );
   let finalPayload: FinalReportPayload;
   try {
     finalPayload = releaseFinalReportPayload(exportData);
     r = finalPayload.report as unknown as Report;
     documents = finalPayload.documents as Array<{id:string;filename:string}>;
   } catch (error) {
-    return <Empty msg={error instanceof Error ? error.message : "Report validation failed"} />;
+    return <Empty msg={error instanceof Error ? error.message : L("Falló la validación del informe", "Report validation failed")} />;
   }
 
 
@@ -3127,8 +3222,8 @@ function ReportTab({
         >
           <div className="font-semibold">
             {narrativeStatus.fully_failed
-              ? "Narrative Generation Unavailable"
-              : "Narrative Generation Partially Recovered"}
+              ? L("Generación de narrativa no disponible", "Narrative Generation Unavailable")
+              : L("Generación de narrativa recuperada parcialmente", "Narrative Generation Partially Recovered")}
           </div>
           <p className="mt-1">{narrativeStatus.banner}</p>
           {narrativeStatus.partially_failed && (narrativeStatus.salvaged_sections?.length ?? 0) > 0 && (
@@ -3157,7 +3252,7 @@ function ReportTab({
       {caseId && <ReportHistoryPanel caseId={caseId} currentVersion={version ?? 1} />}
       {changeLog && (
         <Panel
-          title={`What's Changed — v${changeLog.previous_version ?? "?"} → v${changeLog.current_version ?? version ?? "?"}`}
+          title={L(`Cambios en el expediente — v${changeLog.previous_version ?? "?"} → v${changeLog.current_version ?? version ?? "?"}`, `What's Changed — v${changeLog.previous_version ?? "?"} → v${changeLog.current_version ?? version ?? "?"}`)}
           subtitle={L("Comparativo cuantitativo contra la instantánea previa a la última carga de pruebas", "Quantitative diff against the snapshot captured before the last Add Evidence run")}
         >
           <ul className="grid gap-2 text-sm sm:grid-cols-2">
@@ -3190,7 +3285,7 @@ function ReportTab({
           {(changeLog.sections_changed?.length ?? 0) > 0 && (
             <div className="mt-4">
               <div className="text-xs uppercase tracking-wider text-muted-foreground">
-                Secciones actualizadas / Sections revised
+                {L("Secciones actualizadas", "Sections revised")}
               </div>
               <ul className="mt-1 flex flex-wrap gap-2">
                 {changeLog.sections_changed!.map((s) => {
@@ -3211,7 +3306,7 @@ function ReportTab({
           {(changeLog.drivers?.length ?? 0) > 0 && (
             <div className="mt-4">
               <div className="text-xs uppercase tracking-wider text-muted-foreground">
-                Por qué cambió / Why it changed
+                {L("Causas del cambio", "Why it changed")}
               </div>
               <ul className="mt-1 list-disc pl-5 text-sm">
                 {changeLog.drivers!.map((d, i) => (
@@ -3226,14 +3321,18 @@ function ReportTab({
 
       {ess.scoresSuppressed && (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
-          Quantitative case-strength and risk scores are suppressed for this case — the evidence-sufficiency validator
-          did not reach the threshold required for reliable scoring. Upload more source documents to enable scoring.
+          {L(
+            "Las puntuaciones cuantitativas de fuerza del caso y riesgo están suprimidas para este asunto — el validador de suficiencia probatoria no alcanzó el umbral requerido para una puntuación fiable. Suba más documentos fuente para habilitar la puntuación.",
+            "Quantitative case-strength and risk scores are suppressed for this case — the evidence-sufficiency validator did not reach the threshold required for reliable scoring. Upload more source documents to enable scoring.",
+          )}
         </div>
       )}
       {ess.motionsSuppressed && (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
-          Motion recommendations are suppressed for this case — evidence sufficiency did not reach the threshold
-          required to recommend motions.
+          {L(
+            "Las recomendaciones de promociones están suprimidas para este asunto — la suficiencia probatoria no alcanzó el umbral requerido para recomendar promociones.",
+            "Motion recommendations are suppressed for this case — evidence sufficiency did not reach the threshold required to recommend motions.",
+          )}
         </div>
       )}
       {disputedIssues.length > 0 && (
@@ -3567,8 +3666,10 @@ function ReportTab({
 
       {!hasIntel && (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-800">
-          This report was generated before the litigation-intelligence upgrade. Re-run "Generate Report" to populate
-          citations, motions, cross-exam, and risk scores.
+          {L(
+            "Este informe fue generado antes de la actualización de inteligencia procesal. Vuelva a ejecutar \"Generar Informe\" para poblar citas, promociones, contrainterrogatorios y puntuaciones de riesgo.",
+            "This report was generated before the litigation-intelligence upgrade. Re-run \"Generate Report\" to populate citations, motions, cross-exam, and risk scores.",
+          )}
         </div>
       )}
 
@@ -3743,6 +3844,7 @@ function ChipBadge({ label, tone }: { label: string; tone: "neutral" | "warn" | 
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function StrategicFindingsTab({ findings }: { findings: any[] }) {
+  const { locale } = useI18n();
   const ranked = (findings ?? [])
     .filter((f) => (f.priority ?? 4) <= 3)
     .slice()
@@ -3750,18 +3852,30 @@ function StrategicFindingsTab({ findings }: { findings: any[] }) {
   if (ranked.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-border bg-card/40 p-10 text-center text-sm text-muted-foreground">
-        No ranked strategic findings yet. Run analyzers and intelligence engines to surface them.
+        {L(
+          "Aún no hay hallazgos estratégicos clasificados. Ejecute los analizadores y motores de inteligencia para generarlos.",
+          "No ranked strategic findings yet. Run analyzers and intelligence engines to surface them.",
+        )}
       </div>
     );
   }
   const pLabel = (p: number) =>
-    p === 1 ? "P1 · Case-Dispositive" : p === 2 ? "P2 · Admissibility" : p === 3 ? "P3 · Credibility" : "P4";
+    p === 1
+      ? L("P1 · Determinante del Caso", "P1 · Case-Dispositive")
+      : p === 2
+        ? L("P2 · Admisibilidad", "P2 · Admissibility")
+        : p === 3
+          ? L("P3 · Credibilidad", "P3 · Credibility")
+          : "P4";
   const pTone = (p: number): "danger" | "warn" | "accent" | "neutral" =>
     p === 1 ? "danger" : p === 2 ? "warn" : p === 3 ? "accent" : "neutral";
   return (
     <div className="space-y-3">
       <div className="rounded-md border border-border bg-card/40 p-3 text-xs text-muted-foreground">
-        Ranked by legal impact. Strongest findings first — not order of discovery.
+        {L(
+          "Clasificado por impacto jurídico. Los hallazgos más determinantes primero — no por orden de descubrimiento.",
+          "Ranked by legal impact. Strongest findings first — not order of discovery.",
+        )}
       </div>
       {ranked.map((f) => (
         <div key={f.id} className="rounded-xl border border-border bg-card p-4">
@@ -3769,7 +3883,7 @@ function StrategicFindingsTab({ findings }: { findings: any[] }) {
             <ChipBadge label={pLabel(f.priority ?? 4)} tone={pTone(f.priority ?? 4)} />
             {f.evidence_type && (
               <ChipBadge
-                label={f.evidence_type}
+                label={formatEvidenceType(f.evidence_type, locale)}
                 tone={
                   f.evidence_type === "inculpatory"
                     ? "danger"
@@ -3781,7 +3895,7 @@ function StrategicFindingsTab({ findings }: { findings: any[] }) {
             )}
             {f.impact_direction && (
               <ChipBadge
-                label={f.impact_direction}
+                label={formatImpactDirection(f.impact_direction, locale)}
                 tone={
                   f.impact_direction === "weakens"
                     ? "danger"
@@ -3791,10 +3905,15 @@ function StrategicFindingsTab({ findings }: { findings: any[] }) {
                 }
               />
             )}
-            {f.affected_party && <ChipBadge label={`affects ${f.affected_party}`} tone="neutral" />}
+            {f.affected_party && (
+              <ChipBadge
+                label={L(`Afecta a: ${formatAffectedParty(f.affected_party, locale)}`, `affects ${f.affected_party}`)}
+                tone="neutral"
+              />
+            )}
             {f.severity && (
               <ChipBadge
-                label={f.severity}
+                label={formatSeverity(f.severity, locale)}
                 tone={f.severity === "critical" || f.severity === "high" ? "danger" : "neutral"}
               />
             )}
@@ -3828,10 +3947,14 @@ const ATTACK_LANES: Array<{ k: string; label: string; tone: "danger" | "warn" | 
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function AttackSurfaceTab({ surface }: { surface: any }) {
+  const { locale } = useI18n();
   if (!surface || typeof surface !== "object") {
     return (
       <div className="rounded-lg border border-dashed border-border bg-card/40 p-10 text-center text-sm text-muted-foreground">
-        Attack surface will be generated during the report stage. Run Litigation Report to populate.
+        {L(
+          "La superficie de impugnación se generará durante la fase de informe. Ejecute el Informe de Litigio para poblar este módulo.",
+          "Attack surface will be generated during the report stage. Run Litigation Report to populate.",
+        )}
       </div>
     );
   }
@@ -3853,22 +3976,24 @@ function AttackSurfaceTab({ surface }: { surface: any }) {
   if (populated.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-border bg-card/40 p-10 text-center text-sm text-muted-foreground">
-        No attack-surface items derived from current findings.
+        {L("No hay elementos de impugnación derivados de los hallazgos actuales.", "No attack-surface items derived from current findings.")}
       </div>
     );
   }
   return (
     <div className="space-y-4">
       <div className="rounded-md border border-border bg-card/40 p-3 text-xs text-muted-foreground">
-        Derived deterministically from CASE_STATE — every item links back to a finding. No new analysis is performed
-        here.
+        {L(
+          "Derivado de forma determinista del CASE_STATE — cada elemento se vincula directamente a un hallazgo comprobado. No se realiza nuevo análisis aquí.",
+          "Derived deterministically from CASE_STATE — every item links back to a finding. No new analysis is performed here.",
+        )}
       </div>
       {populated.map((lane) => (
         <div key={lane.k} className="rounded-xl border border-border bg-card p-4">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-base font-semibold">{lane.label}</h3>
             <ChipBadge
-              label={`${surface[lane.k].length} item${surface[lane.k].length === 1 ? "" : "s"}`}
+              label={`${surface[lane.k].length} ${surface[lane.k].length === 1 ? L("elemento", "item") : L("elementos", "items")}`}
               tone={lane.tone}
             />
           </div>
@@ -3885,11 +4010,13 @@ function AttackSurfaceTab({ surface }: { surface: any }) {
                   )}
                   {it.severity && (
                     <ChipBadge
-                      label={it.severity}
+                      label={formatSeverity(it.severity, locale)}
                       tone={it.severity === "critical" || it.severity === "high" ? "danger" : "neutral"}
                     />
                   )}
-                  {it.evidence_type && <ChipBadge label={it.evidence_type} tone="accent" />}
+                  {it.evidence_type && (
+                    <ChipBadge label={formatEvidenceType(it.evidence_type, locale)} tone="accent" />
+                  )}
                 </div>
                 <div className="mt-1 text-sm font-medium">{it.title}</div>
                 {it.source_quote && (

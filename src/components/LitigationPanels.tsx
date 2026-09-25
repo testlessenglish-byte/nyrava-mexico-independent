@@ -17,6 +17,7 @@ import {
   Clock,
   FileSearch,
 } from "lucide-react";
+import { useI18n } from "@/i18n";
 
 type Confidence = "confirmed" | "likely" | "possible" | "unknown" | null | undefined;
 
@@ -27,15 +28,73 @@ const CONFIDENCE_STYLE: Record<NonNullable<Confidence>, string> = {
   unknown: "bg-muted text-muted-foreground border-border",
 };
 
+const CONFIDENCE_LABELS: Record<string, { es: string; en: string }> = {
+  confirmed: { es: "confirmado", en: "confirmed" },
+  likely: { es: "probable", en: "likely" },
+  possible: { es: "posible", en: "possible" },
+  unknown: { es: "desconocido", en: "unknown" },
+};
+
+const PERSPECTIVE_LABELS: Record<string, { es: string; en: string }> = {
+  defensa: { es: "Defensa", en: "Defense" },
+  defense: { es: "Defensa", en: "Defense" },
+  ministerio_publico: { es: "Ministerio Público / Fiscalía", en: "Prosecution" },
+  prosecution: { es: "Ministerio Público / Fiscalía", en: "Prosecution" },
+  parte_actora: { es: "Parte Actora", en: "Plaintiff" },
+  plaintiff: { es: "Parte Actora", en: "Plaintiff" },
+  parte_demandada: { es: "Parte Demandada", en: "Defendant" },
+  defendant: { es: "Parte Demandada", en: "Defendant" },
+  quejoso: { es: "Parte Quejosa", en: "Petitioner / Quejoso" },
+  autoridad_responsable: { es: "Autoridad Responsable", en: "Responsible Authority" },
+  juzgador: { es: "Juzgador / Tribunal", en: "Judge" },
+  judge: { es: "Juzgador / Tribunal", en: "Judge" },
+  judicial: { es: "Perspectiva Judicial", en: "Judicial" },
+  independiente: { es: "Análisis Independiente", en: "Independent" },
+  independent: { es: "Análisis Independiente", en: "Independent" },
+  investigator: { es: "Investigador", en: "Investigator" },
+  appellate: { es: "Tribunal de Alzada / Apelación", en: "Appellate" },
+  jury: { es: "Tribunal Colegiado / Jurado", en: "Jury" },
+};
+
+function formatPanelSeverity(sev: string | null | undefined, locale: string): string {
+  if (!sev) return "";
+  if (locale === "es") {
+    switch (sev.toLowerCase()) {
+      case "critical": return "CRÍTICO";
+      case "high": return "ALTO";
+      case "medium": return "MEDIO";
+      case "low": return "BAJO";
+      case "info": return "INFO";
+      default: return sev.toUpperCase();
+    }
+  }
+  return sev.toUpperCase();
+}
+
+function formatPanelParty(party: string | null | undefined, locale: string): string {
+  if (!party || party === "—") return "—";
+  if (locale === "es") {
+    const p = party.toLowerCase();
+    if (p === "neutral") return "Neutral";
+    if (p === "favorable") return "Favorable";
+    if (p === "adverse") return "Adverso";
+    if (p === "plaintiff" || p === "actor") return "Parte actora";
+    if (p === "defendant" || p === "demandado") return "Parte demandada";
+  }
+  return party;
+}
+
 export function ConfidenceBadge({ value }: { value: Confidence }) {
+  const { locale } = useI18n();
   const v = value ?? "unknown";
   const Icon = v === "confirmed" ? CheckCircle2 : v === "unknown" ? HelpCircle : Sparkles;
+  const label = CONFIDENCE_LABELS[v]?.[locale === "en" ? "en" : "es"] ?? v;
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ${CONFIDENCE_STYLE[v]}`}
     >
       <Icon className="h-3 w-3" />
-      {v}
+      {label}
     </span>
   );
 }
@@ -92,6 +151,7 @@ export function PerspectivesPanel({
   perspectives: PerspectiveRow[];
   ranAt?: string | null;
 }) {
+  const { locale } = useI18n();
   const [active, setActive] = useState<string>(perspectives[0]?.perspective ?? "defense");
   const current = perspectives.find((p) => p.perspective === active) ?? perspectives[0];
 
@@ -99,8 +159,12 @@ export function PerspectivesPanel({
     return (
       <div className="rounded-lg border border-dashed border-border bg-card/40 p-10 text-center text-sm text-muted-foreground">
         {ranAt
-          ? "Multi-Perspective Analysis ran but every perspective call failed — most commonly an AI-provider rate limit or quota exhaustion, not a lack of applicable perspectives for this case type. Check Admin → AI Providers for cooldown/quota status, then rerun."
-          : "Run “Multi-Perspective Analysis” from the Intelligence Engines panel to see how the case looks from every side."}
+          ? (locale === "es"
+              ? "El análisis multiperspectiva se ejecutó pero las consultas fallaron — habitualmente por límite de tasa o agotamiento de cuota del proveedor de IA. Verifique Admin → Proveedores de IA y vuelva a intentar."
+              : "Multi-Perspective Analysis ran but every perspective call failed — most commonly an AI-provider rate limit or quota exhaustion, not a lack of applicable perspectives for this case type. Check Admin → AI Providers for cooldown/quota status, then rerun.")
+          : (locale === "es"
+              ? "Ejecute “Análisis Multiperspectiva” desde los Motores de Inteligencia para evaluar el caso desde cada ángulo procesal."
+              : "Run “Multi-Perspective Analysis” from the Intelligence Engines panel to see how the case looks from every side.")}
       </div>
     );
   }
@@ -111,14 +175,15 @@ export function PerspectivesPanel({
         {perspectives.map((p) => {
           const Icon = PERSPECTIVE_ICON[p.perspective] ?? FileSearch;
           const isActive = active === p.perspective;
+          const label = PERSPECTIVE_LABELS[p.perspective]?.[locale === "en" ? "en" : "es"] ?? p.perspective;
           return (
             <button
               key={p.id}
               onClick={() => setActive(p.perspective)}
-              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium capitalize ${isActive ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground hover:bg-secondary"}`}
+              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium ${isActive ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground hover:bg-secondary"}`}
             >
               <Icon className="h-3.5 w-3.5" />
-              {p.perspective}
+              {label}
             </button>
           );
         })}
@@ -128,19 +193,23 @@ export function PerspectivesPanel({
         <div className="space-y-4">
           <div className="rounded-xl border border-border bg-card p-5">
             <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-lg font-semibold capitalize">{current.perspective} perspective</h3>
+              <h3 className="text-lg font-semibold">
+                {locale === "es"
+                  ? `Perspectiva · ${PERSPECTIVE_LABELS[current.perspective]?.es ?? current.perspective}`
+                  : `${current.perspective} perspective`}
+              </h3>
               <ConfidenceBadge value={current.confidence_label} />
             </div>
             {current.summary && <p className="text-sm text-muted-foreground">{current.summary}</p>}
             <div className="mt-4 grid grid-cols-2 gap-3">
-              <ScoreRing label="Fortaleza del caso" value={current.strength_score} tone="good" />
-              <ScoreRing label="Riesgo" value={current.risk_score} tone="bad" />
+              <ScoreRing label={locale === "es" ? "Fortaleza del caso" : "Case strength"} value={current.strength_score} tone="good" />
+              <ScoreRing label={locale === "es" ? "Riesgo" : "Risk"} value={current.risk_score} tone="bad" />
             </div>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
             <ListCard
-              title="Strengths"
+              title={locale === "es" ? "Fortalezas" : "Strengths"}
               icon={CheckCircle2}
               accent="success"
               items={asArr(current.strengths)}
@@ -155,7 +224,7 @@ export function PerspectivesPanel({
               )}
             />
             <ListCard
-              title="Weaknesses"
+              title={locale === "es" ? "Debilidades y vulnerabilidades" : "Weaknesses"}
               icon={AlertTriangle}
               accent="destructive"
               items={asArr(current.weaknesses)}
@@ -170,7 +239,7 @@ export function PerspectivesPanel({
               )}
             />
             <ListCard
-              title="Opposing arguments"
+              title={locale === "es" ? "Argumentos de la contraparte" : "Opposing arguments"}
               icon={ShieldAlert}
               accent="warning"
               items={asArr(current.opposing_arguments)}
@@ -179,14 +248,14 @@ export function PerspectivesPanel({
                   <div className="text-sm">{s.argument}</div>
                   {s.strength && (
                     <span className="mt-1 inline-block text-[10px] uppercase tracking-wider text-muted-foreground">
-                      strength: {s.strength}
+                      {locale === "es" ? `fuerza: ${s.strength}` : `strength: ${s.strength}`}
                     </span>
                   )}
                 </div>
               )}
             />
             <ListCard
-              title="Counter-arguments"
+              title={locale === "es" ? "Contraargumentos y réplica" : "Counter-arguments"}
               icon={Sparkles}
               accent="accent"
               items={asArr(current.counter_arguments)}
@@ -198,7 +267,7 @@ export function PerspectivesPanel({
               )}
             />
             <ListCard
-              title="Key evidence"
+              title={locale === "es" ? "Pruebas clave" : "Key evidence"}
               icon={Link2}
               accent="accent"
               items={asArr(current.key_evidence)}
@@ -210,7 +279,7 @@ export function PerspectivesPanel({
               )}
             />
             <ListCard
-              title="Recommended actions"
+              title={locale === "es" ? "Acciones recomendadas" : "Recommended actions"}
               icon={ChevronRight}
               accent="accent"
               items={asArr(current.recommended_actions)}
@@ -269,6 +338,7 @@ export function EvidenceIntelPanel({
   documents: { id: string; filename: string }[];
   ranAt?: string | null;
 }) {
+  const { locale } = useI18n();
   const [filter, setFilter] = useState<string>("all");
   const docMap = new Map(documents.map((d) => [d.id, d.filename]));
 
@@ -276,8 +346,12 @@ export function EvidenceIntelPanel({
     return (
       <div className="rounded-lg border border-dashed border-border bg-card/40 p-10 text-center text-sm text-muted-foreground">
         {ranAt
-          ? "Evidence Intelligence ran successfully but found no evidence to classify or flag as missing given the current corpus."
-          : "Run “Evidence Intelligence” to classify every piece of evidence and detect what's missing."}
+          ? (locale === "es"
+              ? "Inteligencia de Evidencia se ejecutó exitosamente pero no detectó elementos que clasificar o señalar como faltantes con el corpus actual."
+              : "Evidence Intelligence ran successfully but found no evidence to classify or flag as missing given the current corpus.")
+          : (locale === "es"
+              ? "Ejecute “Inteligencia de Evidencia” para clasificar cada elemento probatorio y detectar vacíos."
+              : "Run “Evidence Intelligence” to classify every piece of evidence and detect what's missing.")}
       </div>
     );
   }
@@ -314,7 +388,7 @@ export function EvidenceIntelPanel({
             onClick={() => setFilter(c)}
             className={`rounded-full border px-3 py-1 text-xs capitalize ${filter === c ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground hover:bg-secondary"}`}
           >
-            {c === "all" ? "All" : (CLASS_LABEL[c]?.label ?? c)}
+            {c === "all" ? (locale === "es" ? "Todas" : "All") : (CLASS_LABEL[c]?.label ?? c)}
           </button>
         ))}
       </div>
@@ -337,9 +411,15 @@ export function EvidenceIntelPanel({
                     {e.description && <div className="mt-1 text-xs text-muted-foreground">{e.description}</div>}
                     <div className="mt-2 flex flex-wrap gap-2 text-[10px] uppercase tracking-wider text-muted-foreground">
                       <span className={`rounded-full px-2 py-0.5 ${meta.tone} bg-secondary/60`}>{meta.label}</span>
-                      {e.severity && <span className="rounded-full bg-secondary/60 px-2 py-0.5">{e.severity}</span>}
+                      {e.severity && (
+                        <span className="rounded-full bg-secondary/60 px-2 py-0.5">
+                          {formatPanelSeverity(e.severity, locale)}
+                        </span>
+                      )}
                       {e.affected_party && (
-                        <span className="rounded-full bg-secondary/60 px-2 py-0.5">{e.affected_party}</span>
+                        <span className="rounded-full bg-secondary/60 px-2 py-0.5">
+                          {formatPanelParty(e.affected_party, locale)}
+                        </span>
                       )}
                       {e.document_id && docMap.get(e.document_id) && (
                         <span className="rounded-full bg-secondary/60 px-2 py-0.5">{docMap.get(e.document_id)}</span>
@@ -373,10 +453,10 @@ export function EvidenceIntelPanel({
                         );
                       return (
                         <div className="mt-2 flex flex-wrap gap-2">
-                          {chip("Supports", sup.length, "findings", "bg-emerald-500/15 text-emerald-300")}
-                          {chip("Contradicts", con.length, "findings", "bg-red-500/15 text-red-300")}
-                          {chip("Witnesses", wit.length, "witnesses", "bg-muted text-foreground/80")}
-                          {chip("Timeline", tl.length, "trial", "bg-amber-500/15 text-amber-300")}
+                          {chip(locale === "es" ? "Apoya" : "Supports", sup.length, "findings", "bg-emerald-500/15 text-emerald-300")}
+                          {chip(locale === "es" ? "Contradice" : "Contradicts", con.length, "findings", "bg-red-500/15 text-red-300")}
+                          {chip(locale === "es" ? "Testigos" : "Witnesses", wit.length, "witnesses", "bg-muted text-foreground/80")}
+                          {chip(locale === "es" ? "Cronología" : "Timeline", tl.length, "trial", "bg-amber-500/15 text-amber-300")}
                         </div>
                       );
                     })()}
@@ -416,6 +496,7 @@ export function StrategyPanel({
   onRun: (perspective: string) => void;
   running: boolean;
 }) {
+  const { locale } = useI18n();
   const allP = [
     "independiente",
     "juzgador",
@@ -433,46 +514,57 @@ export function StrategyPanel({
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        {allP.map((p) => (
-          <button
-            key={p}
-            onClick={() => setActive(p)}
-            className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-medium capitalize ${active === p ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground hover:bg-secondary"}`}
-          >
-            {p}
-            {existing.has(p) ? "" : " ·"}
-          </button>
-        ))}
+        {allP.map((p) => {
+          const pLabel = PERSPECTIVE_LABELS[p]?.[locale === "en" ? "en" : "es"] ?? p;
+          return (
+            <button
+              key={p}
+              onClick={() => setActive(p)}
+              className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-medium ${active === p ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground hover:bg-secondary"}`}
+            >
+              {pLabel}
+              {existing.has(p) ? "" : " ·"}
+            </button>
+          );
+        })}
         <button
           onClick={() => onRun(active)}
           disabled={running}
           className="ml-auto inline-flex items-center gap-1 rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground disabled:opacity-50"
         >
           <Sparkles className="h-3.5 w-3.5" />
-          {existing.has(active) ? `Re-run for ${active}` : `Generate for ${active}`}
+          {existing.has(active)
+            ? (locale === "es" ? `Reejecutar para ${PERSPECTIVE_LABELS[active]?.es ?? active}` : `Re-run for ${active}`)
+            : (locale === "es" ? `Generar para ${PERSPECTIVE_LABELS[active]?.es ?? active}` : `Generate for ${active}`)}
         </button>
       </div>
 
       {!current ? (
         <div className="rounded-lg border border-dashed border-border bg-card/40 p-10 text-center text-sm text-muted-foreground">
-          No strategy generated for “{active}” yet. Click the button above to synthesize one.
+          {locale === "es"
+            ? `Aún no se genera estrategia para “${PERSPECTIVE_LABELS[active]?.es ?? active}”. Haga clic en el botón superior para sintetizar una.`
+            : `No strategy generated for “${active}” yet. Click the button above to synthesize one.`}
         </div>
       ) : (
         <div className="space-y-4">
           <div className="rounded-xl border border-border bg-card p-5">
             <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-lg font-semibold capitalize">Strategy · {current.perspective}</h3>
+              <h3 className="text-lg font-semibold">
+                {locale === "es"
+                  ? `Estrategia · ${PERSPECTIVE_LABELS[current.perspective]?.es ?? current.perspective}`
+                  : `Strategy · ${current.perspective}`}
+              </h3>
               <ConfidenceBadge value={current.confidence_label} />
             </div>
             {current.summary && <p className="text-sm text-muted-foreground">{current.summary}</p>}
             <div className="mt-4 grid grid-cols-2 gap-3">
-              <ScoreRing label="Fortaleza del caso" value={current.case_strength_score} tone="good" />
-              <ScoreRing label="Riesgo" value={current.risk_score} tone="bad" />
+              <ScoreRing label={locale === "es" ? "Fortaleza del caso" : "Case strength"} value={current.case_strength_score} tone="good" />
+              <ScoreRing label={locale === "es" ? "Riesgo" : "Risk"} value={current.risk_score} tone="bad" />
             </div>
           </div>
 
           <ListCard
-            title="Motion rankings"
+            title={locale === "es" ? "Jerarquía de promociones procesales" : "Motion rankings"}
             icon={Gavel}
             accent="accent"
             items={asArr(current.motion_rankings)}
@@ -499,7 +591,7 @@ export function StrategyPanel({
           />
 
           <ListCard
-            title="Anticipated opposing arguments"
+            title={locale === "es" ? "Argumentos anticipados de la contraparte" : "Anticipated opposing arguments"}
             icon={ShieldAlert}
             accent="warning"
             items={asArr(current.anticipated_opposing)}
@@ -507,14 +599,16 @@ export function StrategyPanel({
               <div>
                 <div className="text-sm">{m.argument}</div>
                 <div className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">
-                  likelihood {m.likelihood ?? "?"} · impact {m.impact ?? "?"}
+                  {locale === "es"
+                    ? `probabilidad ${m.likelihood ?? "?"} · impacto ${m.impact ?? "?"}`
+                    : `likelihood ${m.likelihood ?? "?"} · impact ${m.impact ?? "?"}`}
                 </div>
               </div>
             )}
           />
 
           <ListCard
-            title="Counter-arguments"
+            title={locale === "es" ? "Contraargumentos y réplica" : "Counter-arguments"}
             icon={Sparkles}
             accent="accent"
             items={asArr(current.counter_arguments)}
@@ -527,7 +621,7 @@ export function StrategyPanel({
           />
 
           <ListCard
-            title="Recommended next actions"
+            title={locale === "es" ? "Siguientes pasos procesales" : "Recommended next actions"}
             icon={ChevronRight}
             accent="accent"
             items={asArr(current.next_actions)}
