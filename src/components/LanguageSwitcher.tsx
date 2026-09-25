@@ -2,7 +2,7 @@ import { ChevronDown } from "lucide-react";
 import { useI18n, LOCALES, type Locale } from "@/i18n";
 import { cn } from "@/lib/utils";
 
-type Variant = "header" | "sidebar" | "inline";
+type Variant = "header" | "sidebar" | "inline" | "header-pill";
 
 const FLAG: Record<Locale, string> = { es: "🇲🇽", en: "🇺🇸" };
 
@@ -14,6 +14,34 @@ export function LanguageSwitcher({
   className?: string;
 }) {
   const { locale, setLocale, t } = useI18n();
+
+  if (variant === "header-pill") {
+    return (
+      <label
+        className={cn(
+          "relative inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-black/10 px-3 py-1 text-[10.5px] font-semibold tracking-[0.14em] text-white transition hover:bg-white/10 hover:border-white/40 cursor-pointer",
+          className,
+        )}
+        aria-label={t("common.language")}
+      >
+        <span className="text-[9.5px] font-bold text-white/90 uppercase">
+          {locale === "en" ? "US" : "MX"}
+        </span>
+        <select
+          value={locale}
+          onChange={(e) => setLocale(e.target.value as Locale)}
+          className="cursor-pointer appearance-none bg-transparent pr-3 uppercase font-semibold text-white focus:outline-none"
+        >
+          {LOCALES.map((l) => (
+            <option key={l} value={l} className="bg-[#104033] text-white">
+              {l === "es" ? "ESPAÑOL" : "ENGLISH"}
+            </option>
+          ))}
+        </select>
+        <ChevronDown className="pointer-events-none absolute right-2 h-3 w-3 text-white/80" aria-hidden />
+      </label>
+    );
+  }
 
   // In the mobile drawer, render direct tap buttons instead of a native
   // <select>: the native picker is unreliable on phones when nested inside

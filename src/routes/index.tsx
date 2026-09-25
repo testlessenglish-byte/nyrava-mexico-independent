@@ -16,7 +16,7 @@ import {
   HeartHandshake,
   Network,
 } from "lucide-react";
-import { NyravaLogo } from "@/components/NyravaLogo";
+import { NyravaLogo, NyravaHeaderBrand } from "@/components/NyravaLogo";
 import { BrandPlans } from "@/components/BrandPlans";
 import { HeroOSDashboard } from "@/components/HeroOSDashboard";
 import { TrustStrip } from "@/components/TrustStrip";
@@ -126,31 +126,27 @@ function Landing() {
 
   return (
     <div className="min-h-screen text-foreground">
-      {/* Top nav — soft white bar, matches the reference design */}
-      <header className="border-b border-border bg-cream text-cream-foreground">
-        <div className="mx-auto grid max-w-[90rem] grid-cols-[minmax(0,1fr)_auto] items-center gap-6 px-4 py-4 sm:px-8 xl:flex xl:justify-between">
-          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-            <NyravaLogo size={48} glow={false} className="shrink-0" />
-            <div className="min-w-0 leading-none">
-              <span className="block whitespace-nowrap nyrava-wordmark text-base min-[400px]:text-lg sm:text-2xl">NYRAVA MÉXICO</span>
-              <span className="mt-1 hidden truncate text-[11px] font-semibold tracking-[0.24em] text-cream-foreground/60 sm:block">
-                {t("home.brand.subtitle")}
-              </span>
-            </div>
-          </div>
+      {/* Top Header — Dark forest green bar matching reference design exactly */}
+      <header className="sticky top-0 z-40 bg-[#104033] text-white shadow-sm pt-[env(safe-area-inset-top,0px)]">
+        <div className="mx-auto flex max-w-[90rem] items-center justify-between px-4 py-3.5 sm:px-8">
+          <Link to="/" className="flex min-w-0 items-center">
+            <NyravaHeaderBrand subtitle={t("home.brand.subtitle")} />
+          </Link>
 
-          <div className="flex shrink-0 items-center justify-end gap-2 sm:gap-3">
-            <div className="hidden xl:block"><LanguageSwitcher className="border-border text-cream-foreground" /></div>
+          <div className="flex shrink-0 items-center justify-end gap-2.5 sm:gap-3">
+            <div className="hidden lg:block">
+              <LanguageSwitcher variant="header-pill" />
+            </div>
+            <span className="hidden h-5 w-px bg-white/20 lg:inline-block" />
             <Link
               to="/auth"
-              className="hidden items-center rounded-md border border-border px-3 py-2 text-[11px] font-semibold tracking-[0.14em] text-cream-foreground hover:bg-primary/5 xl:inline-flex"
+              className="hidden items-center rounded-full border border-white/25 bg-black/10 px-4 py-1.5 text-[11px] font-semibold tracking-[0.14em] text-white transition hover:bg-white/10 hover:border-white/40 sm:inline-flex"
             >
               {t("nav.signIn")}
             </Link>
             <Link
               to="/auth"
-              className="hidden rounded-md px-3 py-2 text-[11px] font-bold tracking-[0.12em] text-primary-foreground shadow-sm transition hover:brightness-105 xl:inline-flex"
-              style={{ background: "var(--gradient-primary)" }}
+              className="hidden items-center rounded-full bg-[#fbf5ed] px-4 py-1.5 text-[11px] font-bold tracking-[0.14em] text-[#104033] shadow-sm transition hover:bg-white hover:brightness-105 sm:inline-flex"
             >
               {t("nav.openPlatform")}
             </Link>
@@ -160,7 +156,7 @@ function Landing() {
                   ? { label: t(n.key).toUpperCase(), to: n.to }
                   : { label: t(n.key).toUpperCase(), href: n.href },
               )}
-              triggerClassName="border-border text-cream-foreground xl:hidden"
+              triggerClassName="border-white/25 bg-white/5 text-white hover:bg-white/10 lg:hidden"
             >
               <LanguageSwitcher variant="sidebar" className="w-full justify-start" />
               <Link
@@ -178,68 +174,110 @@ function Landing() {
             </MobileNav>
           </div>
         </div>
-        <div className="border-t border-border/70">
-          <nav aria-label="Main navigation" className="mx-auto hidden max-w-[90rem] items-center justify-between gap-5 px-8 py-4 xl:flex">
-            {NAV.map((n) =>
-              "to" in n ? (
-                <Link
-                  key={n.key}
-                  to={n.to}
-                  className="whitespace-nowrap text-[11px] font-semibold tracking-[0.12em] text-cream-foreground/80 transition hover:text-cream-foreground"
-                >
-                  {t(n.key).toUpperCase()}
-                </Link>
-              ) : (
-                <a
-                  key={n.key}
-                  href={n.href}
-                  className="whitespace-nowrap text-[11px] font-semibold tracking-[0.12em] text-cream-foreground/80 transition hover:text-cream-foreground"
-                >
-                  {t(n.key).toUpperCase()}
-                </a>
-              ),
-            )}
-          </nav>
+
+        {/* Subnav bar — warm cream strip with legal links & justice tagline */}
+        <div className="border-b border-[#e5dacd] bg-[#f3ebe0] text-[#47554e]">
+          <div className="mx-auto hidden max-w-[90rem] items-center justify-between px-4 py-2.5 sm:px-8 lg:flex">
+            <nav aria-label="Main navigation" className="flex items-center gap-4 xl:gap-6 2xl:gap-8">
+              {NAV.map((n) =>
+                "to" in n ? (
+                  <Link
+                    key={n.key}
+                    to={n.to}
+                    className="whitespace-nowrap text-[11px] font-semibold tracking-[0.14em] text-[#47554e] transition hover:text-[#104033]"
+                  >
+                    {t(n.key).toUpperCase()}
+                  </Link>
+                ) : (
+                  <a
+                    key={n.key}
+                    href={n.href}
+                    className="whitespace-nowrap text-[11px] font-semibold tracking-[0.14em] text-[#47554e] transition hover:text-[#104033]"
+                  >
+                    {t(n.key).toUpperCase()}
+                  </a>
+                ),
+              )}
+            </nav>
+            <div className="flex items-center gap-3">
+              <span className="h-3.5 w-px bg-[#c49257]/60" />
+              <span className="text-[11px] font-sans font-semibold tracking-[0.18em] text-[#b4834f] uppercase whitespace-nowrap">
+                {t("nav.justiceTagline")}
+              </span>
+            </div>
+          </div>
         </div>
       </header>
 
       <main>
-        {/* Nyrava México editorial hero */}
+        {/* Nyrava México editorial hero matching visual source of truth */}
         <section className="nyrava-hero relative overflow-hidden">
-          <div className="relative mx-auto max-w-[100rem] px-4 py-12 sm:px-6 sm:py-14 lg:py-20">
-            <div className="grid gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:items-center">
-              {/* Left: headline + CTAs */}
+          <div className="relative mx-auto max-w-[90rem] px-4 pt-10 sm:px-8 sm:pt-14 lg:pt-16">
+            <div className="grid gap-8 lg:grid-cols-[0.88fr_1.12fr] lg:items-center xl:gap-12">
+              {/* Left: headline + CTAs + sub-bar */}
               <div className="nyrava-hero-copy min-w-0">
-                <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold tracking-[0.24em] text-primary">
-                  <Scale className="h-3.5 w-3.5" /> {t("home.hero.tagline")}
+                <div className="mb-4 flex items-center gap-3">
+                  <span className="h-[2px] w-8 bg-[#c49257] shrink-0" />
+                  <span className="text-[11px] sm:text-[11.5px] font-sans font-bold tracking-[0.2em] text-[#22392e] uppercase">
+                    {t("home.hero.tagline")}
+                  </span>
                 </div>
-                <h1 className="break-words font-display text-4xl font-semibold not-italic leading-[1.05] tracking-normal text-foreground sm:text-5xl md:text-[64px]">
+                <h1 className="break-words font-display text-4xl sm:text-5xl md:text-[56px] lg:text-[62px] font-semibold not-italic leading-[1.05] tracking-tight text-[#103a2d]">
                   {t("home.hero.line1")}
                   <br />
-                  <span className="text-gradient-primary">{t("home.hero.line2")}</span>
+                  <span>{t("home.hero.line2")}</span>
                 </h1>
-                <p className="mt-8 max-w-[560px] text-[19px] leading-relaxed text-muted-foreground">
+                <p className="mt-6 max-w-[530px] text-[16px] sm:text-[17.5px] leading-[1.65] text-[#3e4d46]">
                   {t("home.hero.subtitle")}
                 </p>
-                <div className="mt-10 flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap">
+                <div className="mt-8 flex flex-col min-[480px]:flex-row flex-wrap items-stretch min-[480px]:items-center gap-3 sm:gap-4">
                   <Link
                     to="/auth"
-                    className="inline-flex min-w-0 items-center justify-center gap-2 rounded-[14px] px-5 py-5 text-center text-[11px] font-bold tracking-[0.14em] text-primary-foreground shadow-lg transition hover:-translate-y-0.5 sm:h-[58px] sm:px-6 sm:py-0"
-                    style={{ background: "var(--gradient-primary)", boxShadow: "0 14px 30px -10px rgba(19,43,33,0.5)" }}
+                    className="inline-flex min-h-[48px] w-full min-[480px]:w-auto items-center justify-center gap-2.5 rounded-xl bg-[#0c3629] px-6 py-3.5 text-[11.5px] font-sans font-bold tracking-[0.14em] text-white shadow-[0_8px_20px_rgba(12,54,41,0.28)] transition hover:bg-[#07261c] hover:-translate-y-0.5"
                   >
                     {t("home.cta.launchCommand")} <ArrowRight className="h-4 w-4" />
                   </Link>
                   <a
                     href="#product"
-                    className="inline-flex min-w-0 items-center justify-center gap-2 rounded-[14px] border border-border bg-card px-5 py-5 text-center text-[11px] font-bold tracking-[0.14em] text-foreground transition hover:-translate-y-0.5 hover:border-primary/50 sm:h-[58px] sm:px-6 sm:py-0"
+                    className="inline-flex min-h-[48px] w-full min-[480px]:w-auto items-center justify-center gap-2.5 rounded-xl border border-[#cfc5b5] bg-[#fbf6ef]/85 backdrop-blur-sm px-6 py-3.5 text-[11.5px] font-sans font-bold tracking-[0.14em] text-[#1c2e26] transition hover:bg-[#fbf6ef] hover:border-[#103a2d]/40 hover:-translate-y-0.5"
                   >
-                    {t("home.cta.watchDemo")} <Play className="h-3.5 w-3.5" />
+                    {t("home.cta.watchDemo")} <Play className="h-3.5 w-3.5 stroke-[2] fill-transparent stroke-current" />
                   </a>
+                </div>
+                <div className="mt-8 flex flex-wrap items-center gap-3 sm:gap-4 text-[10.5px] sm:text-[11px] font-sans font-semibold tracking-[0.22em] text-[#4d5b54] uppercase">
+                  <span>{t("home.substrip.analysis")}</span>
+                  <span className="text-[#c49257]/80">|</span>
+                  <span>{t("home.substrip.evidence")}</span>
+                  <span className="text-[#c49257]/80">|</span>
+                  <span>{t("home.substrip.strategy")}</span>
+                  <span className="text-[#c49257]/80">|</span>
+                  <span>{t("home.substrip.impact")}</span>
                 </div>
               </div>
 
-              {/* Right: left-cards / trust badge / right-cards — symmetric grid, responsive built in */}
-              <HeroOSDashboard />
+              {/* Right: intelligence cards 3-column arrangement */}
+              <div className="min-w-0">
+                <HeroOSDashboard />
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom quote banner spanning the bottom of the hero environment */}
+          <div className="mt-10 sm:mt-14 border-t border-[#364d42] bg-[#1d332a]/95 backdrop-blur px-4 py-3.5 sm:px-8 pb-[max(0.875rem,env(safe-area-inset-bottom))]">
+            <div className="mx-auto flex max-w-[90rem] flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-center sm:text-left">
+              <div className="flex items-center justify-center sm:justify-start gap-3">
+                <span className="font-editorial text-[15px] sm:text-[17px] text-[#f2f7f4] tracking-wide">
+                  {t("home.quote")}
+                </span>
+                <span className="hidden sm:inline-block h-[1.5px] w-14 bg-[#c49257]" />
+              </div>
+              <div className="flex items-center justify-center gap-3 text-[11px] font-sans font-semibold tracking-[0.24em] text-[#b9cdc3] uppercase">
+                <span>{t("home.pillars.law")}</span>
+                <span className="text-[#c49257]">●</span>
+                <span>{t("home.pillars.technology")}</span>
+                <span className="text-[#c49257]">●</span>
+                <span>{t("home.pillars.people")}</span>
+              </div>
             </div>
           </div>
         </section>

@@ -1,13 +1,5 @@
 import { Scale, BookOpen, Gavel, GraduationCap, Landmark, FileText } from "lucide-react";
-import { NyravaLogo } from "./NyravaLogo";
 import { useI18n } from "@/i18n";
-
-/**
- * Homepage hero visual — three-column layout: left source cards, centered
- * Trust Badge, right source cards. Mirrors the Nyrava México reference
- * design: Jurisprudencia / Legislación MX / Criterios Aislados on the
- * left, Doctrina / Precedentes / Reportes on the right.
- */
 
 type SourceCard = {
   icon: React.ComponentType<{ className?: string }>;
@@ -33,82 +25,65 @@ function SourceCardTile({ card }: { card: SourceCard }) {
   const Icon = card.icon;
   return (
     <div
-      className="panel flex min-h-[86px] items-center gap-2 rounded-[14px] px-3 py-3 backdrop-blur transition hover:-translate-y-[3px]"
-      style={{ boxShadow: "var(--shadow-panel), 0 0 24px rgba(19,43,33,0.10)" }}
+      className="flex min-h-[74px] items-center gap-3.5 rounded-2xl border border-[#ede3d5] bg-white/95 px-4 py-3.5 shadow-[0_8px_22px_rgba(0,0,0,0.06)] backdrop-blur-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(0,0,0,0.09)] min-w-0"
     >
-      <div className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-border bg-card/70">
-        <Icon className="h-4 w-4 text-primary" />
+      <div className="grid h-8 w-8 shrink-0 place-items-center text-[#0d382b]">
+        <Icon className="h-6 w-6 stroke-[1.6]" />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="text-[11px] font-bold tracking-[0.02em] text-foreground">
+        <div className="text-[12px] font-sans font-bold tracking-[0.06em] text-[#0d281e] uppercase leading-tight truncate">
           {t(card.titleKey)}
         </div>
-        <div className="mt-0.5 text-[10.5px] text-muted-foreground">{t(card.subtitleKey)}</div>
-        <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-success/15 px-2 py-[2px] text-[8.5px] font-bold uppercase tracking-[0.14em] text-success">
-          <span className="h-1 w-1 rounded-full bg-current" /> {t(card.tagKey)}
-        </span>
+        <div className="mt-0.5 text-[11px] font-sans text-[#52635a] truncate leading-tight">
+          {t(card.subtitleKey)}
+        </div>
+        <div className="mt-1.5 flex items-center">
+          <span className="inline-flex items-center gap-1 rounded-full bg-[#d0ebe0] px-2 py-0.5 text-[8.5px] font-sans font-bold uppercase tracking-[0.1em] text-[#0f664a] leading-none">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#0f664a]" />
+            {t(card.tagKey)}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CenterBadge() {
+  const { t } = useI18n();
+  return (
+    <div className="relative flex flex-col items-center justify-center text-center rounded-2xl border border-[#e5dacd] bg-[#f7f1ea]/95 px-3 py-6 shadow-[0_8px_24px_rgba(19,43,33,0.06)] backdrop-blur-sm w-[138px] shrink-0 self-stretch my-auto">
+      <img
+        src="/brand/nyrava_n_clean.png"
+        alt="Nyrava México"
+        className="h-[52px] w-[52px] object-contain shrink-0"
+      />
+      <div className="mt-2.5 font-display font-bold text-[14px] tracking-[0.2em] text-[#0d281e] leading-tight select-none">
+        NYRAVA<br />MÉXICO
+      </div>
+      <div className="mt-3 text-[8.5px] font-sans font-bold uppercase tracking-[0.16em] text-[#3f5248] whitespace-nowrap">
+        {t("home.badge.subtitle")}
+      </div>
+      <div className="mt-1.5 flex items-center justify-center gap-1 text-[7.5px] font-sans font-bold uppercase tracking-[0.14em] text-[#54645b] whitespace-nowrap">
+        <span className="h-px w-3 bg-[#c49257]" />
+        {t("home.badge.origin")}
+        <span className="h-px w-3 bg-[#c49257]" />
       </div>
     </div>
   );
 }
 
 export function HeroOSDashboard() {
-  const { t } = useI18n();
   return (
-    <div className="relative mx-auto w-full max-w-[800px] py-6">
-      {/* Ambient background wash */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 -z-10"
-        style={{
-          background:
-            "radial-gradient(55% 55% at 50% 50%, rgba(19,43,33,0.14), transparent 70%)",
-        }}
-      />
-
-      {/* Desktop: symmetric 3-column grid */}
-      <div className="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_128px_minmax(0,1fr)] lg:items-center lg:gap-3 xl:gap-4">
+    <div className="relative mx-auto w-full max-w-[840px] py-4">
+      {/* Desktop / Laptop: symmetric 3-column grid matching the reference screenshot */}
+      <div className="hidden md:grid md:grid-cols-[minmax(0,1fr)_138px_minmax(0,1fr)] md:items-center md:gap-3 xl:gap-3.5">
         <div className="flex flex-col gap-3">
           {LEFT.map((c) => (
             <SourceCardTile key={c.titleKey} card={c} />
           ))}
         </div>
 
-        <div className="relative grid place-items-center rounded-xl bg-cream/95 px-1 py-4 shadow-sm">
-          <svg
-            aria-hidden
-            viewBox="0 0 200 200"
-            className="pointer-events-none absolute inset-0 h-full w-full"
-          >
-            <circle
-              cx="100"
-              cy="100"
-              r="92"
-              fill="none"
-              stroke="rgba(19,43,33,0.20)"
-              strokeWidth="0.6"
-              strokeDasharray="2 6"
-            />
-            <circle
-              cx="100"
-              cy="100"
-              r="70"
-              fill="none"
-              stroke="rgba(19,43,33,0.14)"
-              strokeWidth="0.6"
-            />
-          </svg>
-          <NyravaLogo size={104} glow={false} />
-          <div className="mt-3 text-center text-[8px] font-bold uppercase tracking-[0.14em] text-foreground">
-            {t("home.badge.name")}
-          </div>
-          <div className="mt-1 text-center text-[8px] font-semibold uppercase tracking-[0.12em] text-primary">
-            {t("home.badge.subtitle")}
-          </div>
-          <div className="mt-2 flex items-center gap-1 text-center text-[7px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-            <span className="h-px w-4 bg-border" /> {t("home.badge.origin")} <span className="h-px w-4 bg-border" />
-          </div>
-        </div>
+        <CenterBadge />
 
         <div className="flex flex-col gap-3">
           {RIGHT.map((c) => (
@@ -117,22 +92,13 @@ export function HeroOSDashboard() {
         </div>
       </div>
 
-      {/* Mobile / tablet — the logo stays between the two source groups. */}
-      <div className="flex flex-col items-center lg:hidden">
-        <div className="mb-8 grid w-full grid-cols-1 gap-3 sm:grid-cols-3">
-          {LEFT.map((c) => <SourceCardTile key={c.titleKey} card={c} />)}
-        </div>
-        <NyravaLogo size={140} glow={false} />
-        <div className="mt-3 text-center text-[9.5px] font-bold uppercase tracking-[0.28em] text-foreground">
-          {t("home.badge.name")}
-        </div>
-        <div className="mt-1 text-[9px] font-semibold uppercase tracking-[0.24em] text-primary">
-          {t("home.badge.subtitle")}
-        </div>
-        <div className="mt-2 text-[8.5px] font-semibold uppercase tracking-[0.3em] text-muted-foreground">
-          {t("home.badge.origin")}
-        </div>
-        <div className="mt-8 grid w-full grid-cols-1 gap-3 sm:grid-cols-3">
+      {/* Tablet & Mobile: center badge prominent on top, then cards reflowed */}
+      <div className="flex flex-col items-center gap-4 md:hidden">
+        <CenterBadge />
+        <div className="grid w-full grid-cols-1 gap-2.5 sm:grid-cols-2">
+          {LEFT.map((c) => (
+            <SourceCardTile key={c.titleKey} card={c} />
+          ))}
           {RIGHT.map((c) => (
             <SourceCardTile key={c.titleKey} card={c} />
           ))}
@@ -141,3 +107,4 @@ export function HeroOSDashboard() {
     </div>
   );
 }
+

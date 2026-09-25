@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { NyravaLogo } from "./NyravaLogo";
+import { NyravaHeaderBrand } from "./NyravaLogo";
 import { useSession } from "@/hooks/use-session";
 import { useI18n } from "@/i18n";
 import { LanguageSwitcher } from "./LanguageSwitcher";
@@ -13,29 +13,31 @@ export function SiteHeader() {
   const NAV = PUBLIC_NAV_ITEMS.map((item) => ({ label: t(item.labelKey), to: item.to }));
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border/60 bg-background/70 backdrop-blur-xl">
-      <div className="mx-auto grid max-w-[100rem] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 sm:px-6 sm:py-4 xl:flex xl:justify-between">
+    <header className="sticky top-0 z-40 bg-[#104033] text-white shadow-sm pt-[env(safe-area-inset-top,0px)]">
+      <div className="mx-auto flex max-w-[100rem] items-center justify-between px-4 py-3 sm:px-6 sm:py-3.5">
         <Link to="/" className="flex min-w-0 items-center">
-          <NyravaLogo size={48} withWordmark className="min-w-0 sm:[&>div:first-child]:h-14 sm:[&>div:first-child]:w-14" />
+          <NyravaHeaderBrand subtitle={t("home.brand.subtitle")} />
         </Link>
         <nav className="hidden items-center gap-6 xl:flex 2xl:gap-8">
           {NAV.map((n) => (
             <Link
               key={n.to}
               to={n.to}
-              className="text-[11px] font-semibold tracking-[0.18em] text-muted-foreground transition hover:text-foreground"
+              className="text-[11px] font-semibold tracking-[0.16em] text-white/80 transition hover:text-white"
             >
               {n.label}
             </Link>
           ))}
         </nav>
-        <div className="flex shrink-0 items-center justify-end gap-2 sm:gap-3">
-          <div className="hidden xl:block"><LanguageSwitcher /></div>
+        <div className="flex shrink-0 items-center justify-end gap-2.5 sm:gap-3">
+          <div className="hidden xl:block">
+            <LanguageSwitcher variant="header-pill" />
+          </div>
+          <span className="hidden h-5 w-px bg-white/20 xl:inline-block" />
           {user ? (
             <Link
               to="/dashboard"
-                className="hidden items-center gap-2 rounded-md bg-primary px-4 py-2 text-[11px] font-bold tracking-[0.14em] text-primary-foreground transition hover:brightness-105 xl:inline-flex"
-              style={{ boxShadow: "var(--shadow-glow-cyan)" }}
+              className="hidden items-center gap-2 rounded-full bg-[#fbf5ed] px-4 py-1.5 text-[11px] font-bold tracking-[0.14em] text-[#104033] shadow-sm transition hover:bg-white hover:brightness-105 xl:inline-flex"
             >
               {t("nav.openWorkspace")}
             </Link>
@@ -43,20 +45,19 @@ export function SiteHeader() {
             <>
               <Link
                 to="/auth"
-                className="hidden items-center rounded-md border border-border px-3 py-2 text-[11px] font-semibold tracking-[0.16em] text-foreground transition hover:border-primary/50 hover:text-primary xl:inline-flex"
+                className="hidden items-center rounded-full border border-white/25 bg-black/10 px-4 py-1.5 text-[11px] font-semibold tracking-[0.14em] text-white transition hover:bg-white/10 hover:border-white/40 xl:inline-flex"
               >
                 {t("nav.signIn")}
               </Link>
               <Link
                 to="/auth"
-                className="hidden items-center gap-2 rounded-md bg-primary px-4 py-2 text-[11px] font-bold tracking-[0.14em] text-primary-foreground transition hover:brightness-105 xl:inline-flex"
-                style={{ boxShadow: "var(--shadow-glow-cyan)" }}
+                className="hidden items-center rounded-full bg-[#fbf5ed] px-4 py-1.5 text-[11px] font-bold tracking-[0.14em] text-[#104033] shadow-sm transition hover:bg-white hover:brightness-105 xl:inline-flex"
               >
                 {t("nav.openPlatform")}
               </Link>
             </>
           )}
-          <MobileNav items={NAV}>
+          <MobileNav items={NAV} triggerClassName="border-white/25 bg-white/5 text-white hover:bg-white/10 xl:hidden">
             <LanguageSwitcher variant="sidebar" className="w-full justify-start" />
             {user ? (
               <Link

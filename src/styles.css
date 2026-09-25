@@ -236,12 +236,27 @@ input.bg-input:focus, textarea.bg-input:focus, select.bg-input:focus {
 }
 
 /* Approved Nyrava México artwork; text and actions remain accessible HTML. */
-.nyrava-hero { background: #FAF4EB url('/brand/hero-desktop.webp') center / cover no-repeat; min-height: 680px; }
-.nyrava-hero-copy { max-width: 680px; }
-.nyrava-hero-copy > p { color: #39473E; }
+.nyrava-hero {
+  background-color: #FAF4EB;
+  background-image: url('/brand/hero-desktop.webp');
+  background-position: right center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  min-height: 580px;
+}
+.nyrava-hero-copy { max-width: 620px; }
 .nyrava-plan-card { border-top: 5px solid #132B21; background: #FFFCF6; box-shadow: 0 12px 36px rgba(19,43,33,.05); }
-.nyrava-wordmark { font-family: Georgia, ui-serif, serif; font-weight: 400; letter-spacing: .16em; }
+.nyrava-wordmark { font-family: var(--font-display), Georgia, ui-serif, serif; font-weight: 500; letter-spacing: .16em; }
 ::selection { background: #D8C8AA; color: #15202E; }
-@media (max-width: 700px) {
-  .nyrava-hero { background-image: linear-gradient(#FAF4EBB8, #FAF4EB70), url('/brand/hero-mobile.webp'); background-position: center top; min-height: 740px; }
+@media (max-width: 1023px) {
+  .nyrava-hero {
+    background-image: linear-gradient(to right, rgba(250,244,235,0.96) 0%, rgba(250,244,235,0.90) 50%, rgba(250,244,235,0.85) 100%), url('/brand/hero-desktop.webp');
+    background-position: center top;
+  }
+}
+@media (max-width: 640px) {
+  .nyrava-hero {
+    background-image: linear-gradient(to bottom, rgba(250,244,235,0.97) 0%, rgba(250,244,235,0.92) 100%), url('/brand/hero-mobile.webp');
+    background-position: center top;
+  }
 }
