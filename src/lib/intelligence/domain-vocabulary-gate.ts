@@ -108,12 +108,12 @@ export type DomainVocabularyCheck = {
 
 // Negation / absence — the institution did NOT intervene in this matter.
 const NEGATION_MARKER =
-  /\b(?:no|sin|ausencia|carece|carec[ií]a|falta|nunca|tampoco|inexistente|omiti[oó]|omisi[oó]n|did\s+not|was\s+not|absence|no\s+evidence)\b/i;
+  /\b(?:no|sin|ausencia|carece|carec[ií]a|carecen|carente|falta|nunca|jam[aá]s|tampoco|ning[uú]n|ningun[oa]s?|ni|nada|nadie|inexistente|inexistencia|omiti[oó]|omite|omisi[oó]n|descart[oó]|descarta|descarte|desestim[oó]|desestima|desestimaci[oó]n|inaplicable|inaplicabilidad|excluye|excluy[oó]|exclusi[oó]n|rechaza|rechaz[oó]|improcedente|improcedencia|ajen[oa]|desconoce|desconoci[oó]|did\s+not|was\s+not|absence|no\s+evidence|never|neither|nor|none|lacks|inapplicable)\b/i;
 
 // Comparison / contrast / analogy / scope limitation — the term is being
 // distinguished from, or bounded away from, what governs this matter.
 const COMPARISON_MARKER =
-  /\b(?:a\s+diferencia\s+del?|en\s+contraste|contrasta|mientras\s+que|por\s+analog[ií]a|an[aá]log[oa]|equivalente|s[oó]lo|solo|[uú]nicamente|propio\s+del|propia\s+del|distinto\s+del?|unlike|whereas|by\s+analogy|only\s+applies)\b/i;
+  /\b(?:a\s+diferencia\s+del?|en\s+contraste|contrasta|mientras\s+que|por\s+analog[ií]a|an[aá]log[oa]|equivalente|s[oó]lo|solo|[uú]nicamente|propio\s+del?|propia\s+del?|distinto\s+del?|distinta\s+del?|ajen[oa]\s+al?|unlike|whereas|by\s+analogy|only\s+applies|frente\s+al?|en\s+comparaci[oó]n\s+con|comparad[oa]\s+con|no\s+confundir\s+con|exclusiv[oa]\s+de|privativ[oa]\s+de)\b/i;
 
 // Attribution — someone else's assertion, not the report's own. Deliberately
 // NOT sufficient on its own: "La SCJN sostuvo que el Ministerio Público debe
@@ -132,12 +132,18 @@ const AUTHORITY_MARKER =
 // context of procedural notice/referral, domestic violence, or protection orders,
 // so it is a reference to another domain rather than a claim about this matter.
 const CROSS_DOMAIN_MARKER =
-  /\b(?:materia\s+penal|proceso\s+penal|procedimiento\s+penal|[aá]mbito\s+penal|sede\s+penal|causa\s+penal|v[ií]a\s+penal|derecho\s+penal|CNPP|C[oó]digo\s+Nacional\s+de\s+Procedimientos\s+Penales|C[oó]digo\s+Penal|criminal\s+(?:proceedings?|procedure|matter)|dar?\s+vista|vista\s+al?|dar?\s+intervenci[oó]n\s+al\s+Ministerio\s+P[uú]blico)\b/i;
+  /\b(?:materia\s+penal|proceso\s+penal|procedimiento\s+penal|[aá]mbito\s+penal|sede\s+penal|causa\s+penal|v[ií]a\s+penal|derecho\s+penal|justicia\s+penal|jurisdicci[oó]n\s+penal|fuero\s+penal|sistema\s+penal|legislaci[oó]n\s+penal|orden\s+penal|juzgado(?:\s+de\s+distrito)?\s+en\s+materia\s+penal|tribunal(?:\s+colegiado)?\s+en\s+materia\s+penal|sala\s+penal|conflicto\s+competencial|declin[oó]\s+competencia|incompetencia|competencia\s+penal|CNPP|C[oó]digo\s+Nacional\s+de\s+Procedimientos\s+Penales|C[oó]digo\s+Penal|criminal\s+(?:proceedings?|procedure|matter)|dar?\s+vista|vista\s+al?|dar?\s+intervenci[oó]n\s+al\s+Ministerio\s+P[uú]blico)\b/i;
 
-const QUOTE_SPAN = /«[^»]*»|“[^”]*”|"[^"]*"/g;
+const POST_TERM_NEGATION =
+  /\b(?:no\s+(?:intervino|actu[oó]|conoci[oó]|particip[oó]|se\s+present[oó]|procede|aplica)|es\s+inaplicable|resulta\s+inaplicable|es\s+ajen[oa]|no\s+aplica|fue\s+descartad[oa]|fue\s+desestimad[oa]|qued[oó]\s+excluid[oa]|tampoco\s+aplica|did\s+not\s+participate|does\s+not\s+apply)\b/i;
+
+const QUOTE_SPAN = /«[^»]*»|“[^”]*”|"[^"]*"|‘[^’]*’/g;
 
 function splitSentences(text: string): string[] {
-  const parts = text
+  // Normalize single newlines (soft line wraps within paragraphs) to spaces, while
+  // preserving double newlines (paragraph boundaries) as splits.
+  const normalized = text.replace(/([^\n])\r?\n([^\n])/g, "$1 $2");
+  const parts = normalized
     .split(/(?<=[.;:!?])\s+|\n+/g)
     .map((s) => s.trim())
     .filter(Boolean);
@@ -152,18 +158,36 @@ function isInsideQuote(sentence: string, index: number, length: number): boolean
   return false;
 }
 
+function isInsideGlobalQuote(fullText: string, sentence: string, termSample: string): boolean {
+  QUOTE_SPAN.lastIndex = 0;
+  for (let m = QUOTE_SPAN.exec(fullText); m; m = QUOTE_SPAN.exec(fullText)) {
+    if (m[0].toLowerCase().includes(termSample.toLowerCase())) return true;
+  }
+  return false;
+}
+
 /** True when this specific occurrence merely references the term rather than
  * asserting the institution acted in, or governs, the present matter. */
-function isContextualOccurrence(sentence: string, index: number, length: number): boolean {
+function isContextualOccurrence(
+  sentence: string,
+  index: number,
+  length: number,
+  fullText?: string,
+  termSample?: string,
+): boolean {
   if (isInsideQuote(sentence, index, length)) return true;
+  if (fullText && termSample && isInsideGlobalQuote(fullText, sentence, termSample)) return true;
   if (CROSS_DOMAIN_MARKER.test(sentence)) return true;
   const governing = sentence.slice(0, index);
+  const following = sentence.slice(index + length);
   if (NEGATION_MARKER.test(governing) || COMPARISON_MARKER.test(governing)) return true;
+  if (POST_TERM_NEGATION.test(following)) return true;
   // Attribution/authority need a companion neutralising marker anywhere in the
   // sentence; otherwise the attributed statement still imports the institution.
   const attributed = ATTRIBUTION_MARKER.test(governing) || AUTHORITY_MARKER.test(governing);
   return (
-    attributed && (NEGATION_MARKER.test(sentence) || COMPARISON_MARKER.test(sentence))
+    attributed &&
+    (NEGATION_MARKER.test(sentence) || COMPARISON_MARKER.test(sentence) || POST_TERM_NEGATION.test(following))
   );
 }
 
@@ -204,7 +228,7 @@ export function checkDomainVocabulary(
       rx.lastIndex = 0;
       for (let m = rx.exec(sentence); m; m = rx.exec(sentence)) {
         seen = true;
-        if (!isContextualOccurrence(sentence, m.index, m[0].length)) asserted = true;
+        if (!isContextualOccurrence(sentence, m.index, m[0].length, text, term.label)) asserted = true;
       }
     }
     if (!seen) asserted = true; // term spans a sentence split — fail closed.

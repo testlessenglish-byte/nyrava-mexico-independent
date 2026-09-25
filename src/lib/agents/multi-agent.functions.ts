@@ -144,20 +144,23 @@ export const rerunSingleAgent = createServerFn({ method: "POST" })
       .select("id,execution_id,case_analysis_mode").maybeSingle();
     if (lockError) throw new Error(lockError.message);
     if (!locked) throw new Error("Case unavailable or already running. Wait for the current run to finish.");
+    // The RLS-protected lease above authorizes this exact case. Internal review
+    // artifacts are service-role-only, just as in the background worker.
+    const { supabaseAdmin: reviewDb } = await import("@/integrations/supabase/client.server");
     try {
       const { isCompletedCaseMode, normalizeCaseAnalysisMode } = await import("@/lib/intelligence/case-analysis-mode");
       if (data.agentKey === "report" && isCompletedCaseMode(normalizeCaseAnalysisMode(locked.case_analysis_mode))) {
         // Explicit report retries may retry a failed prerequisite once.
         // Normal worker continuations still respect the failure marker.
         const { ensureDecisionReconstruction } = await import("@/lib/intelligence/decision-reconstruction-extractor.server");
-        await ensureDecisionReconstruction(supabase, data.caseId, userId, undefined, true);
+        await ensureDecisionReconstruction(reviewDb, data.caseId, userId, undefined, true);
       }
       const { data: previous, error: previousError } = await supabase.from("agent_logs")
         .select("status,output,errors").eq("case_id", data.caseId).eq("agent_key", data.agentKey)
         .order("created_at", { ascending: false }).limit(1).maybeSingle();
       if (previousError) throw new Error(previousError.message);
       const { runSingleAgentReview } = await import("@/lib/agents/orchestrator.server");
-      const review = await runSingleAgentReview({ db: supabase, userId, caseId: data.caseId,
+      const review = await runSingleAgentReview({ db: reviewDb, userId, caseId: data.caseId,
         apiKey: "", apiKeys: [], executionId: locked.execution_id ?? undefined, deferRelease: true }, data.agentKey);
       const { agentReviewChanged } = await import("@/lib/agents/single-review");
       const changed = agentReviewChanged(previous, review.result);

@@ -1041,17 +1041,59 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
   const outcomes: Record<string, boolean> = {};
   const errors: string[] = [];
   const warnings: string[] = [];
+
+  const persistedProgress = (reportRow.full_report as Record<string, unknown> | null)?.final_review_progress as {
+    outcomes?: Record<string, boolean>;
+    errors?: string[];
+    warnings?: string[];
+  } | undefined;
+  if (persistedProgress) {
+    Object.assign(outcomes, persistedProgress.outcomes ?? {});
+    if (Array.isArray(persistedProgress.errors)) errors.push(...persistedProgress.errors);
+    if (Array.isArray(persistedProgress.warnings)) warnings.push(...persistedProgress.warnings);
+  }
+
   for (const [key, fn] of gateRunners) {
+    if (outcomes[key] !== undefined) {
+      console.info(`[final-release] gate ${key} already completed in prior review tick — reusing result`);
+      continue;
+    }
     const def = AGENT_DEFINITIONS.find((d) => d.key === key)!;
     const startedAt = Date.now();
-    const raw = await safeRun(() => fn(ctx), def);
-    const withStats = await attachAgentStats(args.db, args.caseId, def, raw, startedAt);
-    await recordAgent(args.db, ctx, def, startedAt, withStats);
-    outcomes[key] = finalAgentGatePassed(key, withStats);
-    if (key === 'hallucination' && !outcomes[key]) errors.push('Semantic claim verification incomplete; final release blocked.');
-    if (withStats.status !== "success") errors.push(...(withStats.errors ?? []));
-    const outputWarnings = (withStats.output as Record<string, unknown> | null)?.warnings;
-    if (Array.isArray(outputWarnings)) warnings.push(...outputWarnings.filter((w): w is string => typeof w === "string"));
+    try {
+      const raw = await safeRun(() => fn(ctx), def);
+      const withStats = await attachAgentStats(args.db, args.caseId, def, raw, startedAt);
+      await recordAgent(args.db, ctx, def, startedAt, withStats);
+      outcomes[key] = finalAgentGatePassed(key, withStats);
+      if (key === 'hallucination' && !outcomes[key]) errors.push('Semantic claim verification incomplete; final release blocked.');
+      if (withStats.status !== "success") errors.push(...(withStats.errors ?? []));
+      const outputWarnings = (withStats.output as Record<string, unknown> | null)?.warnings;
+      if (Array.isArray(outputWarnings)) warnings.push(...outputWarnings.filter((w): w is string => typeof w === "string"));
+    } catch (e) {
+      if (isCheckpointError(e)) {
+        try {
+          const fr = (reportRow.full_report ?? {}) as Record<string, unknown>;
+          await args.db
+            .from("reports")
+            .update({
+              full_report: {
+                ...fr,
+                final_review_progress: {
+                  outcomes,
+                  errors,
+                  warnings,
+                  last_checkpoint_gate: key,
+                  checkpoint_at: new Date().toISOString(),
+                },
+              } as never,
+            })
+            .eq("case_id", args.caseId);
+        } catch (saveErr) {
+          console.warn("[final-release] failed to persist review checkpoint progress", saveErr);
+        }
+      }
+      throw e;
+    }
   }
 
   const gatesPassed = Boolean(outcomes.report && outcomes.qa && outcomes.judge && outcomes.hallucination);

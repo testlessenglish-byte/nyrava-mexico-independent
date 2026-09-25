@@ -119,4 +119,58 @@ describe("rendered report release with context-aware leak detection", () => {
     const decision = decideRenderedReportRelease(issues);
     expect(new Set(decision.reasons).size).toBe(decision.reasons.length);
   });
+
+  it("handles the Sherry Espinal migratorio passage as contextual, not a blocking leak", () => {
+    const passage = `c) Tercero. La privación de su libertad en la estación migratoria
+transgrede el derecho a la libertad, al haber sido ejecutada en ausencia
+de un control de la detención por autoridad competente. Señala que,
+desde su ingreso en la estación, en ningún momento fue llevado frente
+a un juez de control, ni tuvo contacto con un funcionario/a con
+facultades para determinar si la privación de la libertad fue ilegal o
+arbitraria.`;
+    const check = checkDomainVocabulary(passage, "migratorio");
+    expect(check.clean).toBe(true);
+    expect(check.violations).toEqual([]);
+    expect(check.contextual).toContain("Juez de Control");
+
+    const issues = validateRenderedReport(
+      { full_report: { pre_release_source_pages: [{ page: 9, text: passage }] } },
+      "migratorio",
+    );
+    const decision = decideRenderedReportRelease(issues);
+    expect(issues.some((i) => i.code === "SPANISH_CASE_TYPE_LEAK")).toBe(false);
+    expect(issues.some((i) => i.code === "SPANISH_CASE_TYPE_CONTEXTUAL")).toBe(true);
+    expect(decision.blocked).toBe(false);
+  });
+
+  it("handles post-term negation predicate as contextual", () => {
+    const check = checkDomainVocabulary("El Juez de Control no intervino en este procedimiento migratorio.", "migratorio");
+    expect(check.clean).toBe(true);
+    expect(check.violations).toEqual([]);
+    expect(check.contextual).toContain("Juez de Control");
+  });
+
+  it("handles jurisdictional cross-domain court references as contextual", () => {
+    const check = checkDomainVocabulary(
+      "El Juzgado Décimo Tercero de Distrito en Materia Penal declaró su incompetencia y devolvió los autos.",
+      "migratorio",
+    );
+    expect(check.clean).toBe(true);
+    expect(check.violations).toEqual([]);
+  });
+
+  it("keeps a genuine assertion of a penal institution strictly blocked in migratorio", () => {
+    const check = checkDomainVocabulary("El Juez de Control vinculó a proceso al quejoso en este juicio migratorio.", "migratorio");
+    expect(check.clean).toBe(false);
+    expect(check.violations).toContain("Juez de Control");
+
+    const issues = validateRenderedReport(
+      { full_report: { prose: { overview: "El Juez de Control vinculó a proceso al quejoso." } } },
+      "migratorio",
+    );
+    const decision = decideRenderedReportRelease(issues);
+    expect(decision.blocked).toBe(true);
+    expect(decision.blockingIssues.some((i) => i.code === "SPANISH_CASE_TYPE_LEAK")).toBe(true);
+  });
 });
+

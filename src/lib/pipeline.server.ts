@@ -6140,6 +6140,80 @@ async function _runReportInner(args: {
     // of this function.
   }
 
+  // Resumption check: if a completed report has ALREADY been generated and
+  // saved for this case run (e.g. previous tick timed out during final release
+  // review), do not rerun completed analysis from scratch — resume directly into
+  // the final release review.
+  const { data: existingReportRow } = await db
+    .from("reports")
+    .select("id,case_id,execution_id,full_report,report_chunk_cache")
+    .eq("case_id", caseId)
+    .maybeSingle();
+
+  const isCompletedSavedReport = Boolean(
+    existingReportRow?.full_report &&
+      typeof existingReportRow.full_report === "object" &&
+      Object.keys(existingReportRow.full_report).length > 0 &&
+      (!executionId || !existingReportRow.execution_id || existingReportRow.execution_id === executionId) &&
+      !(existingReportRow.report_chunk_cache as Record<string, unknown> | null)?.__regenerate,
+  );
+
+  if (isCompletedSavedReport) {
+    console.info(`[report] saved report ${existingReportRow!.id} already exists for case ${caseId} — resuming final release review without regenerating analysis`);
+    await setCase(db, caseId, {
+      status_message: "Resuming final release review",
+      progress: 99,
+    });
+    try {
+      const { runFinalReleaseReview } = await import("@/lib/agents/orchestrator.server");
+      const review = await runFinalReleaseReview({
+        db,
+        caseId,
+        userId,
+        apiKey,
+        apiKeys: apiKeys ?? [apiKey],
+        executionId: executionId ?? undefined,
+      });
+      if (!review.reviewed || review.status === "failed") {
+        await setCase(db, caseId, {
+          status: "needs_revision",
+          status_message: "Final release review could not inspect the saved report — draft blocked.",
+          progress: 99,
+          report_at: null,
+          completed_at: null,
+          error: review.errors.join("; ").slice(0, 2000),
+        });
+      }
+      console.info(`[final-release] case ${caseId} → ${review.status} (released=${review.released})`);
+    } catch (e) {
+      const { isCheckpointError } = await import("./pipeline-checkpoint.server");
+      if (isCheckpointError(e)) {
+        console.info(`[final-release] review checkpointed: ${e.message}`);
+        await setCase(db, caseId, {
+          status: "intelligence_running",
+          status_message: `Final release review checkpointed — continuing review (${e.progress ?? "wall-clock budget"})`,
+          progress: 99,
+          next_stage: "report",
+        });
+        throw e;
+      }
+      console.warn("[final-release] review failed after report generation", e);
+      const message = e instanceof Error ? e.message : String(e);
+      await setCase(db, caseId, {
+        status: "needs_revision",
+        status_message: "Final release review failed — report remains a blocked draft.",
+        progress: 99,
+        report_at: null,
+        completed_at: null,
+        error: `Final release review failed: ${message}`.slice(0, 2000),
+      });
+    }
+    return {
+      value: undefined,
+      stats: { generated: 0, accepted: 0, suppressed_ess: 0 },
+    };
+  }
+
   // ---- Talk to Case as a case-state update -----------------------------
   // Runs before findings are read for this report (below) so a Talk-to-Case
   // clarification's supersession decisions are already applied by the time
@@ -10573,6 +10647,17 @@ ${paginationTail}`;
     }
     console.info(`[final-release] case ${caseId} → ${review.status} (released=${review.released})`);
   } catch (e) {
+    const { isCheckpointError } = await import("./pipeline-checkpoint.server");
+    if (isCheckpointError(e)) {
+      console.info(`[final-release] review checkpointed: ${e.message}`);
+      await setCase(db, caseId, {
+        status: "intelligence_running",
+        status_message: `Final release review checkpointed — continuing review (${e.progress ?? "wall-clock budget"})`,
+        progress: 99,
+        next_stage: "report",
+      });
+      throw e;
+    }
     console.warn("[final-release] review failed after report generation", e);
     const message = e instanceof Error ? e.message : String(e);
     await setCase(db, caseId, {

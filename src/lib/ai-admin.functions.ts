@@ -17,7 +17,7 @@ async function assertAdmin(context: { userId: string }) {
   if (!data) throw new Error("Admin access required");
 }
 
-const PROVIDER_TYPES: ProviderType[] = ["groq", "gemini"];
+const PROVIDER_TYPES: ProviderType[] = ["groq", "gemini", "openrouter"];
 const TASKS: AITask[] = ["extraction", "analysis", "reasoning", "report", "chat"];
 const SUPPORTED_SECRETS = [
   "GROQ_API_KEY",
@@ -89,6 +89,7 @@ export const upsertAiProvider = createServerFn({ method: "POST" })
     if (data.clear_api_key) row.api_key_encrypted = null;
     else if (data.api_key?.trim()) row.api_key_encrypted = encryptApiKey(data.api_key.trim());
     const { logAudit } = await import("./audit.server");
+    const { resetAiRuntimeState } = await import("./ai/router.server");
     if (data.id) {
       const { error } = await supabaseAdmin.from("ai_providers").update(row).eq("id", data.id);
       if (error) throw new Error(error.message);
@@ -104,6 +105,7 @@ export const upsertAiProvider = createServerFn({ method: "POST" })
           enabled: data.enabled,
         },
       });
+      resetAiRuntimeState({ provider: data.provider_type });
       return { id: data.id };
     }
     const { data: ins, error } = await supabaseAdmin.from("ai_providers").insert(row).select("id").single();
@@ -118,6 +120,7 @@ export const upsertAiProvider = createServerFn({ method: "POST" })
         has_key: Boolean(data.api_key?.trim()),
       },
     });
+    resetAiRuntimeState({ provider: data.provider_type });
     return { id: ins.id };
   });
 

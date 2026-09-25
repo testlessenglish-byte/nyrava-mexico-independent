@@ -267,6 +267,8 @@ export function LivePipelinePanel({
 
     void fetchLatest();
 
+    const refreshTimer = setInterval(() => { void fetchLatest(); }, 5000);
+
     const eventsChannel = supabase
       .channel(`pipeline_events:${caseId}`)
       .on(
@@ -305,6 +307,7 @@ export function LivePipelinePanel({
 
     return () => {
       cancelled = true;
+      clearInterval(refreshTimer);
       if (fetchLatestRef.current === fetchLatest) fetchLatestRef.current = undefined;
       supabase.removeChannel(eventsChannel);
       supabase.removeChannel(runsChannel);
@@ -439,11 +442,16 @@ export function LivePipelinePanel({
                     const isExpanded = expandedRun === r.id;
                     const isFailure = r.status === "failed" || r.status === "blocked";
                     const providerCalls = providerCallsForRun(r);
-                    const providerLabel = providerCalls.length
-                      ? Array.from(new Set(providerCalls.map((call) => `${call.provider}${call.key_label ? ` ${call.key_label}` : ""}`))).join(", ")
+                    const providerName = (name: string) => (({ openrouter: "OpenRouter", groq: "Groq", gemini: "Gemini" } as Record<string, string>)[name] ?? name);
+                    const providerLabel = r.status === "running" && r.provider
+                      ? providerName(r.provider)
+                      : providerCalls.length
+                      ? Array.from(new Set(providerCalls.map((call) => `${providerName(call.provider)}${call.key_label ? ` ${call.key_label}` : ""}`))).join(", ")
                       : r.status === "blocked" || r.status === "skipped" || r.status === "queued"
                         ? (locale === "es" ? "No ejecutado" : "Not run")
-                        : (locale === "es" ? "Sin API registrada" : "No API recorded");
+                        : r.status === "running"
+                          ? (locale === "es" ? "Preparando llamada de IA" : "Preparing AI request")
+                          : (locale === "es" ? "Sin llamada de IA registrada" : "No AI call recorded");
                     return (
                       <>
                         <tr

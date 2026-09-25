@@ -1,3 +1,4 @@
+import { currentTelemetryScope } from "./telemetry.server";
 // DB-driven AI router. Server-only.
 //
 // Reads ai_providers ordered by priority, walks the chain trying each enabled
@@ -780,25 +781,25 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
     }
   }
 
-  // Balance successful calls ACROSS configured providers, not just across
-  // keys within the first provider. Previously the saved provider order was
-  // a permanent primary/fallback chain, so a healthy first provider served
-  // every request and Gemini/Groq/OpenRouter never rotated. A forced provider
-  // remains absolute (Admin connection tests rely on that behavior).
+  // The saved order is a primary/fallback chain, not load balancing.
+  // Re-read it so an admin/user reorder applies to the next request.
+  let preferredOrder: ProviderType[] = [];
+  if (opts.userId) {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin.from("user_provider_order")
+      .select("provider").eq("user_id", opts.userId).order("order_index", { ascending: true });
+    if (error) throw new Error("Unable to load saved provider order");
+    preferredOrder = (data ?? []).map(row => row.provider as ProviderType);
+  }
+  if (!preferredOrder.length) preferredOrder = opts._providerOrder ?? [];
+  const rank = (provider: ProviderType) => {
+    const index = preferredOrder.indexOf(provider);
+    return index < 0 ? preferredOrder.length : index;
+  };
   if (opts.forceProvider) {
-    runtimeGroups = runtimeGroups.filter((g) => g.provider === opts.forceProvider);
-  } else if (opts.userId && runtimeGroups.length > 1) {
-    const providers = runtimeGroups.map((g) => g.provider);
-    const cursorId = `${opts.userId}:${providers.slice().sort().join(",")}`;
-    const selectedOrder = opts._providerOrder?.filter((p) => providers.includes(p));
-    if (selectedOrder?.length === providers.length) {
-      runtimeGroups = selectedOrder.map((provider) => runtimeGroups.find((g) => g.provider === provider)!);
-    } else {
-      const start = (_providerGroupCursor.get(cursorId) ?? 0) % runtimeGroups.length;
-      runtimeGroups = rotateProviderGroups(runtimeGroups, start);
-      _providerGroupCursor.set(cursorId, (start + 1) % runtimeGroups.length);
-      Object.assign(opts, { _providerOrder: runtimeGroups.map((g) => g.provider) });
-    }
+    runtimeGroups = runtimeGroups.filter(g => g.provider === opts.forceProvider);
+  } else {
+    runtimeGroups.sort((a, b) => rank(a.provider) - rank(b.provider));
   }
 
   if (!rows.length && runtimeGroups.length === 0) throw new Error("No AI providers configured.");
@@ -820,9 +821,7 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
         api_key_encrypted: null,
       };
       const fingerprints = keys.map(keyFingerprint);
-      const ck = cursorKey(opts.model, fingerprints);
-      const start = keys.length > 1 ? (_groqKeyCursor.get(ck) ?? 0) % keys.length : 0;
-      if (keys.length > 1) _groqKeyCursor.set(ck, (start + 1) % keys.length);
+      const start = 0;
       const rotatedIndices = keys.map((_, idx) => (start + idx) % keys.length);
       chain.push(
         ...rotatedIndices.map((idx) => ({
@@ -833,8 +832,8 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
           runtimeKeyIndex: idx,
           runtimeKeyFingerprint: fingerprints[idx],
           rotationStartIndex: start,
-          rotationAdvanced: keys.length > 1,
-          selectionReason: `${provider}_round_robin_runtime_key`,
+          rotationAdvanced: false,
+          selectionReason: `${provider}_priority_runtime_key`,
           consideredKeyIndexes: rotatedIndices,
         })),
       );
@@ -860,7 +859,8 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
       const tr = await loadTaskRoute(opts.task);
       if (tr?.provider_id) pinned = platformRows(rows).find((r) => r.id === tr.provider_id);
     }
-    const enabled = platformRows(rows).filter((r) => r.id !== pinned?.id);
+    const enabled = platformRows(rows).filter((r) => r.id !== pinned?.id)
+      .sort((a, b) => rank(a.provider_type) - rank(b.provider_type));
     chain = pinned ? [pinned, ...enabled] : enabled;
   }
 
@@ -874,7 +874,7 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
       throw new Error(`Provider '${opts.forceProvider}' is not enabled or not configured.`);
   }
 
-  if (!opts.forceProvider) chain = interleaveProviderKeys(chain);
+  // Exhaust each provider's keys in saved priority order before the next provider.
   if (!chain.length) throw new Error("No enabled AI providers available.");
 
   // Cache lookup (keyed by intended model of the FIRST provider in chain).
@@ -1066,6 +1066,7 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
     const t0 = Date.now();
     realAttempts++;
     attemptedProviders.add(row.provider_type);
+    await currentTelemetryScope()?.onProviderAttempt?.({ provider: row.provider_type, model: effectiveModelFor(row) ?? null });
     traceAsync({
       phase: "ai",
       step: "router.attempt",
@@ -1126,6 +1127,9 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
               em,
             ) &&
             !/HTTP 401|HTTP 403|invalid_api_key|unauthor/i.test(em);
+
+          // Fail over before waiting or retrying whenever another key remains.
+          if (i + 1 < chain.length) throw err;
 
           if (isRateLimit && !isExhaustedFreeQuota) {
             const providerErr = err as { retryAfterMs?: number; resetMs?: number };

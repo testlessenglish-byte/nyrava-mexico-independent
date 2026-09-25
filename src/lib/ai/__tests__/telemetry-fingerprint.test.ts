@@ -75,3 +75,14 @@ describe("telemetry fingerprints (Phase 6.5)", () => {
     expect(summarizeScope(scope).responseValidJson).toBeNull();
   });
 });
+
+it('updates the active provider through nested engine scopes during failover', async () => {
+  const seen: string[] = [];
+  await withTelemetryScope({runId:'report-live',onProviderAttempt:async a=>{seen.push(a.provider);}},async()=>{
+    await withTelemetryScope({runId:'report-chunk'},async scope=>{
+      await scope.onProviderAttempt?.({provider:'openrouter',model:'openai/gpt-4o-mini'});
+      await scope.onProviderAttempt?.({provider:'groq',model:'fallback'});
+    });
+  });
+  expect(seen).toEqual(['openrouter','groq']);
+});

@@ -114,7 +114,7 @@ function mockSupabase(keys?: { groq1: string; groq2: string; gemini1: string; ge
     gemini2: GEMINI_KEY_2,
   };
   vi.mocked(supabaseAdmin.from).mockImplementation((table: string) => {
-    if (table === "ai_providers") return chain([]) as never;
+    if (table === "ai_providers" || table === "user_provider_order") return chain([]) as never;
     if (table === "user_ai_keys") {
       return chain([
         {
@@ -288,7 +288,7 @@ describe("routeAI: rotates through every key across every provider on failure", 
     const result = await routeAI({ userContent: "test question", userId: USER_ID, cache: false });
 
     expect(result.text).toBe(`response from ${k.groq2}`);
-    expect(calls).toEqual([k.groq1, k.gemini1, k.groq2]);
+    expect(calls).toEqual([k.groq1, k.groq2]);
   });
 
   it("fails a transport timeout over to another provider before retrying the key", async () => {
@@ -321,7 +321,7 @@ describe("routeAI: rotates through every key across every provider on failure", 
     // The failing key was retried (backoff) rather than abandoned after one
     // failure, but the run still recovered on a different key afterward.
     expect(calls.filter((c) => c === freshGroq1).length).toBe(1);
-    expect(calls[1]).toMatch(/^gemini/);
+    expect(calls[1]).toBe(freshGroq2);
     expect(result.text).toBe(`response from ${calls[calls.length - 1]}`);
     expect(calls[calls.length - 1]).not.toBe(freshGroq1);
   }, 10_000);
@@ -393,10 +393,43 @@ describe("cross-provider key rounds", () => {
  const rows=[{provider_type:"groq" as const,key:"g1"},{provider_type:"groq" as const,key:"g2"},{provider_type:"groq" as const,key:"g3"},{provider_type:"gemini" as const,key:"m1"},{provider_type:"gemini" as const,key:"m2"},{provider_type:"openrouter" as const,key:"o1"}];
  expect(interleaveProviderKeys(rows).map(r=>r.key)).toEqual(["g1","m1","o1","g2","m2","g3"]);
  });
- it("fails a Groq key over to Gemini before another Groq key",async()=>{
+ it("tries the next Groq key before moving to Gemini",async()=>{
  const k=freshKeys();mockSupabase(k);const calls:string[]=[];
  mockProviderFactory({[k.groq1]:{fail:()=>new Error("HTTP 401 invalid_api_key")}},calls);
  await routeAI({userId:USER_ID,userContent:"provider alternation",cache:false,_providerOrder:["groq","gemini"]});
- expect(calls).toEqual([k.groq1,k.gemini1]);
+ expect(calls).toEqual([k.groq1,k.groq2]);
  });
+});
+
+describe('saved provider priority and immediate failover', () => {
+  function savedOrderDb() {
+    let order = ['openrouter', 'groq', 'gemini'];
+    vi.mocked(supabaseAdmin.from).mockImplementation((table: string) => {
+      if (table === 'ai_providers') return chain([]) as never;
+      if (table === 'user_provider_order') return chain(order.map(provider => ({ provider }))) as never;
+      if (table === 'user_ai_keys') return chain(['groq', 'gemini', 'openrouter'].map(provider => ({ provider, encrypted_key: `${provider}-ordered`, is_active: true }))) as never;
+      throw Error(`Unexpected table ${table}`);
+    });
+    return (next: string[]) => { order = next; };
+  }
+  it('keeps the configured primary across successful requests and picks up reordering immediately', async () => {
+    const reorder = savedOrderDb(); const calls: string[] = [];
+    mockProviderFactory({}, calls);
+    for (let n = 0; n < 3; n++) await routeAI({ userId: USER_ID, userContent: 'priority', cache: false });
+    expect(calls).toEqual(['openrouter-ordered', 'openrouter-ordered', 'openrouter-ordered']);
+    reorder(['gemini', 'openrouter', 'groq']);
+    await routeAI({ userId: USER_ID, apiKey: 'groq-explicit', runtimeProvider: 'groq', userContent: 'updated priority', cache: false });
+    expect(calls.at(-1)).toBe('gemini-ordered');
+  });
+  it.each(['HTTP 401 invalid_api_key', 'HTTP 403 forbidden', 'HTTP 402 insufficient credits', 'HTTP 429 rate limit', 'OpenRouter timed out after 1000ms', 'HTTP 503 unavailable'])(
+    'moves OpenRouter → Groq → Gemini on %s without retrying the failed keys', async message => {
+      savedOrderDb(); const calls: string[] = [];
+      const failure = () => Object.assign(new Error(message), { retryAfterMs: 60000 });
+      mockProviderFactory({ 'openrouter-ordered': { fail: failure }, 'groq-ordered': { fail: failure } }, calls);
+      const started = Date.now();
+      const result = await routeAI({ userId: USER_ID, userContent: 'failover', cache: false });
+      expect(calls).toEqual(['openrouter-ordered', 'groq-ordered', 'gemini-ordered']);
+      expect(result.provider).toBe('gemini');
+      expect(Date.now() - started).toBeLessThan(1000);
+    });
 });

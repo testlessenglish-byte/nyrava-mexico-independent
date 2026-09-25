@@ -466,25 +466,27 @@ async function reconcileSavedReportProse(
   // The release is still blocked — by whoever actually blocked it.
   // One underlying problem must surface as one actionable reason, even when
   // mirrored sections reproduce it.
+  const priorNonRenderedReasons = (Array.isArray(saved.quality_block_reasons) ? saved.quality_block_reasons.map(String) : [])
+    .filter((r) => !r.startsWith("rendered_report_qa:"));
+
   const allBlockReasons = [...new Set([
-    ...(Array.isArray(saved.quality_block_reasons) ? saved.quality_block_reasons.map(String) : []),
+    ...priorNonRenderedReasons,
     ...(renderedDecision.blocked ? renderedDecision.reasons : []),
   ])];
 
-  const upstreamReleaseBlock = (saved.quality_blocked || renderedDecision.blocked)
+  const qualityBlocked = priorNonRenderedReasons.length > 0 || renderedDecision.blocked;
+  const upstreamReleaseBlock = qualityBlocked
     ? (allBlockReasons.length ? allBlockReasons : ["quality_blocked"])
     : null;
 
-  if (renderedDecision.blocked) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (db as any)
-      .from("reports")
-      .update({
-        quality_blocked: true,
-        quality_block_reasons: allBlockReasons,
-      })
-      .eq("case_id", caseId);
-  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (db as any)
+    .from("reports")
+    .update({
+      quality_blocked: qualityBlocked,
+      quality_block_reasons: allBlockReasons,
+    })
+    .eq("case_id", caseId);
 
   return {
     quarantinedActionsRemoved: removed,

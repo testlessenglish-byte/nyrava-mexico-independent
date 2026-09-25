@@ -256,7 +256,12 @@ export async function runEngine<T>(
   try {
     const runId = `${args.engine}-${args.caseId}-${Date.now().toString(36)}`;
     const { value: result, scope } = await withTelemetryScope(
-      { runId, traceId: runId, replay: { engine: args.engine, case_id: args.caseId } },
+      { runId, traceId: runId, replay: { engine: args.engine, case_id: args.caseId },
+        onProviderAttempt: async ({ provider, model }) => {
+          await db.from("pipeline_engine_runs").update({ provider, model })
+            .eq("id", id).eq("status", "running");
+        },
+      },
       async () => fn(),
     );
     const isWrapped = result && typeof result === "object" && "value" in (result as Record<string, unknown>);

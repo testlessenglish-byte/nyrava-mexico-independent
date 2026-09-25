@@ -128,7 +128,11 @@ export type ReplayHints = {
   [k: string]: unknown;
 };
 
+type ProviderAttempt = { provider: string; model: string | null };
+type ProviderAttemptListener = (attempt: ProviderAttempt) => Promise<void>;
+
 export type TelemetryScope = {
+  onProviderAttempt?: ProviderAttemptListener;
   runId: string;
   traceId: string;
   calls: TelemetryCall[];
@@ -216,10 +220,15 @@ export async function withTelemetryScope<T>(
     traceId?: string;
     replay?: ReplayHints;
     build?: Partial<BuildFingerprint>;
+    onProviderAttempt?: ProviderAttemptListener;
   },
   fn: (scope: TelemetryScope) => Promise<T>,
 ): Promise<{ value: T; scope: TelemetryScope }> {
+  const parentListener = _als.getStore()?.onProviderAttempt;
   const scope: TelemetryScope = {
+    onProviderAttempt: async (attempt) => {
+      await Promise.allSettled([parentListener?.(attempt), init.onProviderAttempt?.(attempt)]);
+    },
     runId: init.runId,
     traceId: init.traceId ?? init.runId,
     calls: [],
