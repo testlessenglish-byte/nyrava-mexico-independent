@@ -10398,6 +10398,7 @@ ${paginationTail}`;
   }
 
   // Execution identity + stale-row eviction.
+  let finalExecutionId: string | null = executionId ?? null;
   try {
     const { data: caseRow } = await (db as any)
       .from("cases")
@@ -10409,7 +10410,7 @@ ${paginationTail}`;
       console.warn(`[report] execution ${executionId} superseded by ${currentExecutionId} — cancelling report save`);
       throw new CancelledError();
     }
-    const finalExecutionId = executionId ?? currentExecutionId;
+    finalExecutionId = executionId ?? currentExecutionId;
     if (finalExecutionId) {
       const { data: prior } = await (db as any)
         .from("reports")
@@ -10448,6 +10449,7 @@ ${paginationTail}`;
       );
     }
     reportRow.execution_id = retryExecutionId;
+    finalExecutionId = retryExecutionId;
   }
 
 

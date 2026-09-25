@@ -65,6 +65,22 @@ describe("report persistence invariants", () => {
     expect(pipeline).toContain("if (!reportRow.execution_id) {");
   });
 
+  it("finalExecutionId is hoisted before try block and remains in scope for citation reconciliation and provenance", () => {
+    // Verify lexical scope hoisting before the try block
+    const hoistingIndex = pipeline.indexOf("let finalExecutionId: string | null = executionId ?? null;");
+    const tryIndex = pipeline.indexOf("try {", hoistingIndex);
+    const citeIndex = pipeline.indexOf("executionId: finalExecutionId", tryIndex);
+    const provIndex = pipeline.indexOf("execution_id: finalExecutionId", citeIndex);
+
+    expect(hoistingIndex).toBeGreaterThan(-1);
+    expect(tryIndex).toBeGreaterThan(hoistingIndex);
+    expect(citeIndex).toBeGreaterThan(tryIndex);
+    expect(provIndex).toBeGreaterThan(citeIndex);
+
+    // Verify there are no declarations of 'const finalExecutionId' (which caused the scoping bug)
+    expect(pipeline).not.toContain("const finalExecutionId");
+  });
+
 
   it("a needs-revision report is preserved during derived-engine diagnostics", () => {
     const invalidation = derivedEngines.slice(
