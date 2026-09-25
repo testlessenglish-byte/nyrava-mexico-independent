@@ -285,6 +285,14 @@ export function canonicalLegalIssueKey(f: DedupableFinding): string {
     return `unconstitutionality_art_${artMatch[1]}`;
   }
 
+  // 9. Court disposition / review dismissed / amparo procedural resolution
+  if (
+    /\b(desech(?:a|ar|o|amiento)?|desestiman?)\b/.test(text) &&
+    /\b(recurso\s+de\s+revisi[oó]n|revisi[oó]n|toca)\b/.test(text)
+  ) {
+    return "recurso_revision_desechado";
+  }
+
   return "";
 }
 
@@ -353,6 +361,10 @@ const MIN_QUOTE_LEN = 20;
  *  findings in the same case legitimately cite the same source document). */
 function quoteEvidenceOf(f: DedupableFinding): Set<string> {
   const out = new Set<string>();
+  if (typeof f.source_quote === "string") {
+    const sq = normalizeText(f.source_quote);
+    if (sq.length >= MIN_QUOTE_LEN) out.add(sq);
+  }
   const refs = f.evidence_refs;
   if (!Array.isArray(refs)) return out;
   for (const item of refs) {

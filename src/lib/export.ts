@@ -5496,7 +5496,7 @@ async function renderPdf(
   try {
     data = validatePayload(data);
   } catch (err) {
-    data = preflightFinalReportPayload(data);
+    data = structuredClone(preflightFinalReportPayload(data));
     (data as FinalReportPayload).report_presentation = {
       ...(data as FinalReportPayload).report_presentation,
       verification_status: "VERIFICATION_FAILED",

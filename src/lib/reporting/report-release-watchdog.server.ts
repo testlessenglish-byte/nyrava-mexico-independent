@@ -78,11 +78,25 @@ export async function runReportReleaseWatchdog(
         continue;
       }
 
+      // 1.5 Apply Claim-Level Reconciliation (NYRAVA RELEASE INVARIANT)
+      const { reconcileCaseFindingsClaims } = await import("@/lib/intelligence/claim-level-reconciliation.server");
+      await reconcileCaseFindingsClaims(db, caseId);
+
+      // Re-fetch reportRow after reconciliation
+      const { data: refreshedReport } = await (db as any)
+        .from("reports")
+        .select("*")
+        .eq("case_id", caseId)
+        .maybeSingle();
+      if (refreshedReport) {
+        reportRow = refreshedReport;
+      }
+
       // 2. Evaluate release readiness
       const decision = resolveFinalReleaseDecision({
         report: reportRow,
         contract: { ok: true, blocking_errors: [] },
-        gates: fullReport.final_review_progress?.outcomes || {},
+        gates: (reportRow.full_report || {}).final_review_progress?.outcomes || {},
         errors: reportRow.quality_block_reasons || [],
       });
 
