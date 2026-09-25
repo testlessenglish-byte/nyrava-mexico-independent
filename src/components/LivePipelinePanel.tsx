@@ -191,11 +191,62 @@ export function LivePipelinePanel({
   caseType?: string | null;
 }) {
   const { t, locale } = useI18n();
-  // Localized engine name; unknown engines fall back to their raw name.
+  // Localized engine name; unknown engines fall back to their formatted name.
   const engineName = (engine: string) => {
     const key = engineLabelKey(engine, caseType);
-    return key ? t(key) : engine;
+    if (key) {
+      const translated = t(key);
+      if (translated && translated !== key) return translated;
+    }
+    if (engine.startsWith("pipeline.agent.")) {
+      const clean = engine.replace("pipeline.agent.", "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+      return locale === "es" ? `Agente: ${clean}` : `Agent: ${clean}`;
+    }
+    if (engine.startsWith("agent:")) {
+      const clean = engine.replace("agent:", "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+      return locale === "es" ? `Agente: ${clean}` : `Agent: ${clean}`;
+    }
+    if (engine === "analyzers_batch" || engine === "analyzers") {
+      return locale === "es" ? "Analizadores Jurídicos" : "Legal Analyzers";
+    }
+    if (engine === "analyzer_evidence_intelligence" || engine === "evidence_intel") {
+      return locale === "es" ? "Inteligencia de Evidencia" : "Evidence Intelligence";
+    }
+    if (engine === "analyzer_discovery_gaps" || engine === "discovery") {
+      return locale === "es" ? "Detección de Vacíos Probatorios" : "Discovery Gaps";
+    }
+    if (engine === "analyzer_contradictions" || engine === "contradictions") {
+      return locale === "es" ? "Análisis de Contradicciones" : "Contradictions Analysis";
+    }
+    if (engine === "fact_extraction" || engine === "ct_extraction") {
+      return locale === "es" ? "Extracción de Hechos" : "Fact Extraction";
+    }
+    return engine;
   };
+
+  const formatActivityMessage = (msg: string) => {
+    if (!msg) return "";
+    if (locale !== "es") return msg;
+    let res = msg;
+    if (res.includes("checkpointed before start — will resume on next worker tick")) {
+      res = res.replace(
+        /\s+checkpointed before start — will resume on next worker tick/i,
+        " en punto de control — se reanudará en el siguiente ciclo",
+      );
+    } else if (res.includes("checkpointed before start")) {
+      res = res.replace(/\s+checkpointed before start/i, " en punto de control");
+    }
+    if (/\s+complete$/i.test(res)) {
+      res = res.replace(/\s+complete$/i, " completado");
+    } else if (/\s+completed$/i.test(res)) {
+      res = res.replace(/\s+completed$/i, " completado");
+    }
+    if (/\s+started$/i.test(res)) {
+      res = res.replace(/\s+started$/i, " iniciado");
+    }
+    return res;
+  };
+
   const statusText = (status: string) => {
     const label = t(statusLabelKey(status));
     return label === statusLabelKey(status) ? status : label;
@@ -717,7 +768,7 @@ export function LivePipelinePanel({
                     <span className="font-medium">{engineName(e.stage)}</span>
                     <span className="tabular-nums">{fmtTime(e.created_at)}</span>
                   </div>
-                  <div className="mt-0.5 break-words text-foreground">{e.message}</div>
+                  <div className="mt-0.5 break-words text-foreground">{formatActivityMessage(e.message)}</div>
                 </li>
               ))}
             </ul>

@@ -604,8 +604,14 @@ const STAGE_KEY_ALIASES: Record<string, string> = {
   witness_intel: "witness",
   evidence_intelligence: "evidence_intel",
   evidence_intel: "evidence_intel",
+  analyzer_evidence_intelligence: "evidence_intel",
   constitutional_compliance: "constitutional",
   discovery_gaps: "discovery",
+  analyzer_discovery_gaps: "discovery",
+  analyzer_contradictions: "contradictions",
+  analyzers_batch: "analyzers",
+  fact_extraction: "extraction",
+  ct_extraction: "extraction",
   hallucination_review: "hallucination",
   report_generator: "report",
   theory: "theories",
@@ -630,10 +636,13 @@ export function resolveStageKeyLoose(engineOrStage: string): string | null {
  * not part of the canonical pipeline (caller shows the raw name).
  */
 export function engineLabelKey(engineOrStage: string, caseType?: string | null): string | null {
-  // Nested verification agents persist as `agent:<type>` so their run rows can
+  // Nested verification agents persist as `agent:<type>` or `pipeline.agent.<type>` so their run rows can
   // never be mistaken for (or collide with) a top-level canonical stage.
   if (engineOrStage.startsWith("agent:")) {
     return `pipeline.agent.${engineOrStage.slice("agent:".length).replace(/_batch$/, "")}`;
+  }
+  if (engineOrStage.startsWith("pipeline.agent.")) {
+    return engineOrStage.replace(/_batch$/, "");
   }
   const key = resolveStageKeyLoose(engineOrStage);
   return key ? stageLabelKey(key, caseType) : null;

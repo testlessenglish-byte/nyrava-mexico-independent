@@ -1435,7 +1435,23 @@ function BigMetric({ label, v, inverse }: { label: string; v: number | null; inv
   );
 }
 
+function formatSeverity(sev: string | null | undefined, locale: string): string {
+  if (!sev) return "";
+  if (locale === "es") {
+    switch (sev.toLowerCase()) {
+      case "critical": return "CRÍTICO";
+      case "high": return "ALTO";
+      case "medium": return "MEDIO";
+      case "low": return "BAJO";
+      case "info": return "INFO";
+      default: return sev.toUpperCase();
+    }
+  }
+  return sev.toUpperCase();
+}
+
 function DashboardList({ title, items, empty }: { title: string; items: Finding[]; empty: string }) {
+  const { locale } = useI18n();
   return (
     <div className="rounded-xl border border-border bg-card p-5">
       <h3 className="text-sm font-semibold">{title}</h3>
@@ -1448,7 +1464,7 @@ function DashboardList({ title, items, empty }: { title: string; items: Finding[
               <span
                 className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-wider ${sevColor(f.severity)}`}
               >
-                {f.severity}
+                {formatSeverity(f.severity, locale)}
               </span>
               <div className="min-w-0 flex-1">
                 <div className="font-medium">{f.title}</div>
@@ -1469,7 +1485,53 @@ function DashboardList({ title, items, empty }: { title: string; items: Finding[
 // relies on to reconstruct each finding after translation.
 const FINDING_TRANSLATED_FIELDS = ["title", "description", "legal_significance", "potential_impact"] as const;
 
+function formatSourceModule(module: string | null | undefined, locale: string, t?: (k: string) => string): string {
+  if (!module) return "—";
+  if (module === "decision_core") {
+    return locale === "es" ? "Núcleo decisorio" : "Decision core";
+  }
+  if (module.startsWith("agent:")) {
+    const agentKey = `pipeline.agent.${module.slice("agent:".length).replace(/_batch$/, "")}`;
+    if (t) {
+      const translated = t(agentKey);
+      if (translated && translated !== agentKey) return translated;
+    }
+    const clean = module.slice("agent:".length).replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    return locale === "es" ? `Agente: ${clean}` : `Agent: ${clean}`;
+  }
+  if (module === "analyzers_batch" || module === "analyzers") {
+    return locale === "es" ? "Analizadores Jurídicos" : "Legal Analyzers";
+  }
+  if (module === "analyzer_evidence_intelligence" || module === "evidence_intel") {
+    return locale === "es" ? "Inteligencia de Evidencia" : "Evidence Intelligence";
+  }
+  if (module === "analyzer_discovery_gaps" || module === "discovery") {
+    return locale === "es" ? "Detección de Vacíos Probatorios" : "Discovery Gaps";
+  }
+  if (module === "analyzer_contradictions" || module === "contradictions") {
+    return locale === "es" ? "Análisis de Contradicciones" : "Contradictions Analysis";
+  }
+  if (module === "fact_extraction" || module === "ct_extraction") {
+    return locale === "es" ? "Extracción de Hechos" : "Fact Extraction";
+  }
+  return module;
+}
+
+function formatAffectedParty(party: string | null | undefined, locale: string): string {
+  if (!party || party === "—") return "—";
+  if (locale === "es") {
+    const p = party.toLowerCase();
+    if (p === "neutral") return "Neutral";
+    if (p === "favorable") return "Favorable";
+    if (p === "adverse") return "Adverso";
+    if (p === "plaintiff" || p === "actor") return "Parte actora";
+    if (p === "defendant" || p === "demandado") return "Parte demandada";
+  }
+  return party;
+}
+
 function FindingsTab({ findings, sourceLocale = "es" }: { findings: Finding[]; sourceLocale?: "es" | "en" }) {
+  const { t, locale } = useI18n();
   const [sev, setSev] = useState<string>("all");
   const [cat, setCat] = useState<string>("all");
   const categories = Array.from(new Set(findings.map((f) => f.category))).sort();
@@ -1495,23 +1557,46 @@ function FindingsTab({ findings, sourceLocale = "es" }: { findings: Finding[]; s
   });
 
   if (findings.length === 0)
-    return <Empty msg="No findings yet. Run analyzers + agents to populate the findings store." />;
+    return (
+      <Empty
+        msg={
+          locale === "es"
+            ? "No hay hallazgos registrados. Ejecute los analizadores para poblar el expediente."
+            : "No findings yet. Run analyzers + agents to populate the findings store."
+        }
+      />
+    );
+
+  const severityFilters = [
+    { id: "all", label: locale === "es" ? "Todas las severidades" : "All severities" },
+    { id: "critical", label: locale === "es" ? "Crítico" : "Critical" },
+    { id: "high", label: locale === "es" ? "Alto" : "High" },
+    { id: "medium", label: locale === "es" ? "Medio" : "Medium" },
+    { id: "low", label: locale === "es" ? "Bajo" : "Low" },
+    { id: "info", label: locale === "es" ? "Info" : "Info" },
+  ];
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2">
-        <FilterPill label="All severities" active={sev === "all"} onClick={() => setSev("all")} />
-        {["critical", "high", "medium", "low", "info"].map((s) => (
-          <FilterPill key={s} label={s} active={sev === s} onClick={() => setSev(s)} />
+        {severityFilters.map((s) => (
+          <FilterPill key={s.id} label={s.label} active={sev === s.id} onClick={() => setSev(s.id)} />
         ))}
       </div>
       <div className="flex flex-wrap gap-2">
-        <FilterPill label="All categories" active={cat === "all"} onClick={() => setCat("all")} />
+        <FilterPill
+          label={locale === "es" ? "Todas las categorías" : "All categories"}
+          active={cat === "all"}
+          onClick={() => setCat("all")}
+        />
         {categories.map((c) => (
           <FilterPill key={c} label={c} active={cat === c} onClick={() => setCat(c)} />
         ))}
       </div>
       <div className="text-xs text-muted-foreground">
-        Showing {filtered.length} of {findings.length}
+        {locale === "es"
+          ? `Mostrando ${filtered.length} de ${findings.length}`
+          : `Showing ${filtered.length} of ${findings.length}`}
       </div>
       <div className="space-y-2">
         {translatedFindings.map((f) => (
@@ -1520,14 +1605,13 @@ function FindingsTab({ findings, sourceLocale = "es" }: { findings: Finding[]; s
               <span
                 className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-wider ${sevColor(f.severity)}`}
               >
-                {f.severity}
+                {formatSeverity(f.severity, locale)}
               </span>
-              <FindingTypeBadge type={(f as unknown as { finding_type?: string }).finding_type} />
+              <FindingTypeBadge type={(f as unknown as { finding_type?: string }).finding_type} locale={locale} />
               <div className="min-w-0 flex-1">
                 <div className="font-medium">{f.title}</div>
                 <div className="mt-0.5 text-xs text-muted-foreground">
-                  {f.category} · {f.source_module} · {f.affected_party ?? "—"} · {Math.round(f.confidence * 100)}%
-                  confidence
+                  {f.category} · {formatSourceModule(f.source_module, locale, t)} · {formatAffectedParty(f.affected_party, locale)} · {Math.round(f.confidence * 100)}% {locale === "es" ? "confianza" : "confidence"}
                 </div>
               </div>
             </summary>
@@ -1543,14 +1627,24 @@ function FindingsTab({ findings, sourceLocale = "es" }: { findings: Finding[]; s
                 return (
                   <div className="mt-3 rounded border border-border/60 bg-secondary/30 p-2 text-xs">
                     <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Source quote{x.source_page ? ` · p.${x.source_page}` : ""}
+                      {locale === "es" ? "Cita textual" : "Source quote"}{x.source_page ? ` · p.${x.source_page}` : ""}
                     </div>
                     <div className="mt-1 italic text-foreground/90">“{x.source_quote}”</div>
                   </div>
                 );
               })()}
-              {f.legal_significance && <FieldRow label="Legal significance" v={f.legal_significance} />}
-              {f.potential_impact && <FieldRow label="Potential impact" v={f.potential_impact} />}
+              {f.legal_significance && (
+                <FieldRow
+                  label={locale === "es" ? "Relevancia jurídica" : "Legal significance"}
+                  v={f.legal_significance}
+                />
+              )}
+              {f.potential_impact && (
+                <FieldRow
+                  label={locale === "es" ? "Impacto potencial" : "Potential impact"}
+                  v={f.potential_impact}
+                />
+              )}
               {f.tags && f.tags.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-1">
                   {f.tags.map((t) => (
@@ -1567,7 +1661,8 @@ function FindingsTab({ findings, sourceLocale = "es" }: { findings: Finding[]; s
     </div>
   );
 }
-function FindingTypeBadge({ type }: { type?: string }) {
+
+function FindingTypeBadge({ type, locale }: { type?: string; locale?: string }) {
   if (!type) return null;
   const map: Record<string, string> = {
     DIRECT_EVIDENCE: "border-emerald-500/40 bg-emerald-500/10 text-emerald-200",
@@ -1575,7 +1670,17 @@ function FindingTypeBadge({ type }: { type?: string }) {
     AI_THEORY: "border-rose-500/40 bg-rose-500/10 text-rose-200",
   };
   const label =
-    type === "DIRECT_EVIDENCE" ? "Evidence" : type === "EVIDENCE_BASED_INFERENCE" ? "Inference" : "AI theory";
+    locale === "es"
+      ? type === "DIRECT_EVIDENCE"
+        ? "Evidencia"
+        : type === "EVIDENCE_BASED_INFERENCE"
+          ? "Inferencia"
+          : "Teoría IA"
+      : type === "DIRECT_EVIDENCE"
+        ? "Evidence"
+        : type === "EVIDENCE_BASED_INFERENCE"
+          ? "Inference"
+          : "AI theory";
   return (
     <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-wider ${map[type] ?? ""}`}>
       {label}
