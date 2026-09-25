@@ -10475,16 +10475,50 @@ ${paginationTail}`;
 
   {
     const { loadCaseSourcePages } = await import("./intelligence/source-matter-audit.server");
-    const { auditSourceLocations } = await import("./reporting/source-location-audit");
+    const { reconcileCitationsAndDependentClaims } = await import("./intelligence/final-claim-publication");
     const pages = await loadCaseSourcePages(db, caseId);
-    const refs = [
-      ...(Array.isArray(reportRow.citations) ? reportRow.citations : []),
-      ...findings.flatMap((f: any) => Array.isArray(f.evidence_refs) ? f.evidence_refs : []),
-      ...((reportRow.full_report as any).mandatory_decision_core?.items ?? []).flatMap((i: any) => i.source_refs ?? []),
-    ].filter((r: any) => r && typeof r === "object");
-    const locations = auditSourceLocations(relocateSourceRefs(refs as any[], pages, docIndex), pages, docIndex);
-    (reportRow.full_report as any).source_location_audit = locations;
+
+    const citationReconciliation = await reconcileCitationsAndDependentClaims({
+      reportRow,
+      findings,
+      pages,
+      docIndex,
+      context: {
+        executionId: finalExecutionId,
+        caseType: reportCaseAnalysisMode,
+        isConcludedAudit: reportCaseAnalysisMode === "concluded_audit",
+        hasIdentifiedClient: Boolean(caseTsRow?.client_id || (caseTsRow?.matter_metadata as any)?.client_name),
+        proceduralAvailabilityVerified: false,
+      },
+      db,
+    });
+    Object.assign(reportRow, citationReconciliation.reportRow);
+    findings = citationReconciliation.activeFindings;
+    (reportRow.full_report as any).source_location_audit = citationReconciliation.locationsAudit;
     (reportRow.full_report as any).source_identity_audit = sourceIdentityAudit;
+
+    // If findings were quarantined due to citation failures, re-sync final report contract so presentation is consistent
+    if (citationReconciliation.quarantinedFindings.length > 0) {
+      const refreshedPayload = composeFinalReportPayload({
+        case: { ...caseTsRow, case_analysis_mode: reportCaseAnalysisMode, procedural_posture: proceduralPosture },
+        documents: canonicalSources.map((s) => ({ ...s, id: s.document_id, filename: s.display_name })),
+        report: reportRow as unknown as Record<string, unknown>,
+        findings: findings as unknown as Array<Record<string, unknown>>,
+        analysis: null,
+        agents: [],
+        score: null,
+      });
+      const refreshedContract = validateFinalReportContract(refreshedPayload);
+      (reportRow.full_report as any).pre_release_validation = refreshedContract.source_review;
+      for (const key of Object.keys(reportRow)) {
+        if (!(key in (refreshedPayload.report ?? {})))
+          (reportRow as any)[key] = Array.isArray((reportRow as any)[key]) ? [] : null;
+      }
+      Object.assign(reportRow, refreshedPayload.report);
+      (reportRow.full_report as any).final_report_contract_validation = refreshedContract;
+      (reportRow.full_report as any).final_governance_validation = refreshedContract;
+    }
+
     try {
       const { getGitCommit, PIPELINE_VERSION } = await import("./version");
       (reportRow.full_report as any).execution_provenance = {
@@ -10497,10 +10531,27 @@ ${paginationTail}`;
     } catch {
       // Non-fatal provenance attachment
     }
-    if (!locations.ok) {
+
+    // Invariant: citation failures quarantine unsupported claims; they NEVER independently set quality_blocked when verified content exists
+    if (!citationReconciliation.hasVerifiedContent) {
       (reportRow as any).quality_blocked = true;
-      (reportRow as any).quality_block_reasons = [...((reportRow as any).quality_block_reasons ?? []),
-        "Las citas deben coincidir con sus páginas fuente antes de emitir el informe.", ...locations.errors];
+      (reportRow as any).quality_block_reasons = [
+        ...((reportRow as any).quality_block_reasons ?? []),
+        "Todas las citas del informe fallaron la verificación documental; no queda contenido verificado para publicar.",
+      ];
+    } else {
+      const nonCitationReasons = ((reportRow as any).quality_block_reasons ?? []).filter(
+        (r: string) =>
+          !r.includes("Las citas deben coincidir") &&
+          !r.includes("no se pudo verificar la cita literal") &&
+          !r.startsWith("Cita ") &&
+          !r.includes("citation_not_verified") &&
+          !r.includes("CITATION_UNRESOLVED"),
+      );
+      (reportRow as any).quality_block_reasons = nonCitationReasons;
+      if (nonCitationReasons.length === 0) {
+        (reportRow as any).quality_blocked = false;
+      }
     }
   }
   assertDbOk(

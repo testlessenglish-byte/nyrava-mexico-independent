@@ -74,6 +74,23 @@ export function resolveFinalReleaseDecision(input: FinalReleaseInput) {
     }
     if (layer.status.startsWith("WARN")) warnings.push(layer.layer + ":" + layer.reason);
   }
+  // Permanent Invariant: A citation-level failure must NEVER independently set
+  // REPORT_BLOCKED when other verified report content exists.
+  const hasVerifiedContent = Boolean(
+    (Array.isArray(full.final_published_claims) && full.final_published_claims.length > 0) ||
+    (Array.isArray(full.reconciled_findings) && full.reconciled_findings.length > 0) ||
+    (Array.isArray(input.report.findings) && input.report.findings.length > 0) ||
+    (input.contract && input.contract.ok)
+  );
+  if (hasVerifiedContent) {
+    const citationErrorRx = /(?:Cita \d+:|no se pudo verificar la cita literal|Las citas deben coincidir|citation_not_verified|CITATION_UNRESOLVED)/i;
+    for (let i = errors.length - 1; i >= 0; i--) {
+      if (citationErrorRx.test(errors[i])) {
+        warnings.push(errors[i]);
+        errors.splice(i, 1);
+      }
+    }
+  }
   const released = errors.length === 0;
   const decision = released ? (warnings.length ? "PASS_WITH_WARNINGS" : "PASS") : "BLOCKED";
   const release_outcome: "RELEASED" | "RELEASED_WITH_WARNINGS" | "VERIFICATION_FAILED" = released

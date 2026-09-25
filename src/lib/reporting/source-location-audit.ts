@@ -163,6 +163,7 @@ export function relocateSourceRefs(refs: Array<Record<string, any>>, pages: Matt
 /** Exact source verification; does not use fuzzy/semantic similarity as quotation proof. */
 export function auditSourceLocations(refs: Array<Record<string, any>>, pages: MatterSourcePage[], docIndex: DocIndex) {
   const errors: string[] = [], verified: Array<Record<string, any>> = [];
+  const failed_refs: Array<{ index: number; ref: Record<string, any>; reason: string }> = [];
   const seen = new Set<string>();
   for (const [index, ref] of refs.entries()) {
     const quote = String(ref.quote ?? ref.excerpt ?? ref.source_quote ?? '').trim();
@@ -172,7 +173,9 @@ export function auditSourceLocations(refs: Array<Record<string, any>>, pages: Ma
     const source = pages.find(p=>p.document_id===id && p.page===page);
     
     if (!quote || !source || !matchesPageText(quote, source.text)) {
-      errors.push(`Cita ${index+1}: no se pudo verificar la cita literal en el documento y la página indicados.`);
+      const err = `Cita ${index+1}: no se pudo verificar la cita literal en el documento y la página indicados.`;
+      errors.push(err);
+      failed_refs.push({ index: index + 1, ref, reason: err });
       continue;
     }
     
@@ -182,5 +185,12 @@ export function auditSourceLocations(refs: Array<Record<string, any>>, pages: Ma
     verified.push({...ref, document_id:id, filename:source.filename, page, quote,
       page_extraction_ref:`${id}:${page}`, verification_status:'verified'});
   }
-  return {ok:errors.length===0, errors, verified, unique_citations:verified.length, checked:refs.length};
+  return {
+    ok: errors.length === 0,
+    errors,
+    verified,
+    failed_refs,
+    unique_citations: verified.length,
+    checked: refs.length,
+  };
 }

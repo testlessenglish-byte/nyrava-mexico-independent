@@ -55,55 +55,12 @@ export function sha256Hex(input: string): string {
 // real, contiguous match of the PROPOSITION \u2014 only the specific glyph
 // used for a quote mark, dash, or space is now tolerated as equivalent
 // to its ASCII counterpart.
-function foldTypographicPunctuation(s: string): string {
-  return s
-    .replace(/[\u2018\u2019\u2032]/g, "'")
-    .replace(/[\u201c\u201d\u2033]/g, '"')
-    .replace(/[\u2013\u2014]/g, "-")
-    .replace(/\u00a0/g, " ");
-}
-
-export function lightNormalize(s: string): string {
-  return foldTypographicPunctuation(
-    s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase(),
-  );
-}
-
-export type QuoteLocation = { start: number; end: number };
-
-/**
- * Find the exact character range of `quote` inside `rawText`, case- and
- * accent-insensitively, preserving true offsets into `rawText` (not into
- * any normalized copy). Returns the FIRST occurrence — a quote that
- * legitimately appears more than once in a document has no single "correct"
- * offset without more context than a citation carries, so the first
- * occurrence is the honest, deterministic choice rather than guessing.
- *
- * Returns null when no exact (case/accent-insensitive) contiguous match
- * exists — e.g. the quote only matched via grounding's whitespace-collapsing
- * or token-shingle fuzzy paths, which by construction don't correspond to a
- * single span in the source.
- */
-export function locateQuoteInText(quote: string, rawText: string): QuoteLocation | null {
-  const q = quote.trim();
-  if (q.length < 8 || !rawText) return null;
-  const normText = lightNormalize(rawText);
-  const normQuote = lightNormalize(q);
-  const start = normText.indexOf(normQuote);
-  if (start >= 0) return { start, end: start + normQuote.length };
-  // PDF extraction inserts line breaks where quoted prose uses spaces. Keep
-  // an index map so whitespace folding never fabricates raw source offsets.
-  const chars: string[] = [], starts: number[] = [], ends: number[] = [];
-  for (let i = 0; i < normText.length; i++) {
-    const ch = /\s/.test(normText[i]) ? ' ' : normText[i];
-    if (ch === ' ' && chars.at(-1) === ' ') { ends[ends.length - 1] = i + 1; continue; }
-    chars.push(ch); starts.push(i); ends.push(i + 1);
-  }
-  const foldedQuote = normQuote.replace(/\s+/g, ' ').trim();
-  const foldedStart = chars.join('').indexOf(foldedQuote);
-  if (foldedStart < 0) return null;
-  return { start: starts[foldedStart], end: ends[foldedStart + foldedQuote.length - 1] };
-}
+export {
+  foldTypographicPunctuation,
+  lightNormalize,
+  type QuoteLocation,
+  locateQuoteInText,
+} from "./evidence-provenance-text";
 
 /** 1-indexed page number for a character offset, given the fixed page size grounding.server.ts paginates with. */
 export function pageForOffset(offset: number, pageChars: number): number {

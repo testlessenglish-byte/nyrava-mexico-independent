@@ -20,6 +20,9 @@ import {
   type SpeakerAttribution,
 } from "./claim-evidence-entailment";
 import { formatSpeakerRoleBadge, type SpeakerRoleBadge } from "./concluded-case-governance";
+import { auditSourceLocations, relocateSourceRefs } from "../reporting/source-location-audit";
+import { locateQuoteInText } from "./evidence-provenance-text";
+import type { MatterSourcePage } from "./source-matter-audit";
 
 export type ClaimType =
   | "COURT_HOLDING"
@@ -770,3 +773,389 @@ export function sweepReportForPdfPublication<T extends { findings?: any[]; repor
     report: updatedReport,
   };
 }
+
+/**
+ * Attempts existing fuzzy (whitespace/accent folding) or page-offset verification
+ * for a citation reference against candidate pages of its identified document.
+ */
+export function attemptCitationFuzzyOrPageOffset(
+  ref: Record<string, any>,
+  pages: MatterSourcePage[],
+  docIndex: Array<{ doc_n: number; document_id: string }>,
+): Record<string, any> | null {
+  const quote = String(ref.quote ?? ref.excerpt ?? ref.source_quote ?? "").trim();
+  if (!quote || quote.length < 8) return null;
+
+  const locId =
+    ref.document_id ??
+    ref.doc_id ??
+    docIndex.find((d) => d.doc_n === Number(ref.doc_n))?.document_id;
+  if (!locId) return null;
+
+  const docCandidates = pages.filter((p) => p.document_id === locId);
+  if (!docCandidates.length) return null;
+
+  const targetPage = Number(ref.page ?? ref.page_number ?? ref.page_located ?? 1);
+
+  // Sort candidate pages by proximity to claimed page (page-offset search)
+  const sortedCandidates = docCandidates.slice().sort((a, b) =>
+    Math.abs(a.page - targetPage) - Math.abs(b.page - targetPage)
+  );
+
+  const qNorm = quote.normalize("NFC").replace(/\s+/g, " ").trim();
+
+  // 1. Candidate search by page proximity
+  for (const cand of sortedCandidates) {
+    if (cand.text.includes(quote)) {
+      return {
+        ...ref,
+        quote,
+        document_id: cand.document_id,
+        page: cand.page,
+        page_number: cand.page,
+        page_located: cand.page,
+        label: `p.${cand.page}`,
+        filename: cand.filename,
+        page_extraction_ref: `${cand.document_id}:${cand.page}`,
+      };
+    }
+
+    const span = locateQuoteInText(quote, cand.text);
+    if (span) {
+      const realSlice = cand.text.slice(span.start, span.end).trim();
+      if (realSlice.length >= 8) {
+        return {
+          ...ref,
+          quote: realSlice,
+          document_id: cand.document_id,
+          page: cand.page,
+          page_number: cand.page,
+          page_located: cand.page,
+          label: `p.${cand.page}`,
+          filename: cand.filename,
+          page_extraction_ref: `${cand.document_id}:${cand.page}`,
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
+export interface ReconcileCitationsInput {
+  reportRow: Record<string, any>;
+  findings: Array<Record<string, any>>;
+  pages: MatterSourcePage[];
+  docIndex: Array<{ doc_n: number; document_id: string }>;
+  context?: PublicationContext;
+  db?: any;
+}
+
+export interface ReconcileCitationsOutput {
+  activeFindings: Array<Record<string, any>>;
+  quarantinedFindings: Array<Record<string, any>>;
+  survivingCitations: Array<Record<string, any>>;
+  quarantinedCitations: Array<Record<string, any>>;
+  diagnosticWarnings: string[];
+  reportRow: Record<string, any>;
+  hasVerifiedContent: boolean;
+  locationsAudit: {
+    ok: boolean;
+    errors: string[];
+    verified: Array<Record<string, any>>;
+    failed_refs: Array<{ index: number; ref: Record<string, any>; reason: string }>;
+    diagnostic_warnings: string[];
+    quarantined_citations: Array<Record<string, any>>;
+    quarantined_claims: Array<{ id: string; title: string }>;
+    unique_citations: number;
+    checked: number;
+    citation_audit_status: string;
+  };
+}
+
+/**
+ * Priority #1 & #2 Invariant: Strict on claims, permissive on report release.
+ *
+ * Citation verification:
+ * 1. Checks exact and relocated citations against physical pages.
+ * 2. Attempts existing fuzzy / page-offset verification for any citation that fails.
+ * 3. If verification still fails, identifies the dependent claim(s) and quarantines them
+ *    via Final Claim Publication Control.
+ * 4. Rebuilds active counters and summary/prose from remaining approved claims.
+ * 5. A citation-level failure NEVER independently sets REPORT_BLOCKED when other verified
+ *    report content exists. Diagnostic warnings and audit trail are preserved.
+ */
+export async function reconcileCitationsAndDependentClaims(
+  input: ReconcileCitationsInput,
+): Promise<ReconcileCitationsOutput> {
+  const reportRow = { ...input.reportRow };
+  const fullReport = { ...((reportRow.full_report as Record<string, any>) ?? {}) };
+  reportRow.full_report = fullReport;
+
+  const pages = input.pages ?? [];
+  const docIndex = input.docIndex ?? [];
+  const context = input.context ?? {};
+  const db = input.db;
+
+  const findings = [...(input.findings ?? [])];
+  const diagnosticWarnings: string[] = [];
+
+  // Collect all citations and stamp with parent context where known
+  const stampedReportCitations = (
+    Array.isArray(reportRow.citations) ? reportRow.citations : []
+  ).map((c: any) => ({ ...c, __origin: "report_citations" }));
+
+  const stampedFindingRefs: Array<Record<string, any>> = [];
+  for (const f of findings) {
+    if (Array.isArray(f.evidence_refs)) {
+      for (const er of f.evidence_refs) {
+        if (er && typeof er === "object") {
+          stampedFindingRefs.push({
+            ...er,
+            __origin: "finding_evidence_ref",
+            __parent_finding_id: f.id,
+            __parent_finding_title: f.title,
+          });
+        }
+      }
+    }
+  }
+
+  const coreItems = Array.isArray(fullReport.mandatory_decision_core?.items)
+    ? fullReport.mandatory_decision_core.items
+    : [];
+  const stampedCoreRefs: Array<Record<string, any>> = [];
+  for (const ci of coreItems) {
+    if (Array.isArray(ci.source_refs)) {
+      for (const sr of ci.source_refs) {
+        if (sr && typeof sr === "object") {
+          stampedCoreRefs.push({
+            ...sr,
+            __origin: "core_source_ref",
+            __parent_core_id: ci.id,
+          });
+        }
+      }
+    }
+  }
+
+  const allRefs = [...stampedReportCitations, ...stampedFindingRefs, ...stampedCoreRefs];
+  const relocatedRefs = relocateSourceRefs(allRefs, pages, docIndex);
+
+  // Initial audit
+  let auditResult = auditSourceLocations(relocatedRefs, pages, docIndex);
+
+  // Attempt fuzzy/page-offset recovery for any failed refs
+  const stillFailedRefs: Array<{ index: number; ref: Record<string, any>; reason: string }> = [];
+  const verifiedCitations = [...auditResult.verified];
+
+  if (!auditResult.ok && auditResult.failed_refs) {
+    for (const failed of auditResult.failed_refs) {
+      const recovered = attemptCitationFuzzyOrPageOffset(failed.ref, pages, docIndex);
+      if (recovered) {
+        const recheck = auditSourceLocations([recovered], pages, docIndex);
+        if (recheck.ok && recheck.verified.length > 0) {
+          verifiedCitations.push(recheck.verified[0]);
+          continue;
+        }
+      }
+      stillFailedRefs.push(failed);
+    }
+  }
+
+  // Process still-failed citations: quarantine dependent claims
+  const quarantinedFindings: Array<Record<string, any>> = [];
+  const quarantinedFindingIds = new Set<string>();
+  const quarantinedCoreIds = new Set<string>();
+
+  for (const failed of stillFailedRefs) {
+    const failedRef = failed.ref;
+    const failedQuote = (failedRef.quote ?? failedRef.source_quote ?? "")
+      .normalize("NFC")
+      .replace(/\s+/g, " ")
+      .trim();
+    const parentFindingId = failedRef.__parent_finding_id || failedRef.finding_id || failedRef.claim_id;
+
+    // Identify dependent findings
+    const dependent = findings.filter((f) => {
+      if (parentFindingId && String(f.id) === String(parentFindingId)) return true;
+      if (
+        failedQuote &&
+        f.source_quote &&
+        f.source_quote.normalize("NFC").replace(/\s+/g, " ").trim() === failedQuote
+      ) {
+        return true;
+      }
+      if (
+        Array.isArray(f.evidence_refs) &&
+        f.evidence_refs.some((er: any) => {
+          if (!er) return false;
+          if (er === failedRef) return true;
+          const erQuote = (er.quote ?? "").normalize("NFC").replace(/\s+/g, " ").trim();
+          return failedQuote && erQuote === failedQuote;
+        })
+      ) {
+        return true;
+      }
+      return false;
+    });
+
+    for (const f of dependent) {
+      if (!quarantinedFindingIds.has(String(f.id))) {
+        quarantinedFindingIds.add(String(f.id));
+        f.finding_status = "suppressed";
+        f.lifecycle_status = "quarantined";
+        f.verification_status = "unverified";
+        f.audit_classification = "QUARANTINED";
+        f.metadata = {
+          ...(f.metadata || {}),
+          quarantined: true,
+          suppression_reason: `Cita no verificable en el expediente (${failed.reason}). Reclamo puesto en cuarentena por control de publicación.`,
+          citation_error: failed.reason,
+        };
+        quarantinedFindings.push(f);
+
+        const warning = `${failed.reason} Reclamo dependiente "${f.title || f.id}" puesto en cuarentena por control de publicación.`;
+        diagnosticWarnings.push(warning);
+
+        if (db) {
+          try {
+            await db
+              .from("case_findings")
+              .update({
+                finding_status: "suppressed",
+                lifecycle_status: "quarantined",
+                verification_status: "unverified",
+                audit_classification: "QUARANTINED",
+                metadata: f.metadata,
+              })
+              .eq("id", f.id);
+          } catch (dbErr) {
+            console.warn(`[reconcileCitations] DB update for quarantined finding ${f.id} skipped:`, dbErr);
+          }
+        }
+      }
+    }
+
+    // Identify dependent mandatory decision core items
+    if (failedRef.__parent_core_id) {
+      quarantinedCoreIds.add(String(failedRef.__parent_core_id));
+      diagnosticWarnings.push(
+        `${failed.reason} Punto resolutivo [${failedRef.__parent_core_id}] puesto en cuarentena por cita no verificada.`,
+      );
+    }
+
+    if (!dependent.length && !failedRef.__parent_core_id) {
+      diagnosticWarnings.push(`${failed.reason} Cita huérfana eliminada del anexo.`);
+    }
+  }
+
+  // Filter surviving active findings
+  const activeFindings = findings.filter(
+    (f) =>
+      !quarantinedFindingIds.has(String(f.id)) &&
+      f.finding_status !== "suppressed" &&
+      f.lifecycle_status !== "quarantined",
+  );
+
+  // Filter surviving citations in reportRow.citations
+  const survivingCitations = (Array.isArray(reportRow.citations) ? reportRow.citations : []).filter(
+    (c: any) => {
+      const q = (c.quote ?? "").normalize("NFC").replace(/\s+/g, " ").trim();
+      const failedMatch = stillFailedRefs.some(
+        (fr) => (fr.ref.quote ?? "").normalize("NFC").replace(/\s+/g, " ").trim() === q,
+      );
+      const isQuarantinedFinding = c.finding_id && quarantinedFindingIds.has(String(c.finding_id));
+      return !failedMatch && !isQuarantinedFinding;
+    },
+  );
+
+  // Filter surviving core items
+  if (quarantinedCoreIds.size > 0 && Array.isArray(fullReport.mandatory_decision_core?.items)) {
+    fullReport.mandatory_decision_core.items = fullReport.mandatory_decision_core.items.filter(
+      (ci: any) => !quarantinedCoreIds.has(String(ci.id)),
+    );
+  }
+
+  // Rebuild counters
+  reportRow.findings_count = activeFindings.length;
+  reportRow.citations = survivingCitations;
+  fullReport.active_findings_count = activeFindings.length;
+  fullReport.quarantined_findings_count =
+    (Number(fullReport.quarantined_findings_count) || 0) + quarantinedFindings.length;
+  fullReport.quarantined_findings = [
+    ...(Array.isArray(fullReport.quarantined_findings) ? fullReport.quarantined_findings : []),
+    ...quarantinedFindings,
+  ];
+  fullReport.reconciled_findings = activeFindings;
+
+  // Rebuild published claims & prose from surviving claims
+  const { published, all } = classifyValidatePublishClaims(activeFindings, context);
+  fullReport.final_published_claims = published;
+  fullReport.all_publication_diagnostics = all;
+
+  const sanitized = sanitizeReportObjectiveAndProse(reportRow, published, context);
+  reportRow.executive_summary = sanitized.executiveSummary;
+  fullReport.prose = {
+    ...((fullReport.prose as Record<string, any>) || {}),
+    executive_summary: sanitized.executiveSummary,
+  };
+  fullReport.objective = sanitized.objective;
+
+  // Invariant check: Never block report when other verified content exists
+  const hasVerifiedContent = activeFindings.length > 0 || published.length > 0;
+
+  if (hasVerifiedContent) {
+    const nonCitationBlockReasons = (
+      Array.isArray(reportRow.quality_block_reasons) ? reportRow.quality_block_reasons : []
+    ).filter(
+      (r: string) =>
+        !r.includes("Las citas deben coincidir") &&
+        !r.includes("no se pudo verificar la cita literal") &&
+        !r.startsWith("Cita ") &&
+        !r.includes("citation_not_verified") &&
+        !r.includes("CITATION_UNRESOLVED"),
+    );
+    reportRow.quality_block_reasons = nonCitationBlockReasons;
+    if (nonCitationBlockReasons.length === 0) {
+      reportRow.quality_blocked = false;
+    }
+  } else {
+    reportRow.quality_blocked = true;
+    reportRow.quality_block_reasons = [
+      "Todas las citas del informe fallaron la verificación documental; no queda contenido verificado para publicar.",
+    ];
+  }
+
+  const locationsAudit = {
+    ok: hasVerifiedContent, // Releases report cleanly because unsupported claims were quarantined
+    errors: stillFailedRefs.map((f) => f.reason),
+    verified: verifiedCitations,
+    failed_refs: stillFailedRefs,
+    quarantined_citations: stillFailedRefs.map((f) => f.ref),
+    quarantined_claims: quarantinedFindings.map((f) => ({ id: String(f.id), title: String(f.title || f.id) })),
+    diagnostic_warnings: diagnosticWarnings,
+    unique_citations: verifiedCitations.length,
+    checked: allRefs.length,
+    citation_audit_status:
+      stillFailedRefs.length > 0 ? "PASSED_WITH_QUARANTINED_CITATIONS" : "ALL_CITATIONS_VERIFIED",
+  };
+
+  fullReport.source_location_audit = locationsAudit;
+  fullReport.release_warnings = [
+    ...(Array.isArray(fullReport.release_warnings) ? fullReport.release_warnings : []),
+    ...diagnosticWarnings,
+  ];
+
+  return {
+    activeFindings,
+    quarantinedFindings,
+    survivingCitations,
+    quarantinedCitations: stillFailedRefs.map((f) => f.ref),
+    diagnosticWarnings,
+    reportRow,
+    hasVerifiedContent,
+    locationsAudit,
+  };
+}
+

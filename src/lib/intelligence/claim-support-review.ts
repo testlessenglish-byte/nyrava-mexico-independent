@@ -41,8 +41,9 @@ export const CLAIM_SUPPORT_INSTRUCTION = `Review legal claims against ONLY the s
 Supported requires the ENTIRE claim, numbers, negation, court/speaker and procedural role to follow from context. A party's requested relief is not a judicial holding. An earlier court's quoted ruling is not the reviewing court's final decision. An allegation is not an established fact. Do not infer adoption from a quotation. If surrounding context does not establish these distinctions, use insufficient. A real quotation with a false paraphrase is contradicted. Read beyond short cited fragments for negations. Never use background knowledge. Research documents describe their own subjects, not the subscriber's client. Declared client-evidence purpose does not verify identity or prove the contents. No supplied document scope establishes verified client identity. Any claim making that connection without separate case-record proof is insufficient. Every supported or contradicted verdict must cite an exact source passage supporting your assessment; otherwise use insufficient.`;
 
 export function isSupportReviewEligible(f:{finding_status?:unknown;superseded_at?:unknown;lifecycle_status?:unknown;metadata?:unknown}) {
-  return f.finding_status!=='suppressed' && !f.superseded_at && f.lifecycle_status!=='superseded'
-    && (f.metadata as Record<string,unknown>|null)?.provisional!==true;
+  return f.finding_status!=='suppressed' && !f.superseded_at && f.lifecycle_status!=='superseded' && f.lifecycle_status!=='quarantined'
+    && (f.metadata as Record<string,unknown>|null)?.provisional!==true
+    && (f.metadata as Record<string,unknown>|null)?.quarantined!==true;
 }
 export function supportSnapshotValid(claims:readonly (SupportClaim & {metadata?:unknown;finding_status?:unknown})[],pages:readonly SupportPage[]) {
   const eligible=claims.filter(isSupportReviewEligible);
