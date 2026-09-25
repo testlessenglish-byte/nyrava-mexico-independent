@@ -632,11 +632,24 @@ function Workspace() {
             <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               {t("caseWorkspace.downloads")}
             </h2>
+            {reportBlocked && (
+              <div className="mt-2.5 mb-1 rounded-lg border border-destructive/40 bg-destructive/10 p-2.5 text-xs text-destructive">
+                <div className="flex items-center gap-1.5 font-bold">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span>EVIDENCE VERIFICATION FAILED — DO NOT FILE AS-IS</span>
+                </div>
+                <p className="mt-1 opacity-90">
+                  {reportBlockReasons.length > 0
+                    ? reportBlockReasons.join("; ")
+                    : "Certain assertions or sources require attorney review. Report is downloadable below."}
+                </p>
+              </div>
+            )}
             <div className="mt-3 space-y-2">
               <DownloadBtn
                 icon={FileDown}
                 label={t("caseWorkspace.downloadPdf")}
-                disabled={reportBlocked || !hasReport}
+                disabled={!hasReport}
                 onClick={async () => {
                   const { downloadPdf } = await import("@/lib/export");
                   await downloadPdf(await buildFreshExportData(), c.name);

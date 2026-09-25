@@ -3618,12 +3618,25 @@ const BLOCKED_REPORT_METADATA_ALLOWLIST = new Set([
 
 export function sanitizeBlockedReport<T extends Record<string, unknown> | null | undefined>(
   report: T,
-  opts?: { stale?: boolean },
+  opts?: { stale?: boolean; preserveWorkProduct?: boolean },
 ): T {
   if (!report) return report;
   const blocked = !!report.quality_blocked;
   const stale = !!opts?.stale;
   if (!blocked && !stale) return report;
+
+  if (blocked && opts?.preserveWorkProduct) {
+    const copy = { ...report } as Record<string, unknown>;
+    copy.verification_status = "VERIFICATION_FAILED";
+    copy.verification_banner = "EVIDENCE VERIFICATION FAILED — DO NOT FILE AS-IS";
+    copy.verification_reasons = (report as Record<string, unknown>).quality_block_reasons || [];
+    if (stale) {
+      copy.stale = true;
+      copy.stale_reason = "A required pipeline stage completed more recently than this report was generated.";
+    }
+    return copy as T;
+  }
+
   const sanitized: Record<string, unknown> = {};
   for (const key of Object.keys(report)) {
     sanitized[key] = BLOCKED_REPORT_METADATA_ALLOWLIST.has(key) ? report[key] : null;
@@ -3947,7 +3960,7 @@ export const getCase = createServerFn({ method: "POST" })
       ...report.data, quality_blocked: true,
       quality_block_reasons: sourceIdentityAudit.reasons,
     } : report.data;
-    const sanitizedReport = sanitizeBlockedReport(checkedReport, { stale: reportIsStale });
+    const sanitizedReport = sanitizeBlockedReport(checkedReport, { stale: reportIsStale, preserveWorkProduct: true });
     // BUG FIXED (real completed-case export, ADR 4640/2017 rerun): case_scores
     // is a SEPARATE table, written by the scoring stage, which runs and
     // persists its numbers BEFORE the later report stage decides — via the

@@ -75,7 +75,21 @@ export function resolveFinalReleaseDecision(input: FinalReleaseInput) {
     if (layer.status.startsWith("WARN")) warnings.push(layer.layer + ":" + layer.reason);
   }
   const released = errors.length === 0;
-  const decision = released ? warnings.length ? "PASS_WITH_WARNINGS" : "PASS" : "BLOCKED";
-  return { decision, released, quality_blocked: !released, status: released ? "released" : "needs_revision",
-    qa_statuses, errors: [...new Set(errors)], warnings: [...new Set(warnings)] } as const;
+  const decision = released ? (warnings.length ? "PASS_WITH_WARNINGS" : "PASS") : "BLOCKED";
+  const release_outcome: "RELEASED" | "RELEASED_WITH_WARNINGS" | "VERIFICATION_FAILED" = released
+    ? (warnings.length ? "RELEASED_WITH_WARNINGS" : "RELEASED")
+    : "VERIFICATION_FAILED";
+  const verification_banner = released ? null : "EVIDENCE VERIFICATION FAILED — DO NOT FILE AS-IS";
+  return {
+    decision,
+    release_outcome,
+    released,
+    quality_blocked: !released,
+    verification_failed: !released,
+    verification_banner,
+    status: released ? "released" : "needs_revision",
+    qa_statuses,
+    errors: [...new Set(errors)],
+    warnings: [...new Set(warnings)],
+  } as const;
 }

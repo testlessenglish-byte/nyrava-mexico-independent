@@ -367,6 +367,14 @@ export const Route = createFileRoute("/api/public/hooks/pipeline-worker")({
           console.warn("[pipeline-worker] stall sweep failed", e);
         }
 
+        // Report release watchdog — ensures completed reports reach terminal state and have downloadable PDF
+        try {
+          const { runReportReleaseWatchdog } = await import("@/lib/reporting/report-release-watchdog.server");
+          await runReportReleaseWatchdog(admin);
+        } catch (e) {
+          console.warn("[pipeline-worker] report release watchdog failed", e);
+        }
+
         // Drain SEVERAL cases per tick, in parallel. Each has its own CAS
         // lease keyed by case_id, so Case A and Case B run truly
         // concurrently instead of B waiting a full cron minute for A.

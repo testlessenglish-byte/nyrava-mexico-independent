@@ -6,7 +6,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { FileText, FileDown, FileJson, ExternalLink } from "lucide-react";
+import { FileText, FileDown, FileJson, ExternalLink, AlertTriangle, AlertCircle } from "lucide-react";
 import { getCase } from "@/lib/cases.functions";
 import { CasePicker, useActiveCase } from "@/components/modules/CasePicker";
 import { ModuleHeader, ModuleEmpty, SuppressedNotice } from "@/components/modules/SuppressedNotice";
@@ -79,7 +79,7 @@ function ReportsPage() {
   }
   const data = (finalPayload ?? rawData) as typeof rawData;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const report = (contractError ? null : data?.report) as any;
+  const report = (data?.report) as any;
   const name = (data?.case as any)?.name ?? t("reports.export.defaultCaseName");
   const scoresSuppressed = report?.scores_suppressed === true;
   const motionsSuppressed = report?.motions_suppressed === true;
@@ -213,6 +213,32 @@ function ReportsPage() {
                 {detFallback ? <SuppressedNotice title={t("reports.notice.limitedAnalysis")} /> : null}
                 {scoresSuppressed ? <SuppressedNotice title={t("reports.notice.scoresSuppressed")} /> : null}
                 {motionsSuppressed ? <SuppressedNotice title={t("reports.notice.motionsSuppressed")} /> : null}
+
+                {Boolean(report?.quality_blocked || contractError) && (
+                  <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-destructive">
+                    <div className="flex items-center gap-2 font-bold text-sm">
+                      <AlertTriangle className="h-5 w-5 text-destructive shrink-0" />
+                      <span>EVIDENCE VERIFICATION FAILED — DO NOT FILE AS-IS</span>
+                    </div>
+                    <p className="mt-1 text-xs opacity-90">
+                      {Array.isArray(report?.quality_block_reasons) && report.quality_block_reasons.length > 0
+                        ? report.quality_block_reasons.join("; ")
+                        : contractError || "Certain assertions or sources could not be fully reconciled with available evidence. The analytical report is downloadable below for attorney verification."}
+                    </p>
+                  </div>
+                )}
+
+                {Boolean(!report?.quality_blocked && !contractError && ((report?.full_report as any)?.release_decision === "PASS_WITH_WARNINGS" || (report?.full_report as any)?.release_warnings?.length > 0)) && (
+                  <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-amber-700 dark:text-amber-300">
+                    <div className="flex items-center gap-2 font-semibold text-sm">
+                      <AlertCircle className="h-5 w-5 text-amber-500 shrink-0" />
+                      <span>RELEASED WITH WARNINGS</span>
+                    </div>
+                    <p className="mt-1 text-xs opacity-90">
+                      {((report?.full_report as any)?.release_warnings || []).join("; ")}
+                    </p>
+                  </div>
+                )}
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <button

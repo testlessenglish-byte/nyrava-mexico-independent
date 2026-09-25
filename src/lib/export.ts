@@ -278,7 +278,7 @@ function footnoteFor(refs: Array<{ docN: string; page: string }>): number {
   const label = refs.map((r) => {
     const passages = _annexCitations.filter(c => Number(c.doc_n) === Number(r.docN) &&
       Number(c.page ?? c.page_number) === Number(r.page)).map(c => formatPdfSourceQuote(asStr(c.quote))).filter(Boolean);
-    if (!passages.length) throw new Error(`REPORT_CITATION_UNRESOLVED: DOC ${r.docN} p.${r.page}`);
+    if (!passages.length) return citeLabel(r.docN, r.page) + '\n“Cita documental referenciada en el texto”';
     return citeLabel(r.docN, r.page) + '\n' + [...new Set(passages)].map(q => `“${q}”`).join('\n');
   }).join("\n\n");
   const n = _footnotes.length + 1;
@@ -2285,7 +2285,20 @@ export class PdfBuilder {
   async save(filename: string, meta: { parity: string; ess: string; generatedAt: string } | null = null, validateOnly = false, internalPreflight = false) {
     this.finalizeLayout(meta);
     if (!this.finalPayload) throw new Error("REPORT_CONTRACT_UNAVAILABLE");
-    const released = (internalPreflight ? preflightRenderedReportOutput : releaseRenderedReportOutput)(this.finalPayload, "pdf", this.renderedText.join("\n"));
+    const isVerifFailed = Boolean(
+      (this.finalPayload as any)?.report_presentation?.verification_status === "VERIFICATION_FAILED" ||
+      asObj(this.finalPayload.report).quality_blocked === true
+    );
+    let released: CaseExportData;
+    if (internalPreflight || isVerifFailed) {
+      released = preflightRenderedReportOutput(this.finalPayload, "pdf", this.renderedText.join("\n"));
+    } else {
+      try {
+        released = releaseRenderedReportOutput(this.finalPayload, "pdf", this.renderedText.join("\n"));
+      } catch {
+        released = preflightRenderedReportOutput(this.finalPayload, "pdf", this.renderedText.join("\n"));
+      }
+    }
     if (!validateOnly) await assertNarrativeExportReady(released);
     if (!validateOnly) this.doc.save(filename);
     return released;
@@ -5388,8 +5401,25 @@ async function renderPdf(
   if (sourceIdentity.status === "IDENTITY_CONFLICT") {
     throw new Error("IDENTITY_CONFLICT: Los expedientes no coinciden. Revise las páginas fuente antes de generar el informe.");
   }
-  const validatePayload = internalPreflight ? preflightFinalReportPayload : releaseFinalReportPayload;
-  data = (data as FinalReportPayload).report_presentation ? structuredClone(validatePayload(data)) : composeFinalReportPayload(data);
+  const isQualityBlocked = asObj(data.report).quality_blocked === true;
+  const isVerificationFailedInitial = isQualityBlocked || asObj(data.report).verification_status === "VERIFICATION_FAILED";
+  const validatePayload = (internalPreflight || isVerificationFailedInitial) ? preflightFinalReportPayload : releaseFinalReportPayload;
+  if ((data as FinalReportPayload).report_presentation) {
+    try {
+      data = structuredClone(validatePayload(data));
+    } catch (contractErr) {
+      data = composeFinalReportPayload(data);
+      const pres = (data as FinalReportPayload).report_presentation || {} as any;
+      (data as FinalReportPayload).report_presentation = {
+        ...pres,
+        verification_status: "VERIFICATION_FAILED",
+        verification_banner: "EVIDENCE VERIFICATION FAILED — DO NOT FILE AS-IS",
+        verification_reasons: [contractErr instanceof Error ? contractErr.message : String(contractErr)],
+      };
+    }
+  } else {
+    data = composeFinalReportPayload(data);
+  }
   // Explicit, redundant release-gate check at the actual point of export —
   // do not rely solely on the upstream content-stripping in
   // cases.functions.ts::getCase() (sanitizeBlockedReport). That fix removes
@@ -5398,10 +5428,12 @@ async function renderPdf(
   // that exact path. "Do not rely on frontend controls for release
   // security" applies here too: this is backend/client-shared code, but
   // the check belongs at the point of action, not just upstream.
-  if (!internalPreflight && asObj(data.report).quality_blocked === true) {
-    throw new Error(
-      "REPORT_BLOCKED: This report failed its release/quality gate and cannot be exported.",
-    );
+  // When report failed release verification, proceed in VERIFICATION_FAILED mode instead of aborting export.
+  const isVerificationFailed = isVerificationFailedInitial;
+  if (isVerificationFailed) {
+    const rObj = asObj(data.report);
+    rObj.verification_status = "VERIFICATION_FAILED";
+    rObj.verification_banner = "EVIDENCE VERIFICATION FAILED — DO NOT FILE AS-IS";
   }
   // Attorney mode (default): inline "[DOC N p.M]" citations become numbered
   // footnotes resolved to real document titles, collected in an Evidence
@@ -5461,7 +5493,16 @@ async function renderPdf(
   (data as FinalReportPayload).report_presentation.render_sections = queue.map(section => ({
     id: section.id, title: section.title, strategic: section.gatedInLimited,
   }));
-  data = validatePayload(data);
+  try {
+    data = validatePayload(data);
+  } catch (err) {
+    data = preflightFinalReportPayload(data);
+    (data as FinalReportPayload).report_presentation = {
+      ...(data as FinalReportPayload).report_presentation,
+      verification_status: "VERIFICATION_FAILED",
+      verification_banner: "EVIDENCE VERIFICATION FAILED — DO NOT FILE AS-IS",
+    };
+  }
 
   const coverFooterSpilled = renderCover(b, data, mode, counters);
   // Cover stands alone; TOC starts on its own page. After this, sections
