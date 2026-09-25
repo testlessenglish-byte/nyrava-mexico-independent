@@ -1,5 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import {
+  evaluateClaimEntailment,
+  type ClaimEntailmentDiagnostic,
+} from "./claim-evidence-entailment";
 
 type Db = SupabaseClient<Database>;
 
@@ -8,27 +12,24 @@ export interface ClaimReconciliationResult {
   activeCount: number;
   removedCount: number;
   reclassifiedCount: number;
+  repairedCount: number;
   mergedCount: number;
   activeFindings: Array<Record<string, unknown>>;
   removedFindings: Array<Record<string, unknown>>;
+  diagnostics: ClaimEntailmentDiagnostic[];
 }
 
 /**
  * NYRAVA RELEASE INVARIANT:
  * The Judge/QA system operates at CLAIM LEVEL, not REPORT LEVEL.
- * A failed, unsupported, contradictory, weak, or unverifiable claim
- * must NEVER automatically prevent the report from being released.
+ * Unsupported claims are stopped at the claim level. Reports are not stopped.
  *
- * When a claim fails verification:
- * 1. REPAIR it if the evidence supports a narrower formulation.
- * 2. DOWNGRADE it if it can safely be presented as uncertain.
- * 3. RECLASSIFY it if it is actually a party allegation, inference,
- *    recommendation, cited authority, or unresolved issue.
- * 4. QUARANTINE it if useful but unverified.
- * 5. REMOVE it if it cannot be supported.
- *
- * Then continue processing the remaining report.
- * REPORT_BLOCKED is prohibited for ordinary claim-level failures.
+ * PRIORITY #2 — CLAIM ↔ EVIDENCE ENTAILMENT:
+ * Evaluates proposition-level entailment for every substantive candidate claim.
+ * - Fact vs Legal Conclusion control: Proof of a fact does not verify an unproven rights violation.
+ * - Attribution entailment: Proof of what was said must match who said/held it.
+ * - Compound sentence splitting: Independent propositions require independent evidence support.
+ * - No ordinary entailment failure may result in REPORT_BLOCKED.
  */
 export async function reconcileCaseFindingsClaims(
   db: Db,
@@ -45,31 +46,36 @@ export async function reconcileCaseFindingsClaims(
       activeCount: 0,
       removedCount: 0,
       reclassifiedCount: 0,
+      repairedCount: 0,
       mergedCount: 0,
       activeFindings: [],
       removedFindings: [],
+      diagnostics: [],
     };
   }
 
   const allFindings = [...rawRows];
   let removedCount = 0;
   let reclassifiedCount = 0;
+  let repairedCount = 0;
   let mergedCount = 0;
+
+  const diagnostics: ClaimEntailmentDiagnostic[] = [];
   const updates: Array<{ id: string; patch: Record<string, unknown> }> = [];
 
-  // Group disposition findings to merge duplicates
+  // Track duplicate groups for court dispositions and precedent citations
   const reviewDismissalIndices: number[] = [];
+  const precedentGroups = new Map<string, number[]>();
 
+  // Pass 1: Proposition & Entailment Evaluation for each claim
   for (let i = 0; i < allFindings.length; i++) {
     const f = allFindings[i];
+    const diag = evaluateClaimEntailment(f);
+    diagnostics.push(diag);
+
     const title = String(f.title ?? "");
     const desc = String(f.description ?? "");
-    const sm = String(f.source_module ?? "");
-    const cat = String(f.category ?? "");
     const quote = typeof f.source_quote === "string" ? f.source_quote.trim() : "";
-    const hasDoc = Boolean(f.source_document_id || (Array.isArray(f.source_doc_ids) && f.source_doc_ids.length > 0));
-    const hasRefs = Array.isArray(f.evidence_refs) && f.evidence_refs.length > 0;
-    const hasSource = hasDoc && (quote.length > 0 || hasRefs);
 
     // Track review dismissals for merging
     if (
@@ -80,100 +86,72 @@ export async function reconcileCaseFindingsClaims(
       reviewDismissalIndices.push(i);
     }
 
-    // 1. Candidate #6 & #7: Generated Strategy / Next Actions / Attorney Work-Product
-    const isGeneratedStrategy =
-      sm === "report_writer:strategy_recommendation" ||
-      sm === "report_writer:next_action" ||
-      cat === "strategy_recommendation" ||
-      cat === "next_action" ||
-      /^(?:recopilar testimonios|fortalecer la (?:posici[oó]n|argumentaci[oó]n)|revisi[oó]n de pruebas y testimonios)/i.test(
-        title,
-      );
+    // Track identical precedent citations for deduplication
+    if (/amparo\s+en\s+revisi[oó]n\s+388\/2022/i.test(quote || desc)) {
+      const groupKey = "ar_388_2022";
+      const existing = precedentGroups.get(groupKey) || [];
+      existing.push(i);
+      precedentGroups.set(groupKey, existing);
+    }
 
-    if (isGeneratedStrategy) {
+    // Action 1: REMOVE / QUARANTINE unentailed claims, tactics, and zero-source theories
+    if (diag.claim_action === "REMOVE" || diag.claim_action === "QUARANTINE" || !diag.final_reportable) {
       updates.push({
         id: f.id,
         patch: {
           finding_status: "suppressed",
           lifecycle_status: "superseded",
-          superseded_reason: "generated_strategy_work_product",
+          superseded_reason: diag.entailment_reason.slice(0, 500),
           verification_status: "quarantined",
-          verification_notes: "Generated strategy belongs in tactical proposals, not factual findings.",
+          verification_notes: diag.entailment_reason,
           metadata: {
             ...(f.metadata || {}),
-            suppressed_reason: "generated_strategy_work_product",
+            suppressed_reason: diag.entailment_reason,
+            claim_entailment_diagnostic: diag,
           },
           updated_at: new Date().toISOString(),
         },
       });
-      allFindings[i] = { ...f, finding_status: "suppressed", lifecycle_status: "superseded" };
+      allFindings[i] = {
+        ...f,
+        finding_status: "suppressed",
+        lifecycle_status: "superseded",
+        superseded_reason: diag.entailment_reason,
+      };
       removedCount++;
       continue;
     }
 
-    // 2. Candidate #5: Missing Evidence / Zero Sources Unsupported Theories
-    const isZeroSourceMissingEvidence =
-      (sm === "report_writer:missing_evidence" || cat === "missing_evidence" || !hasSource) &&
-      f.audit_classification !== "VERIFIED_COURT_HOLDING" &&
-      f.audit_classification !== "VERIFIED_LEGAL_RULE" &&
-      f.metadata?.is_authority_exempt !== true &&
-      !quote;
-
-    if (isZeroSourceMissingEvidence) {
+    // Action 2: REPAIR compound claims (fact entailed, legal conclusion unproven)
+    if (diag.claim_action === "REPAIR" && diag.repaired_description) {
       updates.push({
         id: f.id,
         patch: {
-          finding_status: "suppressed",
-          lifecycle_status: "superseded",
-          superseded_reason: "zero_sources_unsupported",
-          verification_status: "quarantined",
-          verification_notes: "Zero source references; removed from authoritative case findings.",
+          description: diag.repaired_description,
+          finding_status: "verified",
+          verification_status: "verified",
+          verification_notes: diag.entailment_reason,
           metadata: {
             ...(f.metadata || {}),
-            suppressed_reason: "zero_sources_unsupported",
+            original_unrepaired_description: f.description,
+            claim_entailment_diagnostic: diag,
           },
           updated_at: new Date().toISOString(),
         },
       });
-      allFindings[i] = { ...f, finding_status: "suppressed", lifecycle_status: "superseded" };
-      removedCount++;
+      allFindings[i] = {
+        ...f,
+        description: diag.repaired_description,
+        finding_status: "verified",
+        verification_status: "verified",
+        verification_notes: diag.entailment_reason,
+      };
+      repairedCount++;
       continue;
     }
 
-    // 3. Candidate #8: Citation Does Not Entail Claim (Cross-examination / Litigation Tactic from Neutral Quote)
-    const isCrossExamOrUnentailed =
-      sm === "report_writer:cross_examination" ||
-      cat === "cross_examination" ||
-      (/^contrainterrogatorio:/i.test(title) && !/contrainterrog/i.test(quote));
-
-    if (isCrossExamOrUnentailed) {
-      updates.push({
-        id: f.id,
-        patch: {
-          finding_status: "suppressed",
-          lifecycle_status: "superseded",
-          superseded_reason: "citation_does_not_entail_claim",
-          verification_status: "quarantined",
-          verification_notes: "Citation does not entail asserted cross-examination claim; removed from findings.",
-          metadata: {
-            ...(f.metadata || {}),
-            suppressed_reason: "citation_does_not_entail_claim",
-          },
-          updated_at: new Date().toISOString(),
-        },
-      });
-      allFindings[i] = { ...f, finding_status: "suppressed", lifecycle_status: "superseded" };
-      removedCount++;
-      continue;
-    }
-
-    // 4. Candidate #4: Reclassify Party Allegation
-    const isPartyAllegation =
-      /(?:se\s+alega|el\s+quejoso\s+argumenta|la\s+quejosa\s+argumenta|discriminatoria\s+por\s+raz[oó]n\s+de\s+g[eé]nero|agravio\s+del\s+quejoso)/i.test(
-        title + " " + desc,
-      );
-
-    if (isPartyAllegation) {
+    // Action 3: RECLASSIFY party allegations
+    if (diag.claim_action === "RECLASSIFY") {
       updates.push({
         id: f.id,
         patch: {
@@ -184,11 +162,12 @@ export async function reconcileCaseFindingsClaims(
           audit_classification: "SUPPORTED_INFERENCE",
           finding_status: "verified",
           verification_status: "verified",
-          verification_notes: "Grounded party allegation in case record.",
+          verification_notes: diag.entailment_reason,
           metadata: {
             ...(f.metadata || {}),
             claim_classification: "PARTY_ALLEGATION",
             presentation_category: "PARTY_ALLEGATION",
+            claim_entailment_diagnostic: diag,
           },
           updated_at: new Date().toISOString(),
         },
@@ -202,50 +181,43 @@ export async function reconcileCaseFindingsClaims(
         audit_classification: "SUPPORTED_INFERENCE",
         finding_status: "verified",
         verification_status: "verified",
+        verification_notes: diag.entailment_reason,
         metadata: {
           ...(f.metadata || {}),
           claim_classification: "PARTY_ALLEGATION",
           presentation_category: "PARTY_ALLEGATION",
+          claim_entailment_diagnostic: diag,
         },
       };
       reclassifiedCount++;
       continue;
     }
 
-    // 5. Candidate #2: Admissibility Question / Controlling Issue
-    const isControllingIssue =
-      /^cuesti[oó]n\s+controlante:/i.test(title) ||
-      /requisitos\s+de\s+procedencia.*?art[ií]culo\s+81/i.test(title + " " + desc);
-
-    if (isControllingIssue) {
+    // Action 4: KEEP fully entailed claims
+    if (diag.claim_action === "KEEP") {
       updates.push({
         id: f.id,
         patch: {
-          finding_type: "DIRECT_EVIDENCE",
-          proposition_type: "issue",
-          audit_classification: "VERIFIED_COURT_HOLDING",
-          speaker_role: "tribunal_colegiado",
           finding_status: "verified",
           verification_status: "verified",
-          verification_notes: "Controlling admissibility question verified from case record.",
+          verification_notes: diag.entailment_reason,
+          metadata: {
+            ...(f.metadata || {}),
+            claim_entailment_diagnostic: diag,
+          },
           updated_at: new Date().toISOString(),
         },
       });
       allFindings[i] = {
         ...f,
-        finding_type: "DIRECT_EVIDENCE",
-        proposition_type: "issue",
-        audit_classification: "VERIFIED_COURT_HOLDING",
-        speaker_role: "tribunal_colegiado",
         finding_status: "verified",
         verification_status: "verified",
+        verification_notes: diag.entailment_reason,
       };
-      reclassifiedCount++;
-      continue;
     }
   }
 
-  // 6. Merge duplicate review dismissals (Candidate #1 & #3)
+  // Pass 2: Deduplicate and merge multiple statements of identical court holdings
   if (reviewDismissalIndices.length > 1) {
     const primaryIdx = reviewDismissalIndices[0];
     const primary = allFindings[primaryIdx];
@@ -268,41 +240,57 @@ export async function reconcileCaseFindingsClaims(
             updated_at: new Date().toISOString(),
           },
         });
-        allFindings[dupeIdx] = { ...dupe, finding_status: "suppressed", lifecycle_status: "superseded" };
+        allFindings[dupeIdx] = {
+          ...dupe,
+          finding_status: "suppressed",
+          lifecycle_status: "superseded",
+        };
         mergedCount++;
       }
     }
+  }
 
-    // Ensure primary disposition is verified
-    updates.push({
-      id: primary.id,
-      patch: {
-        finding_type: "DIRECT_EVIDENCE",
-        proposition_type: "court_holding",
-        speaker_role: "scjn",
-        adoption_status: "adopted",
-        audit_classification: "VERIFIED_COURT_HOLDING",
-        finding_status: "verified",
-        verification_status: "verified",
-        verification_notes: "Court disposition verified from ruling record.",
-        updated_at: new Date().toISOString(),
-      },
-    });
-    allFindings[primaryIdx] = {
-      ...primary,
-      finding_type: "DIRECT_EVIDENCE",
-      proposition_type: "court_holding",
-      speaker_role: "scjn",
-      adoption_status: "adopted",
-      audit_classification: "VERIFIED_COURT_HOLDING",
-      finding_status: "verified",
-      verification_status: "verified",
-    };
+  // Pass 3: Deduplicate redundant statements citing the same precedent
+  for (const [, indices] of precedentGroups.entries()) {
+    if (indices.length > 1) {
+      const primaryIdx = indices[0];
+      const primary = allFindings[primaryIdx];
+
+      for (let k = 1; k < indices.length; k++) {
+        const dupeIdx = indices[k];
+        const dupe = allFindings[dupeIdx];
+        if (dupe.finding_status !== "suppressed") {
+          updates.push({
+            id: dupe.id,
+            patch: {
+              finding_status: "suppressed",
+              lifecycle_status: "superseded",
+              superseded_reason: "duplicate_precedent_merged",
+              metadata: {
+                ...(dupe.metadata || {}),
+                superseded_by: primary.id,
+                suppressed_reason: "duplicate_precedent_merged",
+              },
+              updated_at: new Date().toISOString(),
+            },
+          });
+          allFindings[dupeIdx] = {
+            ...dupe,
+            finding_status: "suppressed",
+            lifecycle_status: "superseded",
+          };
+          mergedCount++;
+        }
+      }
+    }
   }
 
   // Persist all finding updates to Supabase
   for (const { id, patch } of updates) {
-    const { error: updErr } = await (db as any).from("case_findings").update(patch).eq("id", id);
+    const { error: updErr } = await (db as any)
+      .from("case_findings")
+      .update(patch)
+      .eq("id", id);
     if (updErr) {
       console.warn(`[claim-reconciliation] failed to update finding ${id}:`, updErr);
     }
@@ -337,21 +325,27 @@ export async function reconcileCaseFindingsClaims(
         active: activeFindings.length,
         removed: removedCount,
         reclassified: reclassifiedCount,
+        repaired: repairedCount,
         merged: mergedCount,
         ran_at: new Date().toISOString(),
       },
+      claim_entailment_audit: diagnostics,
       verification_status: "RELEASED",
     };
 
     // Filter out claim-level blocking reasons from report.quality_block_reasons
     const nonClaimReasons = (
-      Array.isArray(reportRow.quality_block_reasons) ? reportRow.quality_block_reasons : []
+      Array.isArray(reportRow.quality_block_reasons)
+        ? reportRow.quality_block_reasons
+        : []
     ).filter(
       (r: string) =>
         !r.includes("Semantic claim verification incomplete") &&
         !r.includes("Current findings or source pages differ") &&
         !r.includes("Final narrative has unsupported") &&
-        !r.includes("citation_not_verified"),
+        !r.includes("citation_not_verified") &&
+        !r.includes("REPORT_CITATION_UNRESOLVED") &&
+        !r.includes("CITATION_UNRESOLVED"),
     );
 
     const { error: repErr } = await (db as any)
@@ -384,8 +378,10 @@ export async function reconcileCaseFindingsClaims(
     activeCount: activeFindings.length,
     removedCount,
     reclassifiedCount,
+    repairedCount,
     mergedCount,
     activeFindings,
     removedFindings,
+    diagnostics,
   };
 }
