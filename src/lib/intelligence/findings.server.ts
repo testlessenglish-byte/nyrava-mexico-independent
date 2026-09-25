@@ -1289,7 +1289,12 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
       potential_impact: r.potential_impact,
       affected_party,
       benefited_party: normParty(r.benefited_party),
-      authority_level: r.authority_level ?? null,
+      authority_level:
+        typeof r.authority_level === "number" && r.authority_level >= 0 && r.authority_level <= 5
+          ? r.authority_level
+          : typeof r.authority_level === "string" && /^[0-5]$/.test(r.authority_level)
+            ? parseInt(r.authority_level, 10)
+            : 1,
       score_dimension: r.score_dimension ?? null,
       reason_for_score_effect: r.reason_for_score_effect ?? null,
       speaker_role,
