@@ -19,7 +19,9 @@ function input(): any {
 }
 describe('report boundary regressions',()=>{
   it('retains the deterministic mean when the model omitted its scalar',()=>{
-    expect(computeCaseStrengthDisagreement(null,[60,60,70,70,60]).deterministic).toBe(64);
+    expect(computeCaseStrengthDisagreement(null,[60,60,70,70,60])).toEqual({
+      deterministic:64,delta:null,disagreement:false,
+    });
     const out=composeFinalReportPayload(input());
     expect(out.report!.case_strength_score).toBe(64);
     expect(out.report!.risk_score).toBe(34);

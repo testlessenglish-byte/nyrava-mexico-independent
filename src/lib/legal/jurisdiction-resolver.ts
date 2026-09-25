@@ -25,7 +25,7 @@ import { jurisdictionLevelOf as declaredLevelOf } from "@/lib/intelligence/juris
 
 export type LegalContext = {
   materia: string;
-  jurisdiction_level: JurisdictionLevel;
+  jurisdiction_level: JurisdictionLevel | "unresolved";
   state?: string;
   applicable_authorities: string[];
   confidence: number;
@@ -172,16 +172,18 @@ export function resolveState(sig: JurisdictionSignals): string | null {
 export function resolveLegalContext(sig: JurisdictionSignals = {}): LegalContext {
   try {
     const materia = normMateria(sig.materia) || "general";
-    const hay = haystack(sig);
+    // Only an identified authority can establish competence; geography and
+    // citations in arbitrary document metadata cannot.
+    const hay = norm([sig.court, sig.entity].filter(Boolean).join(" | "));
     const state = resolveState(sig);
 
     const federalOnly = FEDERAL_ONLY_MATERIAS.includes(materia);
     const federalSignal = FEDERAL_COURT_RE.test(hay);
     const stateSignal = STATE_COURT_RE.test(hay);
-    const municipalSignal = MUNICIPAL_RE.test(hay) || Boolean(String(sig.municipality ?? "").trim());
+    const municipalSignal = MUNICIPAL_RE.test(hay);
     const declared = declaredLevelOf(sig.jurisdictionValue);
 
-    let level: JurisdictionLevel;
+    let level: LegalContext["jurisdiction_level"];
     let confidence: number;
 
     if (declared) {
@@ -197,20 +199,20 @@ export function resolveLegalContext(sig: JurisdictionSignals = {}): LegalContext
     } else if (federalSignal && !stateSignal) {
       level = "federal";
       confidence = 0.9;
-    } else if (stateSignal || state) {
+    } else if (stateSignal && !federalSignal) {
       level = "state";
       confidence = stateSignal && state ? 0.9 : stateSignal ? 0.75 : 0.6;
     } else {
       // Graceful fallback: universal (federal constitutional) frame.
-      level = "federal";
-      confidence = 0.3;
+      level = "unresolved";
+      confidence = 0;
     }
 
     const ids = new Set<string>(UNIVERSAL_AUTHORITY_IDS);
     for (const id of MATERIA_AUTHORITY_IDS[materia] ?? []) ids.add(id);
     // Only a *positively determined* federal routing carries the federal
     // overlay; the low-confidence fallback frame stays universal.
-    if (level === "federal" && confidence >= 0.8) {
+    if (materia === "amparo") {
       // Federal channel always carries the constitutional + amparo/federal
       // review instruments, whatever the materia.
       ids.add("cpeum");
@@ -225,14 +227,13 @@ export function resolveLegalContext(sig: JurisdictionSignals = {}): LegalContext
       applicable_authorities: [...ids],
       confidence: Math.round(confidence * 100) / 100,
     };
-    if (state && level !== "federal") ctx.state = state;
-    else if (state && !federalOnly && declared !== "federal") ctx.state = state;
+    if (state) ctx.state = state;
 
     return ctx;
   } catch {
     return {
       materia: normMateria(sig?.materia) || "general",
-      jurisdiction_level: "federal",
+      jurisdiction_level: "unresolved",
       applicable_authorities: [...UNIVERSAL_AUTHORITY_IDS],
       confidence: 0,
     };

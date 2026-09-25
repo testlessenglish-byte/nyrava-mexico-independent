@@ -42,6 +42,8 @@ type DomainTerm = { match: RegExp; label: string };
 // familiar, fiscal, administrativo, constitucional, amparo, electoral,
 // agrario, ambiental, or inmobiliario matters.
 const PENAL_ONLY_TERMS: DomainTerm[] = [
+  { match: /\bacci[oó]n\s+penal\b/i, label: "Acción Penal" },
+  { match: /\bsentenciad[oa]\b[^.\n]{0,100}\bjuicio\s+oral\b|\bjuicio\s+oral\b[^.\n]{0,100}\bsentenciad[oa]\b/i, label: "Sentenciado en juicio oral penal" },
   { match: /\btribunal(?:es)?\s+de\s+enjuiciamiento\b/i, label: "Tribunal de Enjuiciamiento" },
   { match: /\bjuez(?:a)?\s+de\s+control\b/i, label: "Juez de Control" },
   { match: /\bcarpeta\s+de\s+investigaci[oó]n\b/i, label: "Carpeta de Investigación" },
@@ -100,9 +102,9 @@ export type DomainVocabularyCheck = {
 // content rules — no materia, case, or report text is special-cased.
 // ---------------------------------------------------------------------------
 
-// Markers that must GOVERN the term — i.e. appear in the same sentence before
-// it. A negation that follows the term does not excuse it ("El Ministerio
-// Público no participó" still asserts the institution acted here).
+// Markers must govern the specific criminal institution. Ministerio Público
+// is not criminal-exclusive: civil/family intervention or express absence is
+// informational context, not sufficient to block a report.
 
 // Negation / absence — the institution did NOT intervene in this matter.
 const NEGATION_MARKER =
@@ -130,7 +132,7 @@ const AUTHORITY_MARKER =
 // context of procedural notice/referral, domestic violence, or protection orders,
 // so it is a reference to another domain rather than a claim about this matter.
 const CROSS_DOMAIN_MARKER =
-  /\b(?:materia\s+penal|proceso\s+penal|procedimiento\s+penal|[aá]mbito\s+penal|sede\s+penal|causa\s+penal|v[ií]a\s+penal|derecho\s+penal|CNPP|C[oó]digo\s+Nacional\s+de\s+Procedimientos\s+Penales|C[oó]digo\s+Penal|criminal\s+(?:proceedings?|procedure|matter)|dar?\s+vista|vista\s+al?|notificac|dar?\s+intervenci[oó]n|intervenci[oó]n\s+del?|denuncia|delito|averiguaci[oó]n|violencia\s+familiar|orden\s+de\s+protecci[oó]n|medida\s+de\s+protecci[oó]n|reparaci[oó]n\s+del\s+da[nñ]o)\b/i;
+  /\b(?:materia\s+penal|proceso\s+penal|procedimiento\s+penal|[aá]mbito\s+penal|sede\s+penal|causa\s+penal|v[ií]a\s+penal|derecho\s+penal|CNPP|C[oó]digo\s+Nacional\s+de\s+Procedimientos\s+Penales|C[oó]digo\s+Penal|criminal\s+(?:proceedings?|procedure|matter)|dar?\s+vista|vista\s+al?|dar?\s+intervenci[oó]n\s+al\s+Ministerio\s+P[uú]blico)\b/i;
 
 const QUOTE_SPAN = /«[^»]*»|“[^”]*”|"[^"]*"/g;
 
@@ -190,6 +192,8 @@ export function checkDomainVocabulary(
   }
   const violations: string[] = [];
   const contextual: string[] = [];
+  if (/\bMinisterio\s+P[uú]blico\b/i.test(text)) contextual.push("Ministerio Público");
+  if (/\b(?:CNPP|C[oó]digo\s+Nacional\s+de\s+Procedimientos\s+Penales)\b/i.test(text)) contextual.push("Código Nacional de Procedimientos Penales");
   const sentences = splitSentences(text);
   for (const term of PENAL_ONLY_TERMS) {
     if (!term.match.test(text)) continue;

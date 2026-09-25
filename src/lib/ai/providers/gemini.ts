@@ -61,6 +61,18 @@ function hashBody(body: Record<string, unknown>): string {
 }
 
 
+/** Model-specific controls: https://ai.google.dev/gemini-api/docs/generate-content/thinking */
+function jsonThinkingConfig(model: string): Record<string, unknown> {
+  const id = model.replace(/^models\//, '');
+  if (/^gemini-2\.5-flash(?:-|$)/.test(id)) return { thinkingConfig: { thinkingBudget: 0 } };
+  if (/^gemini-2\.5-pro(?:-|$)/.test(id)) return { thinkingConfig: { thinkingBudget: 128 } };
+  if (!/image|audio|live/.test(id) && (/^gemini-3(?:\.\d+)?-(?:flash|pro)(?:-|$)/.test(id)
+    || ['gemini-flash-latest','gemini-flash-lite-latest','gemini-pro-latest'].includes(id)))
+    return { thinkingConfig: { thinkingLevel: 'low' } };
+  // Unknown/custom models retain their own default rather than an unsupported control.
+  return {};
+}
+
 export function makeGemini(cfg: ProviderConfig): AIProvider {
   const baseUrl = (cfg.baseUrl ?? PROVIDER_DEFAULTS.gemini.baseUrl).replace(/\/+$/, "");
   const defaultModel = cfg.defaultModel ?? PROVIDER_DEFAULTS.gemini.model;
@@ -140,16 +152,8 @@ export function makeGemini(cfg: ProviderConfig): AIProvider {
           temperature: o.temperature ?? 0.2,
           maxOutputTokens: Math.min(o.maxTokens ?? 4096, 8192),
           ...(o.json ? { responseMimeType: "application/json" } : {}),
-          // JSON-mode callers (analyzers, scoring, report structuring, etc.)
-          // need reliable structured extraction, not open-ended reasoning.
-          // Without this, "thinking" models (gemini-flash-latest and similar)
-          // spend most/all of maxOutputTokens on invisible internal reasoning
-          // before writing the JSON, leaving a small, roughly constant
-          // remainder for the actual answer — a technically-successful call
-          // (ok:true) that returns next to nothing, on every call, regardless
-          // of prompt size. See docs incident trace 2026-08-02 (analyzers
-          // stage returning empty findings for every case that drew Gemini).
-          ...(o.json ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
+          // 3.x cannot disable thinking; 2.5 Flash alone permits budget zero.
+          ...(o.json ? jsonThinkingConfig(model) : {}),
         },
       };
       if (o.systemInstruction) body.systemInstruction = { parts: [{ text: o.systemInstruction }] };
@@ -220,10 +224,11 @@ export function makeGemini(cfg: ProviderConfig): AIProvider {
         throw err;
       }
       const json = await res.json() as {
-        candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+        candidates?: Array<{ finishReason?: string; content?: { parts?: Array<{ text?: string }> } }>;
         usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number };
       };
       const text = (json.candidates?.[0]?.content?.parts ?? []).map(p => p.text ?? "").join("");
+      if (json.candidates?.[0]?.finishReason === "MAX_TOKENS") throw new Error("gemini: incomplete response (finishReason=MAX_TOKENS); split the request or increase output budget");
       if (!text) throw new Error("gemini: empty response");
       traceAsync({
         phase: "ai",

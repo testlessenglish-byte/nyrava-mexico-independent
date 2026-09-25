@@ -345,20 +345,23 @@ export function mandatoryDecisionCoreToFindings(args: {
   });
 }
 
-/** Refresh existing decision findings from the resolved core. Preserve IDs and
- * counts; never manufacture a finding to satisfy report coverage. */
+/** Refresh by proposition identity only. Shared source text cannot establish
+ * that a holding, historical outcome and final disposition are the same claim. */
 export function alignDecisionCoreFindings<T extends Record<string, any>>(findings:T[], core:MandatoryDecisionCoreItem[], locale:'es'|'en'='es'):T[] {
-  const norm=(text:string)=>text.normalize('NFC').replace(/\s+/g,' ').trim();
-  return findings.map(f=>{
-    if(f.source_module!=='decision_core') return f;
-    const item=core.find(i=>i.id===f.metadata?.mandatory_decision_core_id || i.source_refs.some(r=>
-      (f.evidence_refs??[]).some((ref:any)=>{
-        const quote=norm(String(ref.quote??''));
-        return quote.length>=60 && (r.document_id??r.doc_id)===(ref.document_id??ref.doc_id) && norm(r.quote??'').includes(quote);
-      })));
-    if(!item) return f;
+  const seen = new Set<string>();
+  return findings.flatMap(f=>{
+    if(f.source_module!=='decision_core') return [f];
+    const identity=f.metadata?.mandatory_decision_core_id;
+    if(typeof identity==='string') {
+      if(seen.has(identity)) return [];
+      seen.add(identity);
+    }
+    const item=core.find(i=>i.id===identity);
+    // A superseded outcome must not survive under its old stable identifier.
+    // Other propositions retain their identity for the separate semantic gate.
+    if(!item) return ['DISPOSITION','REMEDY'].includes(f.metadata?.mandatory_decision_kind) ? [] : [f];
     const refreshed=mandatoryDecisionCoreToFindings({core:[item],caseId:f.case_id,userId:f.user_id,locale})[0];
-    return {...f,...refreshed,metadata:{...f.metadata,...refreshed.metadata}} as T;
+    return [{...f,...refreshed,metadata:{...f.metadata,...refreshed.metadata}} as T];
   });
 }
 

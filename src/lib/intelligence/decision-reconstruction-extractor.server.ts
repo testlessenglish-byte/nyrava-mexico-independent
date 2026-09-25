@@ -287,13 +287,13 @@ export async function ensureDecisionReconstruction(
 
   const { buildMandatoryDecisionCore } = await import("./mandatory-decision-core");
   const existing = (latest?.reconstruction ?? null) as CaseDecisionReconstruction | null;
-  if (existing?.matter_identity && existing.disposition_remedy?.status !== "PRESENT") {
+  if (existing?.matter_identity) {
     const repaired = await recoverOperativeDisposition(db, caseId, existing);
-    if (repaired.disposition_remedy?.status === "PRESENT") {
+    if (JSON.stringify(repaired.disposition_remedy) !== JSON.stringify(existing.disposition_remedy)) {
       const { error } = await (db as any).from("case_decision_reconstructions").insert({
         case_id: caseId, user_id: userId, reconstruction: repaired,
         matter_identity_status: repaired.matter_identity?.status ?? "NOT_FOUND_IN_CORPUS",
-        court_status: repaired.court?.status ?? "NOT_FOUND_IN_CORPUS", disposition_remedy_status: "PRESENT",
+        court_status: repaired.court?.status ?? "NOT_FOUND_IN_CORPUS", disposition_remedy_status: repaired.disposition_remedy.status,
       });
       if (error) throw new Error(error.message);
       return repaired;
@@ -322,11 +322,9 @@ export async function ensureDecisionReconstruction(
 
 async function recoverOperativeDisposition(db: Db, caseId: string, reconstruction: CaseDecisionReconstruction) {
   const { loadCaseSourcePages } = await import("./source-matter-audit.server");
-  const { extractOperativeOrders } = await import("./operative-source");
-  const orders = extractOperativeOrders(await loadCaseSourcePages(db, caseId));
-  if (!orders.length) return reconstruction;
-  const refs = orders.map(order => ({document_id:order.document_id,quote:order.text,label:`p.${order.page}`,page:order.page,filename:order.filename}));
-  return { ...reconstruction, disposition_remedy: sourced(orders.map(order=>order.text).join("\n\n"), refs) };
+  const { reconcileOperativeDisposition } = await import("./operative-source");
+  const pages = await loadCaseSourcePages(db, caseId);
+  return reconcileOperativeDisposition(reconstruction, pages);
 }
 
 /** Leaves a minimal marker row behind on failure so the "does a
@@ -583,6 +581,9 @@ ${corpusText}`,
     docs,
   );
   if (disposition) reconstruction.disposition_remedy = disposition;
+  // Quote presence proves quotation, not which court issued the operative
+  // outcome. Resolve against the final dispositive section even when PRESENT.
+  reconstruction = await recoverOperativeDisposition(db, caseId, reconstruction);
 
   // Legal-authority / precedent citations: derived deterministically from
   // every field that actually verified against the corpus (never from a

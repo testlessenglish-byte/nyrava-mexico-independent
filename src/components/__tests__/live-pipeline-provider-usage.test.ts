@@ -37,6 +37,14 @@ const baseRun: EngineRun = {
 };
 
 describe("pipeline provider ledger", () => {
+  it("reads engine-audit camelCase calls and keeps failed calls visible without key fragments", () => {
+    const run = { ...baseRun, provider: null, meta: { telemetry: { calls: [
+      { provider: "gemini", model: "gemini-flash-latest", ok: false, inputTokens: 12, outputTokens: 0, keyIndex: 1, keyLabel: "private-fragment" },
+    ] } } };
+    expect(providerCallsForRun(run)).toEqual([expect.objectContaining({provider:"gemini",ok:false,input_tokens:12,output_tokens:0,key_label:"key #2"})]);
+    expect(JSON.stringify(providerCallsForRun(run))).not.toContain("private-fragment");
+    expect(summarizeProviderUsage([run])[0]).toMatchObject({calls:1,ok:0,failed:1,tokens:12});
+  });
   it("reads batch provider metadata when the top-level column is empty", () => {
     const calls = providerCallsForRun({ ...baseRun, provider: null, meta: { provider: "gemini", keyIndex: 1 } });
     expect(calls[0].provider).toBe("gemini");

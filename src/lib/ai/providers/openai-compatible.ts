@@ -10,6 +10,7 @@ import { withCapabilities } from "./capabilities";
 import { aiCallTimeoutForCheckpoint, assertCheckpointBudget } from "../../pipeline-checkpoint.server";
 import { currentTelemetryScope } from "../telemetry.server";
 import { traceAsync } from "../../pipeline-trace.server";
+import { groqRequestOutputBudget, groqRequestTokenLimit, estimateRequestInputTokens, outputBudgetAfterTpm413 } from "../request-budget";
 
 export interface OAICompatOpts {
   requiresKey: boolean;
@@ -133,10 +134,17 @@ export function makeOpenAICompatible(cfg: ProviderConfig, opts: OAICompatOpts): 
       }
 
       const err = new Error(`${cfg.type} HTTP ${res.status}: ${text}`);
-      (err as unknown as { providerRequestId?: string; retryAfterMs?: number }).providerRequestId = providerRequestId ?? undefined;
-      (err as unknown as { providerRequestId?: string; retryAfterMs?: number }).retryAfterMs = retryAfterHeaderMs(
-        res.headers.get("retry-after"),
-      );
+      const e = err as unknown as { providerRequestId?: string; retryAfterMs?: number; remainingTokens?: number; limitTokens?: number; resetMs?: number };
+      e.providerRequestId = providerRequestId ?? undefined;
+      e.retryAfterMs = retryAfterHeaderMs(res.headers.get("retry-after"));
+      const numberHeader = (name: string) => {
+        const raw = res.headers.get(name);
+        const n = raw == null ? NaN : Number(raw);
+        return Number.isFinite(n) ? n : undefined;
+      };
+      e.remainingTokens = numberHeader("x-ratelimit-remaining-tokens") ?? numberHeader("x-ratelimit-remaining-token");
+      e.limitTokens = numberHeader("x-ratelimit-limit-tokens") ?? numberHeader("x-ratelimit-limit-token");
+      e.resetMs = retryAfterHeaderMs(res.headers.get("x-ratelimit-reset-tokens"));
       traceAsync({
         phase: "ai",
         step: "provider.request",
@@ -162,6 +170,12 @@ export function makeOpenAICompatible(cfg: ProviderConfig, opts: OAICompatOpts): 
       id?: string;
     };
     const text = json.choices?.[0]?.message?.content ?? "";
+    if (json.choices?.[0]?.finish_reason === "length") {
+      const err = new Error(`${cfg.type}: incomplete response (finish_reason=length, model=${model}); split the request or use a provider with a larger output budget`);
+      (err as any).finishReason = "length";
+      (err as any).model = model;
+      throw err;
+    }
     if (!text) {
       const fr = json.choices?.[0]?.finish_reason ?? "no choices";
       throw new Error(`${cfg.type}: empty response (finish_reason=${fr}, model=${model})`);
@@ -204,11 +218,14 @@ export function makeOpenAICompatible(cfg: ProviderConfig, opts: OAICompatOpts): 
       };
       if (o.timeoutMs) body.__timeoutMs = o.timeoutMs;
       const groqReasoning = cfg.type === 'groq' && /^openai\/gpt-oss-(?:120|20)b$/.test(String(body.model));
+      const groqBudget = cfg.type === 'groq' ? groqRequestOutputBudget(o, estimateRequestInputTokens(o), groqRequestTokenLimit(key)) : null;
+      if (cfg.type === 'groq' && groqBudget === null) throw new Error('groq HTTP 413: input leaves no useful output budget; split source into smaller batches');
       if (groqReasoning) {
-        // Reasoning consumes completion tokens too; reserve space for it.
-        body.max_completion_tokens = Math.min((o.maxTokens ?? 4096) + 4096, 65536);
+        // Reasoning is included in this shared budget, never appended secretly.
+        body.max_completion_tokens = groqBudget;
         body.reasoning_effort = 'medium';
-      } else if (o.maxTokens) body.max_tokens = Math.min(o.maxTokens, 8192);
+      } else if (cfg.type === "groq") body.max_tokens = groqBudget;
+      else if (o.maxTokens) body.max_tokens = Math.min(o.maxTokens, 8192);
       if (o.json) body.response_format = { type: "json_object" };
       try {
         return await rawCall(body, o.signal);
@@ -219,6 +236,18 @@ export function makeOpenAICompatible(cfg: ProviderConfig, opts: OAICompatOpts): 
         // call for the whole run — self-heal by retrying once with the slug
         // the provider itself named.
         const msg = e instanceof Error ? e.message : String(e);
+        if (cfg.type === "groq") {
+          const field = groqReasoning ? "max_completion_tokens" : "max_tokens";
+          const reduced = outputBudgetAfterTpm413(msg, Number(body[field]));
+          if (reduced !== null) {
+            traceAsync({ phase: "ai", step: "provider.output_budget_retry", status: "warn",
+              provider: cfg.type, model: String(body.model),
+              detail: { previous_output_tokens: body[field], reserved_output_tokens: reduced, source_text_unchanged: true } });
+            // Bounded retry, identical messages. A second413 goes to the caller's
+            // lossless chunk splitter; never crop the source text here.
+            return rawCall({ ...body, [field]: reduced }, o.signal);
+          }
+        }
         let suggested = /HTTP 404/.test(msg)
           ? msg.match(/use this slug instead:\s*([A-Za-z0-9._\-/:]+)/i)?.[1]
           : undefined;

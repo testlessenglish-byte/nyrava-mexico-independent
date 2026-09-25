@@ -23,7 +23,6 @@ export type CoverageReport = {
   generated_at: string;
 };
 
-const OCR_KINDS = new Set(["image", "pdf"]);
 
 function kindFromMime(mime: string | null, filename: string): string {
   const m = (mime ?? "").toLowerCase();
@@ -67,15 +66,13 @@ export async function computeCoverage(db: Db, caseId: string): Promise<CoverageR
       by_kind[kind].parsed += 1;
       const text = String(d.extracted_text ?? "");
       textChars += text.length;
-      if (text.length > 40 && !text.startsWith("[Binary file stored")) {
-        if (OCR_KINDS.has(kind)) {
-          ocrAttempted += 1;
-          ocrSuccessful += 1;
-        }
-      } else if (OCR_KINDS.has(kind)) {
-        ocrAttempted += 1;
-      }
       const meta = d.metadata as Record<string, unknown> | null;
+      // Embedded PDF text is parsing, not OCR. Legacy image extraction used
+      // vision OCR; PDF rows without instrumentation must not claim OCR.
+      if (meta?.ocr_attempted === true || kind === 'image') {
+        ocrAttempted += 1;
+        if (text.trim().length > 0) ocrSuccessful += 1;
+      }
       if (meta && Object.keys(meta).length > 0) metadataCovered += 1;
     } else if (s === "failed") {
       failed += 1;

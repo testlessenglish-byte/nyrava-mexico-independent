@@ -22,10 +22,15 @@ function configuredBudget(name: string, fallback: number, maximum: number): numb
 
 // Local Node hosting can allow longer calls than the original edge runtime.
 // Keep every invocation below the worker's three-minute lease.
-export const WORKER_INVOCATION_BUDGET_MS = configuredBudget("PIPELINE_INVOCATION_BUDGET_MS", 42_000, 150_000);
+// The independent site's local worker is a long-lived Node process, not an
+// edge function.  A 42s default expires while the report provider is still
+// responding, causing the same uncached report chunk to be retried forever.
+// Keep the lease margin (the runner renews a 3-minute lease) but give one
+// report chunk enough time to complete and persist its cache.
+export const WORKER_INVOCATION_BUDGET_MS = configuredBudget("PIPELINE_INVOCATION_BUDGET_MS", 120_000, 150_000);
 export const CHECKPOINT_SAFETY_BUFFER_MS = 7_000;
 export const MIN_AI_CALL_BUDGET_MS = 12_000;
-export const MAX_AI_CALL_TIMEOUT_MS = configuredBudget("PIPELINE_AI_CALL_TIMEOUT_MS", 33_000, 90_000);
+export const MAX_AI_CALL_TIMEOUT_MS = configuredBudget("PIPELINE_AI_CALL_TIMEOUT_MS", 60_000, 90_000);
 
 export const STAGE_BUDGET_MS: Record<string, number> = {
   extraction: 45_000,

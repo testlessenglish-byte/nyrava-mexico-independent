@@ -56,7 +56,7 @@ const NEUTRAL_TEXT = `
 `.repeat(2);
 
 function doc(id: string, filename: string, text: string): DocInput {
-  return { id, filename, extracted_text: text };
+  return { id, filename, extracted_text: text, metadata: { analysis_purpose: "client_matter_evidence", client_connection_note: "Filed in client matter" } };
 }
 
 describe("classifyCaseFromDocuments: source-confirmed classification succeeds", () => {
@@ -159,6 +159,7 @@ describe("classifyCaseFromDocuments: insufficient data never produces a guessed 
 function makeFakeDb(opts: {
   docs: DocInput[];
   caseRow: {
+    client_id?: string;
     case_type: string | null;
     jurisdiction: string | null;
     case_type_source: string | null;
@@ -203,6 +204,7 @@ function makeFakeDb(opts: {
           update: (patch: Record<string, unknown>) => ({
             eq: () => {
               state.updatePatch = { ...state.updatePatch, ...patch };
+              Object.assign(opts.caseRow, patch);
               return Promise.resolve({ error: null });
             },
           }),
@@ -334,4 +336,40 @@ describe("resolveVerifiedProceedingType: the PROCEDURAL TYPE LOCK's read-side gu
       await resolveVerifiedProceedingType(makeEvidenceOnlyFakeDb(null) as never, "case-1"),
     ).toBeNull();
   });
+});
+
+ describe('purpose-selected case routing', () => {
+  it('unknown evidence cannot replace or clear an existing client route', async () => {
+    const source = {...doc('unknown','judgment.pdf',AMPARO_TEXT), metadata:{test_fixture:true}};
+    const {db,state}=makeFakeDb({docs:[source],caseRow:{case_type:'familiar',jurisdiction:'CDMX',case_type_source:'source_confirmed'}});
+    const result=await runCaseClassification(db as never,'case-1','user-1');
+    expect(result.analysis_scope).toBe('unresolved');
+    expect(result.fields.every(f=>f.status==='INSUFFICIENT_DATA')).toBe(true);
+    expect(state.updatePatch).not.toHaveProperty('case_type');
+    expect(state.updatePatch).not.toHaveProperty('underlying_materia');
+    expect(state.updatePatch).not.toHaveProperty('procedural_vehicle');
+  });
+  it('research subject classification is explicitly labeled',async()=>{
+    const {db,state}=makeFakeDb({docs:[{...doc('research','judgment.pdf',AMPARO_TEXT),metadata:{analysis_purpose:'legal_research'}}],caseRow:{case_type:null,jurisdiction:null,case_type_source:null}});
+    const result=await runCaseClassification(db as never,'case-1','user-1');
+    expect(result.analysis_scope).toBe('research_subject');
+    expect(state.updatePatch?.matter_metadata).toMatchObject({classification_scope:'research_subject'});
+    expect(state.updatePatch?.case_type).toBe('amparo');
+  });
+ });
+
+describe('mixed attachment runtime isolation',()=>{
+ it('ignores a research judgment and unknown attachments when linked evidence establishes the client route',async()=>{
+  const docs=[doc('linked','civil.pdf',CIVIL_TEXT),{...doc('research','amparo.pdf',AMPARO_TEXT),metadata:{analysis_purpose:'legal_research'}},{...doc('unknown','amparo2.pdf',AMPARO_TEXT),metadata:{}}];
+  const {db,state}=makeFakeDb({docs,caseRow:{client_id:'client',case_type:'civil',jurisdiction:null,case_type_source:null}});
+  const result=await runCaseClassification(db as never,'case-1','user-1');
+  expect(result.analysis_scope).toBe('client_matter');
+  expect(result.fields.find(f=>f.field==='case_type')).toMatchObject({status:'CONFIRMED',value:'civil',source:{document_id:'linked'}});
+  expect(state.insertedRows.filter(r=>r.source_document_id).every(r=>r.source_document_id==='linked')).toBe(true);
+ });
+ it('an entirely research corpus on a client case does not reclassify it',async()=>{
+  const {db,state}=makeFakeDb({docs:[{...doc('research','amparo.pdf',AMPARO_TEXT),metadata:{analysis_purpose:'legal_research'}}],caseRow:{client_id:'client',case_type:'familiar',jurisdiction:'CDMX',case_type_source:null}});
+  const result=await runCaseClassification(db as never,'case-1','user-1');
+  expect(result.analysis_scope).toBe('unresolved');expect(state.updatePatch).not.toHaveProperty('case_type');expect(state.updatePatch).not.toHaveProperty('jurisdiction');
+ });
 });

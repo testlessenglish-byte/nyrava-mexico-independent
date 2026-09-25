@@ -1,3 +1,4 @@
+import { DocumentAnalysisPurposeFields } from "./DocumentAnalysisPurposeFields";
 import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -96,6 +97,9 @@ export function CaseChatPanel({
   });
 
   const [input, setInput] = useState("");
+  const [uploadPurpose, setUploadPurpose] = useState("");
+  const [uploadConnection, setUploadConnection] = useState("");
+  useEffect(() => {setUploadPurpose(""); setUploadConnection("");}, [caseId]);
   const [dragOver, setDragOver] = useState(false);
   const [showEvidence, setShowEvidence] = useState(false);
   // Which message's "review correction" button is loading its preview.
@@ -133,6 +137,8 @@ export function CaseChatPanel({
     mutationFn: async (files: File[]) => {
       const fd = new FormData();
       fd.append("caseId", caseId);
+      fd.append("analysis_purpose", uploadPurpose);
+      fd.append("client_connection_note", uploadConnection);
       for (const f of files) fd.append("files", f);
       return uploadFn({ data: fd });
     },
@@ -589,6 +595,9 @@ export function CaseChatPanel({
         </div>
 
         <div className="border-t border-border p-3">
+          <details className="mb-2 text-xs"><summary className="cursor-pointer">{locale === "en" ? "Attachment purpose" : "Finalidad de los adjuntos"}: {uploadPurpose === "legal_research" ? (locale === "en" ? "research" : "investigación") : uploadPurpose === "client_matter_evidence" ? (locale === "en" ? "client evidence (declared)" : "prueba de cliente (declarada)") : (locale === "en" ? "unknown" : "desconocida")}</summary>
+            <DocumentAnalysisPurposeFields purpose={uploadPurpose} onPurposeChange={setUploadPurpose} connectionNote={uploadConnection} onConnectionNoteChange={setUploadConnection} disabled={upload.isPending} locale={locale} />
+          </details>
           <input
             ref={fileRef}
             type="file"

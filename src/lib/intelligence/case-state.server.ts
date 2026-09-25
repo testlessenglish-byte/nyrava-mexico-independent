@@ -196,11 +196,14 @@ export function computeCaseStrengthDisagreement(
   llmScore: number | null | undefined,
   deterministicDimensionScores: ReadonlyArray<number>,
 ): { deterministic: number | null; delta: number | null; disagreement: boolean } {
-  if (deterministicDimensionScores.length === 0) {
+  if (deterministicDimensionScores.length === 0 ||
+      deterministicDimensionScores.some(score => !Number.isFinite(score))) {
     return { deterministic: null, delta: null, disagreement: false };
   }
   const deterministic =
     deterministicDimensionScores.reduce((a, b) => a + b, 0) / deterministicDimensionScores.length;
+  // The dimensional score exists independently of the model's scalar. Missing
+  // model output prevents a comparison, not calculation of that score.
   if (typeof llmScore !== "number" || !Number.isFinite(llmScore)) {
     return { deterministic, delta: null, disagreement: false };
   }

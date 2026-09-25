@@ -55,7 +55,7 @@ const NON_PERSON_NAME_PHRASES = new Set(
 const NON_PERSON_TOKEN_RX =
   /\b(?:amparo|sala|tribunal|juzgado|suprema|corte|poder|judicial|semanario|diario|ministerio|público|publico|código|codigo|ley|procedimientos?|penales?|estados|unidos|constitución|constitucion|nacional|federal|derechos|humanos|artículo|articulo|fracción|fraccion|recurso|sentencia|jurisprudencia)\b/i;
 const TESTIMONIAL_CONTEXT_RX =
-  /\b(?:testigo|testimonial|declar[oó]|declaraci[oó]n|compareci[oó]|comparecencia|entrevista(?:do|da)?|manifest[oó]|deponente|perito|dictamen|polic[ií]a|agente|fiscal|custodio|v[ií]ctima|ofendido|denunciante)\b/i;
+  /(?<![\p{L}\p{N}_])(?:testigo|testimonial|declar[oó]|declaraci[oó]n|compareci[oó]|comparecencia|entrevista(?:do|da)?|manifest[oó]|deponente|perito|dictamen|polic[ií]a|agente|fiscal|custodio|v[ií]ctima|ofendido|denunciante)(?![\p{L}\p{N}_])/iu;
 
 export function isLikelyWitnessPersonName(name: string, context = ""): boolean {
   const clean = name.trim();
@@ -510,7 +510,7 @@ export async function buildWorkProduct(
     .map((w) => ({ witness: w.name, topics: [...w.impeachment_opportunities.slice(0, 3), ...w.cross_questions.slice(0, 3)].slice(0, 5) }));
 
   const jury_themes = isPenal
-    ? ["Separar hechos acreditados de inferencias y exigir que cada conclusión relevante se sostenga en prueba incorporada y verificable."]
+    ? ["Separar hechos acreditados de inferencias respecto del imputado y verificar el estándar probatorio de la etapa concreta antes de formular conclusiones."]
     : ["Separar determinaciones verificadas, inferencias sustentadas y cuestiones pendientes de revisión profesional."];
 
   return { case_strategy, strengths, weaknesses, motion_opportunities, trial_themes, cross_examination_outlines, jury_themes };

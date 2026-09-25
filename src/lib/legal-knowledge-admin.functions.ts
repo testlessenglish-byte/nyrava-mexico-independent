@@ -63,8 +63,8 @@ async function requireAdmin(ctx: { supabase: any; userId: string }) {
 // so this admin backlog tool and live ingestion can never disagree about
 // which sources are low-risk enough to skip human review.
 async function getTrustedConnectorCodes(): Promise<Set<string>> {
-  const { IMPLEMENTED_CONNECTORS, isStructuredAccessMethod } = await import("./legal-connectors/types");
-  return new Set(IMPLEMENTED_CONNECTORS.filter((c) => isStructuredAccessMethod(c.accessMethod)).map((c) => c.code));
+  // Structured transport is not an authorization to mark legal text verified.
+  return new Set<string>();
 }
 
 export const getNlknStats = createServerFn({ method: "POST" })
@@ -251,11 +251,8 @@ export const markAuthorityVerified = createServerFn({ method: "POST" })
     await requireAdmin({ supabase: db, userId });
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { error } = await supabaseAdmin
-      .from("legal_authorities")
-      .update({ verification_status: data.decision } as never)
-      .eq("id", data.authorityId);
-    if (error) throw new Error(error.message);
+    const { recordAuthorityReview } = await import('./legal-connectors/authority-review.server');
+    await recordAuthorityReview(supabaseAdmin, data.authorityId, userId, data.decision);
 
     console.info(
       `[legal-knowledge] authority ${data.authorityId} marked ${data.decision} by admin ${userId}`,
@@ -340,41 +337,7 @@ export const bulkVerifyTrustedSource = createServerFn({ method: "POST" })
     const { supabase: db, userId } = context;
     await requireAdmin({ supabase: db, userId });
 
-    const trusted = await getTrustedConnectorCodes();
-    if (!trusted.has(data.connectorCode)) {
-      throw new Error(
-        `"${data.connectorCode}" is not a structured/trusted source (official API, JSON, XML, RSS, CSV, or ZIP feed) — bulk-verify only applies to sources that never need OCR or HTML scraping. Review its items manually below.`,
-      );
-    }
-
-    const { data: rows, error } = await db
-      .from("legal_authorities")
-      .select("id,title,citation,body")
-      .eq("verification_status", "pending")
-      .in("kind", ["jurisprudencia", "court_decision"])
-      .eq("metadata->>connector_code", data.connectorCode)
-      .limit(2000);
-    if (error) throw new Error(error.message);
-
-    const candidates = (rows ?? []) as { id: string; title: string | null; citation: string | null; body: string | null }[];
-    const complete = candidates.filter(
-      (r) => (r.title ?? "").trim().length > 0 && (r.citation ?? "").trim().length > 0 && (r.body ?? "").trim().length > 50,
-    );
-    const skippedIncomplete = candidates.length - complete.length;
-    if (complete.length === 0) return { verified: 0, skippedIncomplete };
-
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { error: updateErr } = await supabaseAdmin
-      .from("legal_authorities")
-      .update({ verification_status: "verified" } as never)
-      .in("id", complete.map((r) => r.id));
-    if (updateErr) throw new Error(updateErr.message);
-
-    console.info(
-      `[legal-knowledge] bulk-verified ${complete.length} authorities from trusted source ${data.connectorCode} ` +
-        `by admin ${userId} (${skippedIncomplete} incomplete rows left pending)`,
-    );
-    return { verified: complete.length, skippedIncomplete };
+    throw new Error('La verificación masiva por formato de fuente está deshabilitada. Revise y documente cada autoridad individualmente.');
   });
 
 /**

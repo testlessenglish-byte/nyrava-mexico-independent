@@ -490,7 +490,7 @@ export function validateFinalReportGovernance(input: {
     const speaker = String(f.speaker_role ?? "").toLowerCase();
     const adopt = String(f.adoption_status ?? "").toLowerCase();
     const auditClass = String(f.audit_classification ?? "").toUpperCase();
-    const isParty = isPartySpeaker || speaker === "quejoso" || speaker === "recurrente" || speaker === "actor" || speaker === "demandado" || speaker === "trabajador" || speaker === "patron" || speaker === "party";
+    const isParty = speaker === "quejoso" || speaker === "recurrente" || speaker === "actor" || speaker === "demandado" || speaker === "trabajador" || speaker === "patron" || speaker === "party";
     if (isParty && adopt !== "adopted") {
       if (auditClass === "VERIFIED_COURT_HOLDING") {
         partyMisclassified = true;

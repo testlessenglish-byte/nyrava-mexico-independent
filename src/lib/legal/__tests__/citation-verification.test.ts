@@ -6,12 +6,13 @@
 // check that could run actually passed.
 import { describe, it, expect } from "vitest";
 import { verifyStatutoryCitation } from "@/lib/legal/citation-verification.server";
+import {sha256Hex} from '../../intelligence/evidence-provenance.server';
 
 const ARTICLE_BODY =
   "A ninguna ley se dará efecto retroactivo en perjuicio de persona alguna. Nadie podrá ser privado de la libertad o de sus propiedades, posesiones o derechos, sino mediante juicio seguido ante los tribunales previamente establecidos.";
 
 function makeFakeDb(opts: {
-  authorities?: Array<{ id: string; title: string; short_title: string | null; citation: string | null; jurisdiction: string | null }>;
+  authorities?: Array<{ id: string; title: string; short_title: string | null; citation: string | null; jurisdiction: string | null; verification_status?:string; source_url?:string; content_hash?:string;body?:string }>;
   article?: {
     id: string;
     article_number: string;
@@ -48,7 +49,22 @@ function makeFakeDb(opts: {
   };
 }
 
-const CPEUM = { id: "auth-1", title: "Constitución Política de los Estados Unidos Mexicanos", short_title: "CPEUM", citation: "CPEUM", jurisdiction: "federal" };
+const CPEUM = { id: "auth-1", title: "Constitución Política de los Estados Unidos Mexicanos", short_title: "CPEUM", citation: "CPEUM", jurisdiction: "federal",verification_status:'verified',source_url:'https://official.example/cpeum',body:ARTICLE_BODY,content_hash:sha256Hex(ARTICLE_BODY) };
+
+it('rejects authority text changed without a new verified hash',async()=>{
+ const db=makeFakeDb({authorities:[{...CPEUM,body:'Changed source'}],article:{id:'a',article_number:'14',body:ARTICLE_BODY,effective_at:'1917-05-01',repealed_at:null,verification_status:'verified'}});
+ expect((await verifyStatutoryCitation(db as never,{authorityHint:'CPEUM',articleNumber:'14',caseDate:'2024-01-01'})).status).toBe('UNVERIFIED');
+});
+
+it.each(['pending','superseded','failed_verification'])('rejects %s parent despite verified article',async verification_status=>{
+ const db=makeFakeDb({authorities:[{...CPEUM,verification_status}],article:{id:'a',article_number:'14',body:ARTICLE_BODY,effective_at:'1917-05-01',repealed_at:null,verification_status:'verified'}});
+ expect((await verifyStatutoryCitation(db as never,{authorityHint:'CPEUM',articleNumber:'14',caseDate:'2024-01-01'})).status).toBe('UNVERIFIED');
+});
+it('does not choose the first of ambiguous instruments',async()=>{
+ const db=makeFakeDb({authorities:[CPEUM,{...CPEUM,id:'other'}],article:{id:'a',article_number:'14',body:ARTICLE_BODY,effective_at:'1917-05-01',repealed_at:null,verification_status:'verified'}});
+ const result=await verifyStatutoryCitation(db as never,{authorityHint:'CPEUM',articleNumber:'14',caseDate:'2024-01-01'});
+ expect(result.status).toBe('UNVERIFIED');expect(result.reasons.join(' ')).toMatch(/ambiguous/i);
+});
 
 describe("verifyStatutoryCitation", () => {
   it("returns UNVERIFIED when the statute is not found in the corpus", async () => {
@@ -155,6 +171,11 @@ describe("verifyStatutoryCitation", () => {
 
 it('does not invent a 1900 effective date when source metadata is missing', async () => {
  const db = makeFakeDb({authorities:[CPEUM],article:{id:'art-14',article_number:'14',body:ARTICLE_BODY,effective_at:null,repealed_at:null,verification_status:'verified'}});
+ const result=await verifyStatutoryCitation(db as never,{authorityHint:'CPEUM',articleNumber:'14',caseDate:'2024-01-01'});
+ expect(result.status).toBe('UNVERIFIED');expect(result.temporal_status).toBe('unknown');
+});
+it('keeps malformed source dates unresolved', async () => {
+ const db=makeFakeDb({authorities:[CPEUM],article:{id:'a',article_number:'14',body:ARTICLE_BODY,effective_at:'unknown',repealed_at:null,verification_status:'verified'}});
  const result=await verifyStatutoryCitation(db as never,{authorityHint:'CPEUM',articleNumber:'14',caseDate:'2024-01-01'});
  expect(result.status).toBe('UNVERIFIED');expect(result.temporal_status).toBe('unknown');
 });

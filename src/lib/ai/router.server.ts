@@ -6,8 +6,9 @@
 // Task routing pins specific tasks to specific providers (looked up first).
 
 import { createHash } from "node:crypto";
+import { groqOutputTokens, groqRequestOutputBudget, estimateRequestInputTokens, groqRequestTokenLimit, GROQ_REQUEST_TOKEN_LIMIT, REQUEST_TOKEN_HEADROOM } from "./request-budget";
 import type { AIProvider, AITask, ChatOpts, ChatResult, ProviderType } from "./providers/types";
-import { buildProvider, ProviderRow } from "./providers/factory";
+import { buildProvider, resolveApiKey, ProviderRow } from "./providers/factory";
 import { isPlatformProvider, platformRows } from './platform-policy';
 import {
   aiCallTimeoutForCheckpoint,
@@ -39,17 +40,6 @@ export interface RouteOpts extends ChatOpts {
   userId?: string;
   /** Internal: how many times this call already waited out a provider cooldown. */
   _cooldownWaits?: number;
-  /**
-   * Internal: the smallest provider input-token budget already tried via
-   * compression this call chain (Infinity = none tried yet). Each cascade
-   * pass compresses to the largest size-skipped budget still BELOW this
-   * floor, so a provider with a much smaller budget (e.g. Groq, ~5.5k
-   * tokens) still gets tried after a mid-size one (e.g. OpenRouter, ~60k)
-   * fails, instead of the run dying after only the single largest
-   * size-skipped budget was attempted. Strictly decreasing each recursive
-   * call, so this always terminates.
-   */
-  _compressionFloor?: number;
   /**
    * Internal: last-resort pass that ignores in-memory cooldowns entirely.
    * Used when EVERY key was skipped as cooling down and waiting is not an
@@ -161,24 +151,20 @@ function reservedOutputTokens(opts: { maxTokens?: number; json?: boolean }, prov
   // just prompt tokens. Reserve the completion budget before deciding whether
   // the prompt fits; otherwise a 5.5k-token prompt + 4k default output becomes
   // a 9k+ TPM request and fails instantly.
-  if (provider === "groq") return Math.max(768, capped);
+  if (provider === "groq") return groqOutputTokens(opts);
   return Math.max(256, Math.min(capped, 2_048));
 }
 
-function providerAvailableInputBudget(provider: ProviderType, opts: { maxTokens?: number; json?: boolean }): number {
+function providerAvailableInputBudget(provider: ProviderType, opts: { maxTokens?: number; json?: boolean }, apiKey?: string | null): number {
+  if (provider === "groq") {
+    const limit = groqRequestTokenLimit(apiKey);
+    const inputLimit = limit > GROQ_REQUEST_TOKEN_LIMIT ? Math.min(60_000, limit) : providerInputBudget(provider);
+    return Math.max(0, Math.min(inputLimit, limit - reservedOutputTokens(opts, provider) - REQUEST_TOKEN_HEADROOM));
+  }
   return Math.max(1_000, providerInputBudget(provider) - reservedOutputTokens(opts, provider));
 }
 
-/**
- * Picks the next budget tier for the compressed-retry cascade: the largest
- * size-skipped budget strictly BELOW `floor` (the smallest tier already
- * tried), or `undefined` once every tier has been exhausted. Descending
- * strictly below the floor each call guarantees the cascade terminates and
- * that every size-skipped provider — not just the single largest one —
- * eventually gets a request compressed to fit ITS OWN budget. Extracted so
- * the cascade order is directly unit-testable without mocking routeAI's
- * full provider/key resolution.
- */
+/** Legacy utility; live routing never compresses or truncates source content. */
 export function nextCompressionBudget(
   sizeSkippedBudgets: readonly number[],
   floor: number,
@@ -186,72 +172,7 @@ export function nextCompressionBudget(
   return sizeSkippedBudgets.filter((b) => b < floor).sort((a, b) => b - a)[0];
 }
 
-/** ~3.5 chars/token is a safe over-estimate for Spanish legal prose. */
-function estimateInputTokens(opts: { systemInstruction?: string; userContent: unknown }): number {
-  let chars = (opts.systemInstruction ?? "").length;
-  const uc = opts.userContent;
-  if (typeof uc === "string") chars += uc.length;
-  else if (Array.isArray(uc))
-    for (const part of uc) {
-      if (part && typeof part === "object" && "text" in part)
-        chars += String((part as { text?: string }).text ?? "").length;
-      else chars += 1_500; // image part — rough fixed cost
-    }
-  return Math.ceil(chars / 3.5);
-}
-
-
-/**
- * Shrink a request so it fits a provider's input budget.
- *
- * Used as a last resort: when every provider that COULD take the full payload
- * is on cooldown, a marginally-oversized prompt (e.g. 12.1k vs a 12k Groq
- * budget) previously killed the whole stage. Trimming the middle of the user
- * content keeps the instructions (head) and the most recent context (tail),
- * which is far better than failing the run.
- */
-function fitOptsToBudget<T extends { systemInstruction?: string; userContent: unknown }>(
-  opts: T,
-  budgetTokens: number,
-): T {
-  const CHARS_PER_TOKEN = 3.5;
-  const sysChars = (opts.systemInstruction ?? "").length;
-  // 5% safety margin so the estimate can't land right on the ceiling.
-  const allowedChars = Math.max(1_000, Math.floor(budgetTokens * CHARS_PER_TOKEN * 0.9) - sysChars);
-  const marker = "\n\n[…contenido intermedio omitido por límite del proveedor…]\n\n";
-
-  const trim = (text: string, limit: number): string => {
-    if (text.length <= limit) return text;
-    const keep = Math.max(200, limit - marker.length);
-    const head = Math.floor(keep * 0.6);
-    const tail = keep - head;
-    return text.slice(0, head) + marker + text.slice(text.length - tail);
-  };
-
-  const uc = opts.userContent;
-  if (typeof uc === "string") {
-    return { ...opts, userContent: trim(uc, allowedChars) };
-  }
-  if (Array.isArray(uc)) {
-    const textParts = uc.filter(
-      (p) => p && typeof p === "object" && "text" in p,
-    ) as { text?: string }[];
-    if (textParts.length === 0) return opts;
-    const perPart = Math.max(500, Math.floor(allowedChars / textParts.length));
-    return {
-      ...opts,
-      userContent: uc.map((p) =>
-        p && typeof p === "object" && "text" in p
-          ? { ...(p as object), text: trim(String((p as { text?: string }).text ?? ""), perPart) }
-          : p,
-      ),
-    };
-  }
-  return opts;
-}
-
-
-
+const estimateInputTokens = estimateRequestInputTokens;
 
 function bumpProvider(p: ProviderType) {
   return (_state.byProvider[p] ??= { totalOk: 0, totalErr: 0 });
@@ -730,6 +651,19 @@ export async function listProviderRows() {
  * fallback chain eligible. The corpus size is unchanged; it is simply split
  * into more, smaller requests.
  */
+/** Full-request capacity from this user's actual keys, including mixed Groq tiers. */
+export async function packingRequestInputBudget(userId: string, systemInstruction: string, emptyPrompt: string, maxTokens = 4096): Promise<number> {
+  const fixed = estimateRequestInputTokens({systemInstruction, userContent: emptyPrompt});
+  const groups = await loadUserProviderKeyGroups(userId);
+  const capacities = groups.length ? groups.map(group => Math.max(...group.keys.map(key =>
+    providerAvailableInputBudget(group.provider, {json:true,maxTokens}, key)))) :
+    (await loadProviderRows()).filter(isPlatformProviderRow => platformRows([isPlatformProviderRow]).length).map(row =>
+      providerAvailableInputBudget(row.provider_type, {json:true,maxTokens}, resolveApiKey(row)));
+  const usable = capacities.filter(capacity => capacity >= fixed + 512);
+  if (!usable.length) throw new Error(`No configured key fits the full instruction/schema overhead (${fixed} tokens) plus source text.`);
+  return Math.min(16_000, Math.min(...usable));
+}
+
 export async function packingCharBudget(
   ceilingChars: number,
   overheadChars: number = PROMPT_OVERHEAD_CHARS.default,
@@ -746,7 +680,9 @@ export async function packingCharBudget(
   for (const r of rows) {
     if (skipped.has(r.provider_type)) continue;
     capacities.push(
-      Math.floor(providerAvailableInputBudget(r.provider_type, { json: true }) * 3.5 - overheadChars),
+      // Allow for UTF-8 Spanish text and framing; the router rechecks the
+      // complete assembled prompt before any request is sent.
+      Math.floor((providerAvailableInputBudget(r.provider_type, { json: true }) - 32) * 2.5 - overheadChars),
     );
   }
   if (capacities.length === 0) return ceilingChars;
@@ -956,12 +892,6 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
   const fellBackFrom: ProviderType[] = [];
   const errors: string[] = [];
   const preAttemptSkips: string[] = [];
-  // Input budgets of providers held back ONLY because the payload was too big
-  // for them while a full-size provider still looked available. If that
-  // full-size provider then fails, these are the last usable options and the
-  // request must be compressed to fit the largest of them rather than the
-  // whole call dying with `never_attempted: [groq]`.
-  const sizeSkippedBudgets: number[] = [];
   const cooldownSkips: Array<{
     provider: ProviderType;
     model: string | null;
@@ -1031,68 +961,23 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
   // cannot accept it, instead of learning that from a guaranteed rejection.
   // ---------------------------------------------------------------------
   const estimatedInputTokens = estimateInputTokens(opts);
-  const sizeEligible = chain.map((r) => estimatedInputTokens <= providerAvailableInputBudget(r.provider_type, opts));
-  const anySizeEligible = sizeEligible.some(Boolean);
-
+  const attemptOptions = chain.map(r => {
+    if (r.provider_type !== "groq") return opts;
+    const maxTokens = groqRequestOutputBudget(opts, estimatedInputTokens, groqRequestTokenLimit(r.runtimeApiKey ?? resolveApiKey(r)));
+    return maxTokens === null ? null : {...opts, maxTokens};
+  });
+  const sizeEligible = chain.map((r, i) => attemptOptions[i] !== null && estimatedInputTokens <= providerAvailableInputBudget(r.provider_type, attemptOptions[i]!, r.runtimeApiKey ?? resolveApiKey(r)));
   let realAttempts = 0;
   for (let i = 0; i < chain.length; i++) {
     const row = chain[i];
-    // Per-row payload. Normally the untouched request; compressed only when
-    // this provider is the last usable option and the payload overflows.
-    let rowOpts = opts;
-    if (anySizeEligible && !sizeEligible[i]) {
-      // Is there another provider that can take the FULL payload and isn't
-      // currently on cooldown? If yes, skip this one as before. If not,
-      // shrinking beats failing the whole stage.
-      const fullSizeAlternative = chain.some(
-        (r2, j) =>
-          sizeEligible[j] &&
-          j !== i &&
-          !getProviderCooldown({
-            provider: r2.provider_type,
-            model: effectiveModelFor(r2),
-            key: cooldownIdentityFor(r2),
-          }),
-      );
-      if (fullSizeAlternative) {
-        sizeSkippedBudgets.push(providerAvailableInputBudget(row.provider_type, opts));
-        preAttemptSkips.push(
-          `${row.display_name} [payload_too_large]: estimated ${estimatedInputTokens} input tokens exceeds ${providerAvailableInputBudget(row.provider_type, opts)} token provider input budget after output reservation`,
-        );
-        traceAsync({
-          phase: "ai",
-          step: "router.provider_skipped",
-          status: "warn",
-          provider: row.provider_type,
-          model: effectiveModelFor(row),
-          detail: {
-            reason: "payload_exceeds_provider_limit",
-            estimated_input_tokens: estimatedInputTokens,
-            provider_input_budget: providerAvailableInputBudget(row.provider_type, opts),
-            reserved_output_tokens: reservedOutputTokens(opts, row.provider_type),
-          },
-        });
-        continue;
-      }
-      const budget = providerAvailableInputBudget(row.provider_type, opts);
-      rowOpts = fitOptsToBudget(opts, budget);
-      traceAsync({
-        phase: "ai",
-        step: "router.payload_compressed",
-        status: "warn",
-        provider: row.provider_type,
-        model: effectiveModelFor(row),
-        detail: {
-          reason: "no_full_size_provider_available",
-          estimated_input_tokens: estimatedInputTokens,
-          provider_input_budget: budget,
-          reserved_output_tokens: reservedOutputTokens(opts, row.provider_type),
-          compressed_input_tokens: estimateInputTokens(rowOpts),
-        },
-      });
+    const rowOpts = attemptOptions[i] ?? opts;
+    if (!sizeEligible[i]) {
+      preAttemptSkips.push(`${row.display_name} [payload_too_large HTTP 413]: estimated ${estimatedInputTokens} input tokens exceeds ${providerAvailableInputBudget(row.provider_type, opts, row.runtimeApiKey ?? resolveApiKey(row))} after output reservation. Split source into smaller batches; source content was not truncated.`);
+      traceAsync({ phase: "ai", step: "router.provider_skipped", status: "warn", provider: row.provider_type,
+        model: effectiveModelFor(row), detail: { reason: "payload_exceeds_provider_limit", estimated_input_tokens: estimatedInputTokens,
+          provider_input_budget: providerAvailableInputBudget(row.provider_type, opts, row.runtimeApiKey ?? resolveApiKey(row)), reserved_output_tokens: reservedOutputTokens(opts, row.provider_type) } });
+      continue;
     }
-
-
     if (realAttempts >= MAX_LOGICAL_PROVIDER_ATTEMPTS && attemptedProviders.has(row.provider_type)) {
       traceAsync({
         phase: "ai",
@@ -1186,7 +1071,7 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
       step: "router.attempt",
       status: "start",
       provider: row.provider_type,
-      model: opts.model ?? row.default_model ?? null,
+      model: effectiveModelFor(row),
       attempt: i + 1,
       detail: { key: keyLabel, chain_position: `${i + 1}/${chain.length}` },
     });
@@ -1199,10 +1084,9 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
         row.provider_type === requestedModelProvider
           ? rowOpts
           : { ...rowOpts, model: row.default_model ?? undefined };
-      // Retry-with-backoff only for transient transport/5xx failures. HTTP 429
-      // never retries in-place: the outer cooldown/failover path must mark the
-      // exact key/model unavailable immediately so a single logical AI call
-      // cannot hammer a fresh Gemini/Groq key repeatedly.
+      // Retry transport failures and Groq TPM 429s in-place. A provider's
+      // retry-after/reset header is authoritative; Gemini free-tier quota is
+      // permanent for this run and goes straight to fallback.
       let r: ChatResult | undefined;
       let lastErr: unknown;
       const RETRY_DELAYS_MS = [400, 1_200].slice(0, MAX_PROVIDER_RETRIES_PER_CALL);
@@ -1213,9 +1097,6 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
           assertCheckpointBudget(`before AI call attempt ${attempt + 1}`);
           const providerOpts = {
             ...baseProviderOpts,
-            ...(row.provider_type === "groq" && baseProviderOpts.maxTokens == null
-              ? { maxTokens: opts.json ? 2_048 : 3_072 }
-              : {}),
             timeoutMs:
               baseProviderOpts.timeoutMs ??
               aiCallTimeoutForCheckpoint(`AI call attempt ${attempt + 1}`),
@@ -1238,6 +1119,7 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
           const isPayment =
             /HTTP 402|payment_required|not enough credits|insufficient credits/i.test(em);
           const isRateLimit = !isPayment && /HTTP 429|rate.?limit|too many requests/i.test(em);
+          const isExhaustedFreeQuota = row.provider_type === "gemini" && /free.?tier|generate_content_free_tier|quota exceeded/i.test(em);
           const isTransport =
             /HTTP 5\d\d|timeout|ETIMEDOUT|ECONNRESET/i.test(em) &&
             !/HTTP 413|request too large|payload too large|context.*length|maximum context/i.test(
@@ -1245,7 +1127,22 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
             ) &&
             !/HTTP 401|HTTP 403|invalid_api_key|unauthor/i.test(em);
 
-          if (isRateLimit) throw err;
+          if (isRateLimit && !isExhaustedFreeQuota) {
+            const providerErr = err as { retryAfterMs?: number; resetMs?: number };
+            const exactWait = providerErr.retryAfterMs ?? providerErr.resetMs;
+            // Without a provider reset hint, fail over immediately. Sleeping
+            // on an unknown duration blocks healthy providers and made quota
+            // tests/run stages wait several seconds for no benefit.
+            if (exactWait == null) throw err;
+            const delay = exactWait * 2 ** attempt;
+            if (attempt >= RETRY_DELAYS_MS.length || delay > 95_000) throw err;
+            retryCount++;
+            retryReasons.push(`rate_limit_retry_after=${delay}ms`);
+            assertCheckpointBudget(`before rate-limit retry ${attempt + 1}`, delay + 2_000);
+            traceAsync({ phase:"ai", step:"router.rate_limit_wait", status:"warn", provider:row.provider_type, model:effectiveModelFor(row), detail:{wait_ms:delay, exact_header:Boolean(exactWait), attempt:attempt+1} });
+            await new Promise(res=>setTimeout(res, delay));
+            continue;
+          }
 
           // Try another provider before spending time retrying this key.
           const alternateProvider = chain.slice(i + 1).some(next => next.provider_type !== row.provider_type);
@@ -1325,7 +1222,7 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
             provider: row.provider_type,
             model: r.model,
             temperature: opts.temperature,
-            max_tokens: opts.maxTokens,
+            max_tokens: rowOpts.maxTokens,
             json_mode: opts.json,
             routing_strategy: routingStrategy,
           },
@@ -1406,7 +1303,7 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
         step: "router.attempt_failed",
         status: "error",
         provider: row.provider_type,
-        model: opts.model ?? row.default_model ?? null,
+        model: effectiveModelFor(row),
         attempt: i + 1,
         durationMs: Date.now() - t0,
         error: msg,
@@ -1421,7 +1318,7 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
         ts: Date.now(),
         provider: row.provider_type,
         providerId: row.id,
-        model: opts.model ?? row.default_model ?? "?",
+        model: effectiveModelFor(row) ?? "?",
         ok: false,
         latencyMs: Date.now() - t0,
         error: `[${kind}] ${msg}`,
@@ -1432,7 +1329,7 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
           ts: Date.now(),
           provider: row.provider_type,
           providerId: row.id,
-          model: opts.model ?? row.default_model ?? "?",
+          model: effectiveModelFor(row) ?? "?",
           ok: false,
           latencyMs: Date.now() - t0,
           error: msg.slice(0, 300),
@@ -1513,24 +1410,9 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
       // belong to an exhausted org this run. Unknown-org keys are still
       // tried — an extra fast 429 is cheap compared to stalling the
       // pipeline when the next key is a healthy different-org key.
-      if (row.runtimeApiKey && isPayload) {
-        // Only skip ahead over remaining keys of the SAME provider — a 413
-        // from Groq says nothing about Gemini/OpenAI/etc.'s limits, and
-        // those later groups deserve a real attempt, not a skip.
-        let j = i + 1;
-        while (
-          j < chain.length &&
-          chain[j].runtimeApiKey &&
-          chain[j].provider_type === row.provider_type
-        )
-          j++;
-        if (j > i + 1) {
-          console.warn(
-            `[router.key] skipping ${j - i - 1} remaining ${row.provider_type} key(s) — payload too large is not per-key`,
-          );
-          i = j - 1;
-        }
-      } else if (row.runtimeApiKey && isQuota && row.provider_type === "groq") {
+      // TPM ceilings belong to a key's organization/tier. A 413 from one
+      // Groq key must never retire a healthy paid key in another organization.
+      if (row.runtimeApiKey && isQuota && row.provider_type === "groq") {
         let skipped = 0;
         while (i + 1 < chain.length && chain[i + 1].runtimeApiKey) {
           const nextFp = chain[i + 1].runtimeKeyFingerprint;
@@ -1552,51 +1434,7 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
   }
 
   // ---------------------------------------------------------------------
-  // Compressed retry cascade.
-  //
-  // The pre-flight size gate skips an undersized provider whenever a
-  // full-size one *looks* available. Chain order puts Groq before Gemini, so
-  // that decision is made BEFORE Gemini has a chance to fail. When Gemini's
-  // daily quota is exhausted, the result is a stage that dies every tick with
-  // `never_attempted: [groq]` while a perfectly usable Groq key sits idle.
-  //
-  // FIX: this used to compress ONCE, to the LARGEST size-skipped budget, and
-  // stop — so when the agents stage has Groq (~5.5k tokens) AND OpenRouter
-  // (~60k tokens) both size-skipped behind Gemini, a real production failure
-  // (Amparo Directo en Revisión / Carlos Alan Espíndola García,
-  // authority_notification_validation agent) compressed only far enough to
-  // fit OpenRouter, and when OpenRouter's own attempt also failed, the run
-  // died — reporting "configured but never attempted: groq, openrouter" even
-  // though the user had just added fresh Groq keys specifically to unblock
-  // this. Now each pass compresses to the largest skipped budget strictly
-  // BELOW the floor already tried (_compressionFloor), cascading down
-  // through every tier — Gemini fails full-size -> OpenRouter-sized attempt
-  // -> Groq-sized attempt -> only then give up — so a genuinely working key
-  // is never left untried just because a wider-budget provider happened to
-  // be listed first.
-  // ---------------------------------------------------------------------
-  {
-    const floor = opts._compressionFloor ?? Infinity;
-    const nextBudget = nextCompressionBudget(sizeSkippedBudgets, floor);
-    if (nextBudget !== undefined) {
-      const compressed = fitOptsToBudget(opts, nextBudget);
-      traceAsync({
-        phase: "ai",
-        step: "router.compressed_retry",
-        status: "warn",
-        model: opts.model ?? null,
-        detail: {
-          reason: "full_size_providers_failed",
-          estimated_input_tokens: estimatedInputTokens,
-          target_budget: nextBudget,
-          compressed_input_tokens: estimateInputTokens(compressed),
-          tried: [...attemptedProviders],
-        },
-      });
-      return routeAI({ ...compressed, _compressionFloor: nextBudget });
-    }
-  }
-
+  // Oversized evidence stays intact. Callers may split and retry; the router never crops it.
   const triedProviders = [...attemptedProviders].join(", ") || "none";
   const chainProviders = [...new Set(chain.map((r) => r.provider_type))];
   const untried = chainProviders.filter((p) => !attemptedProviders.has(p));

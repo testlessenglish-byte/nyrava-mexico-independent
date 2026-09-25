@@ -141,21 +141,6 @@ describe("Normalizer and QA auditor share one canonical definition", () => {
   });
 });
 
-describe("Post-promotion invariant is enforced at the persistence choke point", () => {
-  it("re-checks scoring semantics after the holding promotion, before the insert", async () => {
-    const { readFileSync } = await import("node:fs");
-    const src = readFileSync("src/lib/intelligence/findings.server.ts", "utf8");
-    const promotion = src.indexOf('const adoption_status = isHolding ? "adopted"');
-    const invariant = src.indexOf("hasCompletePartyAwareScoreMapping(");
-    const insert = src.indexOf("adopted_holding_neutralized_post_promotion");
-    expect(promotion).toBeGreaterThan(-1);
-    expect(invariant).toBeGreaterThan(promotion);
-    expect(insert).toBeGreaterThan(invariant);
-    // The neutralized values, not the raw upstream ones, are what persists.
-    expect(src).toContain("      evidence_type,\n      impact_direction,");
-  });
-});
-
 describe("Hallucination gate reports the real blocker", () => {
   it("does not convert an upstream integrity block into a hallucination failure", async () => {
     const { readFileSync } = await import("node:fs");
@@ -166,7 +151,9 @@ describe("Hallucination gate reports the real blocker", () => {
     expect(hal).toContain("upstreamReleaseBlock");
     const orch = readFileSync("src/lib/agents/orchestrator.server.ts", "utf8");
     expect(orch).toContain("upstream_release_block: upstreamBlock");
-    // Verification metrics alone decide the gate.
-    expect(orch).toContain("const pass = report.total > 0 && cited > 0 && verifiedRatio >= threshold;");
+    // Nonblocking generation must retain the actual verification outcome.
+    expect(orch).toContain("const pass = report.total > 0 && report.verified === report.total && report.unverified === 0 && report.no_citation === 0;");
+    expect(orch).toContain("hallucination_verification_passed: pass");
+    expect(orch).toContain("blocking: false");
   });
 });

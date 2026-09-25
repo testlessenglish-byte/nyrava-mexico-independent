@@ -14,6 +14,7 @@ import {
 import esLocale from "@/i18n/locales/es.json";
 import enLocale from "@/i18n/locales/en.json";
 import { withStageTimeout } from "@/lib/execution/blocking-stage-guard.server";
+import { stageAttemptStatus } from "@/lib/execution/stage-attempt-status";
 
 type Db = SupabaseClient<Database>;
 
@@ -270,7 +271,7 @@ async function _runPipelineForCase(
   // during this case's execution. If it exceeds MAX_STAGE_CHECKPOINTS, fail
   // the stage truthfully instead of re-queueing again.
   // ---------------------------------------------------------------------------
-  const MAX_STAGE_CHECKPOINTS = 8;
+  const MAX_STAGE_CHECKPOINTS = 50;
   const stageCheckpointCount = async (stageKey: string): Promise<number> => {
     try {
       // Count "stage.checkpoint" trace events for this case + stage.
@@ -387,12 +388,9 @@ async function _runPipelineForCase(
     await clearCaseDerivedData(supabase, caseId);
     await updateCase({ ...CASE_RESET_FIELDS }, "pipeline.reset");
 
-  } else {
-    await supabase
-      .from("cases")
-      .update({ cancel_requested: false } as any)
-      .eq("id", caseId);
   }
+  // Only explicit queue/reset actions clear cancellation. A worker resuming
+  // a checkpoint must preserve a stop requested between invocations.
 
   // 2026-07 audit: the previous bypass here (apiKey/apiKeys hardcoded empty)
   // was left over from a period when the platform's Groq key was dead. Groq
@@ -1614,16 +1612,6 @@ async function _runPipelineForCase(
       return { kind: "blocked" };
     }
 
-    await updateCase(
-      {
-        status: "intelligence_running",
-        status_message: `${s.label} (${i + 1}/${total})`,
-        progress: pct,
-        next_stage: s.key,
-      },
-      `stage.start:${s.key}`,
-    );
-
     const remainingInvocationMs = invocationDeadlineAt - Date.now();
     // Starvation guard. A stage entered with only a sliver of the worker
     // invocation left cannot make forward progress: the first AI call is
@@ -1691,6 +1679,13 @@ async function _runPipelineForCase(
       return { kind: "checkpoint_before_start", index: i };
     }
 
+    // Only a real new attempt supersedes the previous case-level error.
+    // A budget-only checkpoint must preserve that diagnostic; engine history
+    // remains untouched in either path.
+    await updateCase(
+      stageAttemptStatus(s.key, s.label, i, total, stageFailures),
+      `stage.start:${s.key}`,
+    );
     trace("stage.start", { stage: s.key, index: i + 1, progress_pct: pct });
     try {
       await prog.emitEvent(supabase, caseId, s.key, `${s.label} started`);
@@ -2093,12 +2088,13 @@ async function _runPipelineForCase(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: postRun } = await (supabase as any)
     .from("cases")
-    .select("status,status_message,case_type,name")
+    .select("status,status_message,case_type,name,case_analysis_mode")
     .eq("id", caseId)
     .maybeSingle();
 
   try {
     const { isStageRelevantForCaseType } = await import("./execution/mx-pipeline");
+    const { shouldCheckOptionalOutput } = await import("./execution/optional-output-applicability");
     const { data: finalLedger, error: finalLedgerError } = await supabase
       .from("pipeline_engine_runs").select("engine,status,skipped_reason")
       .eq("case_id", caseId).order("created_at", { ascending: false });
@@ -2121,7 +2117,7 @@ async function _runPipelineForCase(
     for (const [key, table] of Object.entries(OPTIONAL_OUTPUT_TABLES) as [PipelineStageKey, string][]) {
       const engine = engineForStage(key);
       const ledger = engine ? finalEngineStates.get(engine) : undefined;
-      if (ledger?.status === "skipped" && ledger.skipped_reason?.startsWith("skipped_not_applicable:")) {
+      if (!shouldCheckOptionalOutput(key, postRun?.case_analysis_mode, ledger)) {
         optionalFailureKeys.delete(key);
         continue;
       }

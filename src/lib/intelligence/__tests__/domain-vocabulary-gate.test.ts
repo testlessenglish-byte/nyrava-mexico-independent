@@ -55,13 +55,25 @@ describe("checkFindingDomainVocabulary", () => {
     expect(r.violations).toEqual([]);
   });
 
-  it("also catches Ministerio Público appearing in a civil finding's prose (complements the affected_party fix, which only covers the structured field)", () => {
+  it("does not treat an express absence of Ministerio Público as criminal procedure leakage", () => {
     const r = checkDomainVocabulary(
       "El Ministerio Público no participó en este procedimiento civil.",
       "civil",
     );
-    expect(r.clean).toBe(false);
-    expect(r.violations).toContain("Ministerio Público");
+    expect(r.clean).toBe(true);
+    expect(r.contextual).toContain("Ministerio Público");
+  });
+
+  it("does not ban legitimate noncriminal Ministerio Público intervention", () => {
+    expect(checkDomainVocabulary('El Ministerio Público intervino para proteger los derechos de la niña.', 'familiar').clean).toBe(true);
+  });
+
+  it("blocks criminal prosecution imported into a civil case", () => {
+    expect(checkDomainVocabulary('El Ministerio Público ejerció la acción penal en este juicio civil.', 'civil').clean).toBe(false);
+  });
+
+  it("does not treat an unrelated intervention word as permission for a criminal court", () => {
+    expect(checkDomainVocabulary('La intervención del abogado permitió que el Juez de Control resolviera este contrato civil.', 'civil').clean).toBe(false);
   });
 });
 

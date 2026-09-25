@@ -859,11 +859,28 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
   for (const [caseId, _] of byCase) {
     const groupRows = validated.filter((r) => r.case_id === caseId);
     if (groupRows.length === 0) continue;
-    const { data: existing } = await db
+    const { data: existing, error: existingError } = await db
       .from("case_findings")
       .select("id,canonical_finding_id,category,title,description,evidence_refs,confidence,source_doc_ids,metadata,source_module,speaker_role,proposition_type,adoption_status,audit_classification,affected_party,benefited_party,evidence_type,impact_direction,authority_level,score_dimension,reason_for_score_effect")
       .eq("case_id", caseId)
       .not("source_module", "like", PROJECTION_LIKE);
+
+    // A resumed promotion is the same source-bound decision, independent of
+    // title truncation or semantic clustering. Preserve the original row.
+    if (existingError) throw new Error(`Finding deduplication read failed: ${existingError.message}`);
+    const coreId = (r: { source_module?: string; metadata?: unknown }) => {
+      const value = (r.metadata as Record<string, unknown> | null)?.mandatory_decision_core_id;
+      return r.source_module === 'decision_core' && typeof value === 'string' && value ? value : null;
+    };
+    const seenCoreIds = new Set((existing ?? []).map(coreId).filter((id): id is string => !!id));
+    const freshGroupRows = groupRows.filter(row => {
+      const id = coreId(row);
+      if (!id) return true;
+      if (seenCoreIds.has(id)) return false;
+      seenCoreIds.add(id);
+      return true;
+    });
+    if (!freshGroupRows.length) continue;
 
     const existingShim: NewFinding[] = (existing ?? []).map(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -906,7 +923,7 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
         }) as unknown as NewFinding,
     );
 
-    const all = dedupSemantically([...existingShim, ...groupRows]);
+    const all = dedupSemantically([...existingShim, ...freshGroupRows]);
 
     let mergedIntoExisting = 0;
     let insertedForCase = 0;
@@ -1185,32 +1202,25 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
         ? "EVIDENCE_BASED_INFERENCE"
         : normalizedType;
 
-    const isHolding =
-      r.proposition_type === "holding" ||
-      extra.proposition_type === "holding" ||
-      r.audit_classification === "VERIFIED_COURT_HOLDING" ||
-      extra.audit_classification === "VERIFIED_COURT_HOLDING";
-
-    const speaker_role = isHolding ? "scjn" : normSpeakerRole(r.speaker_role);
-    const proposition_type = isHolding
-      ? (r.proposition_type === "court_holding" || r.proposition_type === "holding" ? normPropositionType(r.proposition_type) : "court_holding")
-      : normPropositionType(r.proposition_type);
-    const adoption_status = isHolding ? "adopted" : normAdoptionStatus(r.adoption_status);
+    // A classification label is not proof of who spoke or whether the final
+    // court adopted a proposition. Preserve explicit attribution and unknowns.
+    const speaker_role = normSpeakerRole(r.speaker_role);
+    const proposition_type = normPropositionType(r.proposition_type);
+    const adoption_status = normAdoptionStatus(r.adoption_status);
+    const isHolding = proposition_type === 'holding' || proposition_type === 'court_holding';
+    const judicialSpeaker = speaker_role != null && new Set([
+      'juez_control', 'tribunal_enjuiciamiento', 'tribunal_alzada',
+      'tribunal_colegiado', 'tribunal_local', 'scjn',
+    ]).has(speaker_role);
+    const declaredAudit = normAuditClassification(r.audit_classification);
+    const audit_classification = declaredAudit === 'VERIFIED_COURT_HOLDING' &&
+      (!judicialSpeaker || !isHolding && proposition_type !== 'rejected_holding')
+      ? null : declaredAudit;
     // -----------------------------------------------------------------
-    // POST-PROMOTION SEMANTIC INVARIANT. The three lines above can promote
-    // a row into `adopted VERIFIED_COURT_HOLDING` AFTER
-    // normalizePenalFinding already ran, so the normalizer's rule ("an
-    // adopted court holding may only carry a non-neutral scoring direction
-    // when the party-aware mapping is complete") has to be re-checked
-    // against the FINAL state, immediately before persistence — otherwise
-    // the promotion itself manufactures the exact record the QA auditor
-    // later rejects (ADR 217/2019).
-    //
-    // Nothing is invented: the holding, its quote, citation, source and
-    // substance are untouched; only the unsupported scoring attributes are
-    // neutralized, and the neutralization is recorded in metadata.
+    // Recheck scoring against final normalized semantics before persistence.
+    // Attribution stays unchanged; an unsupported score effect is neutralized.
     // -----------------------------------------------------------------
-    let impact_direction = isHolding && !r.impact_direction ? "neutral" : (r.impact_direction ?? "neutral");
+    let impact_direction = r.impact_direction ?? "neutral";
     let affected_party = normParty(r.affected_party);
     let evidence_type = r.evidence_type;
     let postPromotionNeutralized = false;
@@ -1276,13 +1286,13 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
       potential_impact: r.potential_impact,
       affected_party,
       benefited_party: normParty(r.benefited_party),
-      authority_level: r.authority_level ?? (isHolding ? 1 : null),
+      authority_level: r.authority_level ?? null,
       score_dimension: r.score_dimension ?? null,
       reason_for_score_effect: r.reason_for_score_effect ?? null,
       speaker_role,
       proposition_type,
       adoption_status,
-      audit_classification: isHolding ? "VERIFIED_COURT_HOLDING" : normAuditClassification(r.audit_classification),
+      audit_classification,
       source_doc_ids: sourceDocIds,
       // The relevance-filtered set (`ev`), not the raw upstream one — an
       // evidence_ref this gate stripped for being irrelevant must not
@@ -1293,7 +1303,8 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
       tags: [...new Set([...(r.tags ?? []), ...computeDimensionTags(r)])],
       metadata: {
         ...(r.metadata ?? {}),
-        is_authority_exempt: isHolding,
+        // Documentary court holdings require source verification too.
+        is_authority_exempt: false,
         ...(postPromotionNeutralized
           ? {
               post_promotion_normalization: {

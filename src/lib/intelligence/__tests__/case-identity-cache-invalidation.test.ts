@@ -43,13 +43,21 @@ function makeStatefulFakeDb() {
   };
   const db = {
     from(table: string) {
+      if (table === "document_pages") {
+        const query = {
+          select: () => query,
+          eq: () => query,
+          order: async () => ({ data: [{ page: 1, text: AMPARO_TEXT }], error: null }),
+        };
+        return query;
+      }
       if (table === "documents") {
         return {
           select: () => ({
             eq: () => ({
               order: () =>
                 Promise.resolve({
-                  data: [{ id: "doc-adr-4640", filename: "sentencia.pdf", extracted_text: AMPARO_TEXT }],
+                  data: [{ id: "doc-adr-4640", filename: "sentencia.pdf", metadata: { analysis_purpose: "client_matter_evidence", client_connection_note: "Filed in the client matter" }, extracted_text: AMPARO_TEXT }],
                   error: null,
                 }),
               // toCaseIdentityEvidence's follow-up filename lookup.

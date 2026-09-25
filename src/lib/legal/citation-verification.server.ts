@@ -20,6 +20,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { authorityValidity } from "./legal-validity";
 import type { JurisdictionLevel } from "./authority-registry";
+import { sha256Hex } from '../intelligence/evidence-provenance.server';
 
 type Db = SupabaseClient<Database>;
 
@@ -39,6 +40,7 @@ export type StatutoryCitationCheck = {
 };
 
 export type StatutoryCitationVerification = {
+  source_provenance: { authority_id:string; article_id:string; authority_content_hash:string; article_content_hash:string; source_url:string; effective_at:string|null; repealed_at:string|null } | null;
   status: CitationVerificationStatus;
   /** Human-readable reasons, in the order checks were performed — always non-empty. */
   reasons: string[];
@@ -83,6 +85,7 @@ export async function verifyStatutoryCitation(
   const reasons: string[] = [];
   const base: StatutoryCitationVerification = {
     status: "UNVERIFIED",
+    source_provenance: null,
     reasons,
     matched_authority_id: null,
     matched_authority_label: null,
@@ -107,16 +110,17 @@ export async function verifyStatutoryCitation(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: authorities, error: authErr } = await (db as any)
       .from("legal_authorities")
-      .select("id,title,short_title,citation,jurisdiction,body")
-      .or(`short_title.ilike.%${hint}%,title.ilike.%${hint}%,citation.ilike.%${hint}%`)
-      .limit(5);
+      .select("id,title,short_title,citation,jurisdiction,body,verification_status,superseded_by_id,source_url,content_hash")
+      .or(`short_title.ilike.%${hint.replace(/[,()%]/g,' ')}%,title.ilike.%${hint.replace(/[,()%]/g,' ')}%,citation.ilike.%${hint.replace(/[,()%]/g,' ')}%`)
+      .limit(20);
     if (authErr) {
       reasons.push(`Legal-source lookup failed: ${authErr.message}.`);
       return base;
     }
-    const authority = (authorities ?? [])[0] as
-      | { id: string; title: string; short_title: string | null; citation: string | null; jurisdiction: string | null }
-      | undefined;
+    const exact = (authorities ?? []).filter((candidate:any)=>
+      [candidate.short_title,candidate.title,candidate.citation].some(label=>typeof label==='string' && normalizeForMatch(label)===normalizeForMatch(hint)));
+    if(exact.length>1) { reasons.push('Ambiguous authority identity; specify the exact instrument and version.');return base; }
+    const authority = exact[0];
     if (!authority) {
       reasons.push(`"${hint}" was not found in the validated legal-source corpus — cannot verify this citation.`);
       return base;
@@ -125,6 +129,11 @@ export async function verifyStatutoryCitation(
     base.matched_authority_label = authority.short_title ?? authority.title;
     base.matched_authority_jurisdiction = authority.jurisdiction;
     reasons.push(`Statute matched: ${base.matched_authority_label} (id=${authority.id}).`);
+    if(authority.verification_status!=='verified' || authority.superseded_by_id || !authority.source_url ||
+      !authority.body || authority.content_hash!==sha256Hex(authority.body)) {
+      reasons.push('Parent authority is unverified, superseded, or lacks source/version provenance. Historical applicability requires an identified reviewed version.');
+      return base;
+    }
 
     // Step 2 — jurisdiction correctness (never selects a different match, only flags).
     if (check.jurisdictionHint) {
@@ -140,7 +149,7 @@ export async function verifyStatutoryCitation(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: article, error: artErr } = await (db as any)
       .from("legal_articles")
-      .select("id,article_number,body,effective_at,repealed_at,verification_status")
+      .select("id,article_number,body,effective_at,repealed_at,verification_status,source_url")
       .eq("authority_id", authority.id)
       .eq("article_number", articleNumber)
       .maybeSingle();
@@ -156,6 +165,9 @@ export async function verifyStatutoryCitation(
     }
     base.matched_article_id = article.id;
     base.matched_article_body = article.body ?? null;
+    base.source_provenance = {authority_id:authority.id,article_id:article.id,authority_content_hash:authority.content_hash,
+      article_content_hash:sha256Hex(article.body??''),source_url:article.source_url??authority.source_url,
+      effective_at:article.effective_at??null,repealed_at:article.repealed_at??null};
     reasons.push(`Article ${articleNumber} matched (source verification_status="${article.verification_status}").`);
 
     // Step 4 — temporal validity: in force / historical version.
@@ -172,7 +184,10 @@ export async function verifyStatutoryCitation(
       check.caseDate ?? null,
     );
     base.temporal_status =
-      article.effective_at && (validity.reason === "in_force" || validity.reason === "expired" || validity.reason === "not_yet_in_force")
+      check.caseDate && Number.isFinite(new Date(check.caseDate).getTime())
+        && article.effective_at && Number.isFinite(Date.parse(article.effective_at))
+        && (!article.repealed_at || Number.isFinite(Date.parse(article.repealed_at)))
+        && (validity.reason === "in_force" || validity.reason === "expired" || validity.reason === "not_yet_in_force")
         ? validity.reason
         : "unknown";
     if (!article.effective_at) {

@@ -180,10 +180,30 @@ function mockProviderFactory(behaviors: Record<string, KeyBehavior>, calls: stri
 }
 
 beforeEach(() => {
+  vi.unstubAllEnvs();
   invalidateProviderCaches();
   clearProviderCooldowns();
   vi.mocked(buildProvider).mockReset();
   mockSupabase();
+});
+
+it('falls from Gemini 429 to the verified paid Groq key for a real-sized analyzer prompt without waiting', async () => {
+  const k = freshKeys(); mockSupabase(k);
+  const fingerprint = createHash('sha256').update(k.groq1).digest('hex').slice(0,16);
+  vi.stubEnv('GROQ_KEY_REQUEST_TOKEN_LIMITS', JSON.stringify({[fingerprint]:131072}));
+  const calls: string[] = [];
+  mockProviderFactory({[k.gemini1]:{fail:()=>new Error('gemini HTTP 429 quota exceeded')},
+    [k.gemini2]:{fail:()=>new Error('gemini HTTP 429 quota exceeded')}},calls);
+  const started = Date.now();
+  const result = await routeAI({userId:USER_ID,userContent:'Original analyzer evidence '.repeat(1300),
+    systemInstruction:'Original analysis rules and schema',json:true,maxTokens:4096,cache:false,
+    _providerOrder:['gemini','groq']});
+  expect(calls[0]).toMatch(/^gemini/);
+  expect(calls.at(-1)).toBe(k.groq1);
+  expect(calls).not.toContain(k.groq2);
+  expect(result.provider).toBe('groq');
+  expect(result.fellBackFrom).toContain('gemini');
+  expect(Date.now()-started).toBeLessThan(1000);
 });
 
 describe("routeAI: rotates through every key across every provider on failure", () => {

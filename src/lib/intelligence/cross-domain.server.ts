@@ -15,6 +15,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { normalizePracticeArea, resolvePracticeAreaOrNull, type PracticeArea } from "./practice-areas";
 import { PROJECTION_LIKE } from "@/lib/intelligence/finding-selection";
+import { structuredMatterDomains } from '../jurisdiction/composed-matter-scope';
 
 type Db = SupabaseClient<Database>;
 
@@ -122,6 +123,8 @@ function modulePrefixMatches(sourceModule: string, prefixes: string[]): boolean 
 export function deriveActivations(args: {
   baseArea: string;
   caseType: string;
+  underlyingMateria?: string | null;
+  proceduralVehicle?: string | null;
   additionalDomains: string[];
   findings: Array<{ id: string; source_module: string | null }>;
   documents?: Array<{ id: string; filename: string; extracted_text?: string | null }>;
@@ -129,6 +132,15 @@ export function deriveActivations(args: {
   const base = normalizePracticeArea(args.baseArea);
   const seen = new Set<PracticeArea>([base]);
   const out: DomainActivation[] = [];
+
+  // Verified/declared identity dimensions are a formal hybrid, not a keyword
+  // inference. Persist the same audit trail as other supported hybrids.
+  for (const domain of structuredMatterDomains(args)) {
+    if (seen.has(domain)) continue;
+    seen.add(domain);
+    out.push({ domain, source: 'hybrid', trigger_id: `identity:${domain}:${args.proceduralVehicle ?? 'underlying'}`,
+      reason: 'Explicit procedural vehicle and substantive materia compose the case scope.', evidence_finding_ids: [] });
+  }
 
   // 1. user opt-in
   for (const d of args.additionalDomains ?? []) {
@@ -239,6 +251,8 @@ export async function resolveActivations(
   const activations = deriveActivations({
     baseArea: ct,
     caseType: ct,
+    underlyingMateria: activationsIdentity.underlyingMateria,
+    proceduralVehicle: activationsIdentity.proceduralVehicle,
     additionalDomains: additional,
     findings: (findings ?? []) as Array<{ id: string; source_module: string | null }>,
     documents: (documents ?? []) as Array<{ id: string; filename: string; extracted_text?: string | null }>,

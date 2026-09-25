@@ -13,11 +13,11 @@ export type Extracted = {
 };
 
 export async function extractPdf(bytes: Uint8Array): Promise<Extracted> {
-  const { extractText, getDocumentProxy } = await import("unpdf");
+  const { extractText } = await import("unpdf");
   const buf = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-  const pdf = await getDocumentProxy(buf);
+  // Passing bytes lets unpdf own and dispose the document's loading task.
   // mergePages:false returns string[] (per page).
-  const raw = await extractText(pdf, { mergePages: false });
+  const raw = await extractText(buf, { mergePages: false });
   const totalPages = raw.totalPages;
   const textRaw = raw.text as unknown;
   const pageTexts: string[] = Array.isArray(textRaw)

@@ -8,6 +8,7 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import path from "path";
 import { loadEnv } from "vite";
+import { localPipelinePlugin } from "./scripts/local-pipeline-pump.mjs";
 
 // Load all env vars into process.env for server routes (LOVABLE_API_KEY, SUPABASE_SERVICE_ROLE_KEY, etc.)
 const serverEnv = loadEnv(
@@ -24,6 +25,7 @@ export default defineConfig({
     server: { entry: "server" },
   },
   vite: {
+    plugins: [localPipelinePlugin()],
     server: { host: "127.0.0.1", port: 3000, strictPort: true, allowedHosts: ["stuffy-lumping-rethink.ngrok-free.dev"] },
     resolve: {
       alias: {

@@ -103,7 +103,7 @@ describe("canonical execution architecture", () => {
     expect(canGenerateReport(rows).ok).toBe(true);
   });
 
-  it("records optional failures as BLOCKING coverage degradation under strict preflight", () => {
+  it("permits draft assembly while retaining named optional coverage failures", () => {
     const rows = [
       ...REPORT_BLOCKING_ENGINES.map((e) => row(e, "completed")),
       ...REPORT_ENRICHING_ENGINES.map((e) => row(e, "completed")),
@@ -111,9 +111,13 @@ describe("canonical execution architecture", () => {
       row("strategy", "blocked"),
     ];
     const gate = canGenerateReport(rows);
-    expect(gate.ok).toBe(false);
+    expect(gate.ok).toBe(true);
     expect(gate.missingEnriching).toContain("perspectives");
     expect(gate.missingEnriching).toContain("strategy");
+    expect(gate.coverageGaps).toEqual(expect.arrayContaining([
+      expect.objectContaining({ engine: "perspectives", status: "failed", category: "optional" }),
+      expect.objectContaining({ engine: "strategy", status: "blocked", category: "optional" }),
+    ]));
   });
 
   it("a BLOCKING-tier engine with no row still blocks — this fix is scoped to optional engines only", () => {

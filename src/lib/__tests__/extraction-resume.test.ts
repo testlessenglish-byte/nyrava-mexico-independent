@@ -1,0 +1,64 @@
+import { describe, it, expect, vi } from 'vitest';
+vi.mock('../cases.functions', () => ({ PIPELINE_STAGES: [], runTimelineAudit: vi.fn() }));
+vi.mock('../groq.server', () => ({ callGroq: vi.fn(() => { throw Error('AI must not be called for text PDFs'); }), parseJsonLoose: JSON.parse }));
+vi.mock('../ai/router.server', () => ({ packingRequestInputBudget: vi.fn() }));
+vi.mock('../intelligence/findings.server', () => ({}));
+vi.mock('../intelligence/engine-audit.server', () => ({ runEngine: async (_db: unknown, _args: unknown, fn: () => Promise<unknown>) => fn() }));
+vi.mock('../pipeline-trace.server', () => ({ trace: vi.fn() }));
+vi.mock('../ai-key-router.server', () => ({ getKeyIdByIndex: () => null }));
+import { runExtraction, retryFailedExtractions } from '../pipeline.server';
+import { jsPDF } from 'jspdf';
+import { callGroq } from '../groq.server';
+import { trace } from '../pipeline-trace.server';
+import { extractionFixture } from './extraction-fixture';
+import { readFileSync, writeFileSync } from 'node:fs';
+describe('extraction entry point', () => {
+  const pdfBytes=()=>{const pdf=new jsPDF();pdf.text('Family, civil, criminal: extraction is independent of the legal category.',10,20);pdf.addPage();pdf.text('Second page stays indexed exactly once.',10,20);return new Uint8Array(pdf.output('arraybuffer'));};
+  const args=(db:any)=>({db,caseId:'case',userId:'user',apiKey:''});
+  it('can be loaded without provider configuration', () => expect(runExtraction).toBeTypeOf('function'));
+  it('preserves complete documents and resumes a failed page index without extracting again',async()=>{
+    const f=extractionFixture([{id:'first',bytes:pdfBytes()}]);
+    f.setPageFailure(true);
+    await expect(runExtraction(args(f.db))).rejects.toThrow('Index extracted pages');
+    expect(f.tables.documents[0].status).toBe('failed');
+    expect(f.tables.documents[0].extracted_text).toContain('Second page');
+    expect(f.tables.documents[0].metadata.extraction_checkpoint.pageTexts).toHaveLength(2);
+    expect(f.downloads).toEqual(['first']);
+    f.setPageFailure(false);
+    await retryFailedExtractions(args(f.db));
+    expect(f.downloads).toEqual(['first']);
+    expect(f.tables.documents[0].status).toBe('extracted');
+    expect(f.tables.documents[0].extraction_retry_count).toBe(1);
+    expect(f.tables.document_pages).toHaveLength(2);
+    const writes=f.writes.length;
+    await runExtraction(args(f.db));
+    expect(f.downloads).toEqual(['first']);
+    expect(f.writes.slice(writes).filter(w=>w.table==='document_pages'||w.table==='documents')).toEqual([]);
+    expect(callGroq).not.toHaveBeenCalled();
+  });
+  it('continues a partial batch without downloading the completed documents',async()=>{
+    const f=extractionFixture([{id:'done',bytes:pdfBytes(),status:'extracted'},{id:'pending',bytes:pdfBytes()}]);
+    await runExtraction(args(f.db));
+    expect(f.downloads).toEqual(['pending']);
+    expect(f.tables.cases[0].extraction_report.extracted).toBe(2);
+    expect(f.tables.cases[0].extraction_report.coverage.ocr_attempted).toBe(0);
+  });
+  it.skipIf(!process.env.EXTRACTION_BENCHMARK_PDF)('benchmarks 53 real PDFs and a completed resume', async () => {
+    vi.mocked(trace).mockClear();
+    const bytes = new Uint8Array(readFileSync(process.env.EXTRACTION_BENCHMARK_PDF!));
+    const f=extractionFixture(Array.from({length:53},(_,i)=>({id:`document-${i+1}`,bytes})));
+    const started=performance.now();
+    await runExtraction({db:f.db,caseId:'case',userId:'user',apiKey:''});
+    const firstMs=performance.now()-started;
+    const firstDownloads=f.downloads.length;
+    const resume=performance.now();
+    await runExtraction({db:f.db,caseId:'case',userId:'user',apiKey:''});
+    const result={firstMs,resumeMs:performance.now()-resume,documents:53,pages:f.tables.document_pages.length,firstDownloads,resumeDownloads:f.downloads.length-firstDownloads,
+      perDocument:vi.mocked(trace).mock.calls.map(([entry])=>({duration_ms:entry.durationMs,...entry.detail})).filter(d=>d.document_id)};
+    console.log('EXTRACTION_BENCHMARK',JSON.stringify({...result,perDocument:result.perDocument.length}));
+    if(process.env.EXTRACTION_BENCHMARK_OUTPUT)writeFileSync(process.env.EXTRACTION_BENCHMARK_OUTPUT,JSON.stringify(result,null,2));
+    expect(firstDownloads).toBe(53);
+    expect(result.resumeDownloads).toBe(0);
+    expect(f.tables.documents.every(d=>d.status==='extracted')).toBe(true);
+  },180000);
+});

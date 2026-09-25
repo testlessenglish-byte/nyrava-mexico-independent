@@ -66,9 +66,11 @@ export function makeAnthropic(cfg: ProviderConfig): AIProvider {
       }
       const json = await res.json() as {
         content?: Array<{ type: string; text?: string }>;
+        stop_reason?: string;
         usage?: { input_tokens?: number; output_tokens?: number };
       };
       const text = (json.content ?? []).filter(c => c.type === "text").map(c => c.text ?? "").join("");
+      if (json.stop_reason === "max_tokens") throw new Error("anthropic: incomplete response (stop_reason=max_tokens); split the request or increase output budget");
       if (!text) throw new Error("anthropic: empty response");
       return {
         text, model, latencyMs,

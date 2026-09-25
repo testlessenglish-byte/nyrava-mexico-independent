@@ -33,7 +33,7 @@ describe("computeCaseStrengthDisagreement", () => {
 
   it("returns no comparison (never fabricates one) when the LLM score is null — e.g. LIMITED-mode suppression", () => {
     const result = computeCaseStrengthDisagreement(null, [40, 60]);
-    expect(result.deterministic).toBeNull();
+    expect(result.deterministic).toBe(50);
     expect(result.delta).toBeNull();
     expect(result.disagreement).toBe(false);
   });
@@ -43,5 +43,23 @@ describe("computeCaseStrengthDisagreement", () => {
     expect(result.deterministic).toBeNull();
     expect(result.delta).toBeNull();
     expect(result.disagreement).toBe(false);
+  });
+
+  it.each([undefined, Number.NaN, Number.POSITIVE_INFINITY])("does not invent a comparison for an unavailable model score %s", (score) => {
+    expect(computeCaseStrengthDisagreement(score, [40, 60])).toEqual({
+      deterministic: 50, delta: null, disagreement: false,
+    });
+  });
+
+  it.each([[40, Number.NaN], [Number.POSITIVE_INFINITY]])("rejects incomplete/nonfinite deterministic input %s", (...scores) => {
+    expect(computeCaseStrengthDisagreement(70, scores)).toEqual({
+      deterministic: null, delta: null, disagreement: false,
+    });
+  });
+
+  it("keeps a genuine zero available for comparison", () => {
+    expect(computeCaseStrengthDisagreement(0, [0, 0])).toEqual({
+      deterministic: 0, delta: 0, disagreement: false,
+    });
   });
 });

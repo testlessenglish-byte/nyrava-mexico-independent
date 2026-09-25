@@ -1,0 +1,1952 @@
+{
+  "case_id": "b7dd58a6-72c7-457f-9434-0a7d261051ee",
+  "audited_at": "2026-09-24T12:55:06.776Z",
+  "method": "Manual offline reasoning over read-only independent-project stored source pages and all70finding narratives, legal_significance, potential_impact, and raw attribution. No AI-provider call, generation rerun, or database mutation. Source-only assessment, not external legal research.",
+  "definitions": {
+    "supported": "Claim supported in the explicitly described historical/party/final scope. Does not independently validate a current remedy or future outcome.",
+    "contradicted": "Identified source conflict in narrative, attribution, final scope, or attached consequence; narrative_verdict distinguishes true history from false added claims.",
+    "insufficient": "Source does not establish the whole row, a present implication, or adoption; this is not a declaration that the factual allegation is false."
+  },
+  "pagination": {
+    "stored_pages": 53,
+    "unique_physical_pages": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48,
+      49,
+      50,
+      51,
+      52,
+      53
+    ],
+    "front_matter_pages": 2,
+    "final_disposition_physical_page": 53,
+    "final_disposition_printed_page": 51,
+    "note": "No42-page count was present in this document_pages store. Physical and printed page numbers differ by2 after front matter."
+  },
+  "summary": {
+    "rows": 70,
+    "verdict_counts": {
+      "supported": 18,
+      "insufficient": 30,
+      "contradicted": 22
+    },
+    "narrative_counts": {
+      "supported": 40,
+      "insufficient": 16,
+      "contradicted": 5,
+      "supported_as_history_only": 9
+    },
+    "literal_quotes_at_stored_page": 68,
+    "missing_page_bindings": [
+      "9f702c12-6243-40f6-a271-fb731700f86f",
+      "77116297-db77-411f-97ea-3dbfedf0b502"
+    ],
+    "duplicate_disposition_group_size": 9,
+    "excess_duplicate_rows": 8
+  },
+  "findings": [
+    {
+      "id": "e1e6ab3a-aa2d-427a-b9f0-c0efb9354cee",
+      "source_module": "agent:ways_out_analysis",
+      "title": "El amparo directo fue interpuesto por propio derecho y en representación",
+      "verdict": "supported",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        9
+      ],
+      "reason": "Paragraph17 expressly records filing in own right and on behalf of two children. Historical filing fact, not a future route.",
+      "stored_source_page": 9,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": null,
+        "proposition_type": null,
+        "adoption_status": null,
+        "audit_classification": "VERIFIED_FACT"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "1cc389ec-a45a-479b-abd7-50e94b4590c3",
+      "source_module": "agent:ways_out_analysis",
+      "title": "La sentencia impugnada fue dictada por la Quinta Sala Familiar",
+      "verdict": "supported",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        9,
+        53
+      ],
+      "reason": "Paragraph17 identifies Quinta Sala Familiar as issuer of the challenged judgment; final dispositive agrees.",
+      "stored_source_page": 9,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": null,
+        "proposition_type": null,
+        "adoption_status": null,
+        "audit_classification": "VERIFIED_FACT"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "cb76b1da-4b66-431f-b903-33bd00344808",
+      "source_module": "agent:ways_out_analysis",
+      "title": "Posible violación al debido proceso por aplicación de los artículos 281 y 282 del Código de Procedimientos Civiles de la Ciudad de México, que limitan la carga de la prueba.",
+      "verdict": "insufficient",
+      "narrative_verdict": "insufficient",
+      "reviewed_physical_pages": [
+        14,
+        51,
+        52
+      ],
+      "reason": "A heading about the constitutional challenge does not establish a due-process violation. Final paragraph129 rejects unconstitutional differential treatment while requiring a special evidentiary presumption. Must distinguish the rule from its application and an already-decided issue from a future route.",
+      "stored_source_page": 14,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": null,
+        "proposition_type": null,
+        "adoption_status": null,
+        "audit_classification": "POTENTIAL_ISSUE"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "7b38a8d2-722e-4b0a-b150-7c48ad1c1e3f",
+      "source_module": "agent:ways_out_analysis",
+      "title": "Posible violación del principio de igualdad (Art. 4º CPEUM) al negar la compensación por motivos laborales del cónyuge, lo que constituye trato discriminatorio.",
+      "verdict": "insufficient",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        15,
+        16,
+        51
+      ],
+      "reason": "The Colegiado did criticize employment-based denial as discriminatory. A present potential avenue and the precise constitutional hook are not established by this isolated historical quotation; identify the lower-court ruling and final correction.",
+      "stored_source_page": 16,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": null,
+        "proposition_type": null,
+        "adoption_status": null,
+        "audit_classification": "POTENTIAL_ISSUE"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "beeb2e17-f6a9-4b9f-902f-72dc5e4b41b9",
+      "source_module": "agent:ways_out_analysis",
+      "title": "Omisión de análisis de los daños y perjuicios derivados de violencia familiar, pese a que la jurisprudencia de la SCJN reconoce su materia de estudio.",
+      "verdict": "insufficient",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        12,
+        13,
+        15,
+        16
+      ],
+      "reason": "Colegiado criticism of excluding violence damages is supported. The additional SCJN-jurisprudence assertion is supplied as claimant argument citing ADR5490/2016, not independently verified precedent, and the issue was already adjudicated below.",
+      "stored_source_page": 16,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": null,
+        "proposition_type": null,
+        "adoption_status": null,
+        "audit_classification": "POTENTIAL_ISSUE"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "0e71a5e4-ff6a-4209-9814-a8522006f5ba",
+      "source_module": "agent:ways_out_analysis",
+      "title": "El tribunal declaró que el recurso de revisión se interpuso dentro del plazo constitucionalmente establecido.",
+      "verdict": "contradicted",
+      "narrative_verdict": "contradicted",
+      "reviewed_physical_pages": [
+        18
+      ],
+      "reason": "Timely filing is supported, but the description calls the deadline constitutionally established. The source expressly calculates the deadline under article86 of Ley de Amparo, not a constitutional deadline. Correct that qualifier; do not discard the timeliness finding.",
+      "stored_source_page": 18,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": null,
+        "proposition_type": null,
+        "adoption_status": null,
+        "audit_classification": "VERIFIED_COURT_HOLDING"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "5b70e328-4f68-42b9-a8c1-8edf514a3226",
+      "source_module": "decision_core",
+      "title": "RESULTADO: SEGUNDO. Quedan las partes obligadas a estar y pasar por el\nconvenio celebrado ante la Quinta Sala Familiar en fecha TERCERO. Se absuelve al señor **** ****** ******* ******* del pago\nde al",
+      "verdict": "contradicted",
+      "narrative_verdict": "supported_as_history_only",
+      "reviewed_physical_pages": [
+        7,
+        8,
+        9,
+        13,
+        14,
+        51,
+        52,
+        53
+      ],
+      "reason": "Historical2019 first-instance absolutions are real, but this mandatory DISPOSITION/adopted RESULTADO treats them as the reviewed final result. FinalSCJN modifies judgment and grants amparo atp53. Same mandatorycore ID appears nine times: eight excess duplicates, not nine independent substantive errors.",
+      "stored_source_page": 7,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": "procedural_fact",
+      "adoption_status": "adopted",
+      "audit_classification": "VERIFIED_FACT",
+      "raw_semantics": null,
+      "mandatory_decision_core_id": "decision-core:disposition:e4564054"
+    },
+    {
+      "id": "aeefcc8c-f21a-4204-9e46-f19983d08b59",
+      "source_module": "agent:ways_out_analysis",
+      "title": "El tribunal reconoció la legitimación de la recurrente y del recurrente adhesivo para interponer el recurso de revisión.",
+      "verdict": "supported",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        19
+      ],
+      "reason": "Paragraph33 expressly recognizes standing of recurrente and recurrente adhesivo.",
+      "stored_source_page": 19,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": null,
+        "proposition_type": null,
+        "adoption_status": null,
+        "audit_classification": "VERIFIED_COURT_HOLDING"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "07e6f4c1-f8db-4707-937b-26dc95e296c2",
+      "source_module": "decision_core",
+      "title": "RESULTADO: SEGUNDO. Quedan las partes obligadas a estar y pasar por el\nconvenio celebrado ante la Quinta Sala Familiar en fecha TERCERO. Se absuelve al señor **** ****** ******* ******* del pago\nde al",
+      "verdict": "contradicted",
+      "narrative_verdict": "supported_as_history_only",
+      "reviewed_physical_pages": [
+        7,
+        8,
+        9,
+        13,
+        14,
+        51,
+        52,
+        53
+      ],
+      "reason": "Historical2019 first-instance absolutions are real, but this mandatory DISPOSITION/adopted RESULTADO treats them as the reviewed final result. FinalSCJN modifies judgment and grants amparo atp53. Same mandatorycore ID appears nine times: eight excess duplicates, not nine independent substantive errors.",
+      "stored_source_page": 7,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": "procedural_fact",
+      "adoption_status": "adopted",
+      "audit_classification": "VERIFIED_FACT",
+      "raw_semantics": null,
+      "mandatory_decision_core_id": "decision-core:disposition:e4564054"
+    },
+    {
+      "id": "ad3b3d68-30dc-49e0-bdaf-2060e99b17cc",
+      "source_module": "decision_core",
+      "title": "RESULTADO: SEGUNDO. Quedan las partes obligadas a estar y pasar por el\nconvenio celebrado ante la Quinta Sala Familiar en fecha TERCERO. Se absuelve al señor **** ****** ******* ******* del pago\nde al",
+      "verdict": "contradicted",
+      "narrative_verdict": "supported_as_history_only",
+      "reviewed_physical_pages": [
+        7,
+        8,
+        9,
+        13,
+        14,
+        51,
+        52,
+        53
+      ],
+      "reason": "Historical2019 first-instance absolutions are real, but this mandatory DISPOSITION/adopted RESULTADO treats them as the reviewed final result. FinalSCJN modifies judgment and grants amparo atp53. Same mandatorycore ID appears nine times: eight excess duplicates, not nine independent substantive errors.",
+      "stored_source_page": 7,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": "procedural_fact",
+      "adoption_status": "adopted",
+      "audit_classification": "VERIFIED_FACT",
+      "raw_semantics": null,
+      "mandatory_decision_core_id": "decision-core:disposition:e4564054"
+    },
+    {
+      "id": "874781e6-753a-4fe6-80a6-d346ef2de692",
+      "source_module": "decision_core",
+      "title": "RESULTADO: SEGUNDO. Quedan las partes obligadas a estar y pasar por el\nconvenio celebrado ante la Quinta Sala Familiar en fecha TERCERO. Se absuelve al señor **** ****** ******* ******* del pago\nde al",
+      "verdict": "contradicted",
+      "narrative_verdict": "supported_as_history_only",
+      "reviewed_physical_pages": [
+        7,
+        8,
+        9,
+        13,
+        14,
+        51,
+        52,
+        53
+      ],
+      "reason": "Historical2019 first-instance absolutions are real, but this mandatory DISPOSITION/adopted RESULTADO treats them as the reviewed final result. FinalSCJN modifies judgment and grants amparo atp53. Same mandatorycore ID appears nine times: eight excess duplicates, not nine independent substantive errors.",
+      "stored_source_page": 7,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": "procedural_fact",
+      "adoption_status": "adopted",
+      "audit_classification": "VERIFIED_FACT",
+      "raw_semantics": null,
+      "mandatory_decision_core_id": "decision-core:disposition:e4564054"
+    },
+    {
+      "id": "79bb1a85-7a0e-4268-acb8-37bc0da1c9ea",
+      "source_module": "agent:child_support_calculation",
+      "title": "Necesidad de pensión alimenticia del acreedor",
+      "verdict": "insufficient",
+      "narrative_verdict": "insufficient",
+      "reviewed_physical_pages": [
+        5,
+        6,
+        51
+      ],
+      "reason": "Paragraph9 records a request for child maintenance; requesting relief does not prove economic need. Legal significance also treats this as determining an amount of amparo, whereas the final ADR addresses the ex-wife's compensatory rights and evidentiary rule.",
+      "stored_source_page": 5,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": null,
+        "proposition_type": null,
+        "adoption_status": null,
+        "audit_classification": null
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "9d259029-0380-4319-aa07-659345beefdb",
+      "source_module": "decision_core",
+      "title": "RESULTADO: SEGUNDO. Quedan las partes obligadas a estar y pasar por el\nconvenio celebrado ante la Quinta Sala Familiar en fecha TERCERO. Se absuelve al señor **** ****** ******* ******* del pago\nde al",
+      "verdict": "contradicted",
+      "narrative_verdict": "supported_as_history_only",
+      "reviewed_physical_pages": [
+        7,
+        8,
+        9,
+        13,
+        14,
+        51,
+        52,
+        53
+      ],
+      "reason": "Historical2019 first-instance absolutions are real, but this mandatory DISPOSITION/adopted RESULTADO treats them as the reviewed final result. FinalSCJN modifies judgment and grants amparo atp53. Same mandatorycore ID appears nine times: eight excess duplicates, not nine independent substantive errors.",
+      "stored_source_page": 7,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": "procedural_fact",
+      "adoption_status": "adopted",
+      "audit_classification": "VERIFIED_FACT",
+      "raw_semantics": null,
+      "mandatory_decision_core_id": "decision-core:disposition:e4564054"
+    },
+    {
+      "id": "c705ff87-7cf0-4646-aa1e-80958c00d615",
+      "source_module": "decision_core",
+      "title": "RESULTADO: SEGUNDO. Quedan las partes obligadas a estar y pasar por el\nconvenio celebrado ante la Quinta Sala Familiar en fecha TERCERO. Se absuelve al señor **** ****** ******* ******* del pago\nde al",
+      "verdict": "contradicted",
+      "narrative_verdict": "supported_as_history_only",
+      "reviewed_physical_pages": [
+        7,
+        8,
+        9,
+        13,
+        14,
+        51,
+        52,
+        53
+      ],
+      "reason": "Historical2019 first-instance absolutions are real, but this mandatory DISPOSITION/adopted RESULTADO treats them as the reviewed final result. FinalSCJN modifies judgment and grants amparo atp53. Same mandatorycore ID appears nine times: eight excess duplicates, not nine independent substantive errors.",
+      "stored_source_page": 7,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": "procedural_fact",
+      "adoption_status": "adopted",
+      "audit_classification": "VERIFIED_FACT",
+      "raw_semantics": null,
+      "mandatory_decision_core_id": "decision-core:disposition:e4564054"
+    },
+    {
+      "id": "915f7efd-8e0a-4cd9-a191-187c4de6b80f",
+      "source_module": "agent:custody_best_interest_analysis",
+      "title": "Domiciliación de los menores como indicio de estabilidad del entorno",
+      "verdict": "insufficient",
+      "narrative_verdict": "insufficient",
+      "reviewed_physical_pages": [
+        6,
+        7
+      ],
+      "reason": "Agreed residences are documented. Stability, suitability, and a prospective custody advantage do not follow merely from an address; settlement already addressed residence/custody.",
+      "stored_source_page": 6,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": null,
+        "proposition_type": null,
+        "adoption_status": null,
+        "audit_classification": null
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "904a34f1-2802-4883-ae7d-f6cb611afe44",
+      "source_module": "agent:custody_best_interest_analysis",
+      "title": "Compromiso de terapia psicológica como indicio de capacidad de cuidado",
+      "verdict": "insufficient",
+      "narrative_verdict": "insufficient",
+      "reviewed_physical_pages": [
+        6,
+        7
+      ],
+      "reason": "Therapy commitment is supported; resources, actual capacity, compliance, and a custody advantage are not proved by a promise.",
+      "stored_source_page": 6,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": null,
+        "proposition_type": null,
+        "adoption_status": null,
+        "audit_classification": null
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "89a74c70-14bd-4688-acae-abba007030db",
+      "source_module": "decision_core",
+      "title": "RESULTADO: SEGUNDO. Quedan las partes obligadas a estar y pasar por el\nconvenio celebrado ante la Quinta Sala Familiar en fecha TERCERO. Se absuelve al señor **** ****** ******* ******* del pago\nde al",
+      "verdict": "contradicted",
+      "narrative_verdict": "supported_as_history_only",
+      "reviewed_physical_pages": [
+        7,
+        8,
+        9,
+        13,
+        14,
+        51,
+        52,
+        53
+      ],
+      "reason": "Historical2019 first-instance absolutions are real, but this mandatory DISPOSITION/adopted RESULTADO treats them as the reviewed final result. FinalSCJN modifies judgment and grants amparo atp53. Same mandatorycore ID appears nine times: eight excess duplicates, not nine independent substantive errors.",
+      "stored_source_page": 7,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": "procedural_fact",
+      "adoption_status": "adopted",
+      "audit_classification": "VERIFIED_FACT",
+      "raw_semantics": null,
+      "mandatory_decision_core_id": "decision-core:disposition:e4564054"
+    },
+    {
+      "id": "ce367274-0f97-4335-85b2-ecc273057208",
+      "source_module": "decision_core",
+      "title": "RESULTADO: SEGUNDO. Quedan las partes obligadas a estar y pasar por el\nconvenio celebrado ante la Quinta Sala Familiar en fecha TERCERO. Se absuelve al señor **** ****** ******* ******* del pago\nde al",
+      "verdict": "contradicted",
+      "narrative_verdict": "supported_as_history_only",
+      "reviewed_physical_pages": [
+        7,
+        8,
+        9,
+        13,
+        14,
+        51,
+        52,
+        53
+      ],
+      "reason": "Historical2019 first-instance absolutions are real, but this mandatory DISPOSITION/adopted RESULTADO treats them as the reviewed final result. FinalSCJN modifies judgment and grants amparo atp53. Same mandatorycore ID appears nine times: eight excess duplicates, not nine independent substantive errors.",
+      "stored_source_page": 7,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": "procedural_fact",
+      "adoption_status": "adopted",
+      "audit_classification": "VERIFIED_FACT",
+      "raw_semantics": null,
+      "mandatory_decision_core_id": "decision-core:disposition:e4564054"
+    },
+    {
+      "id": "8350bbc5-1975-45e7-bd0c-a1fbb815ad6a",
+      "source_module": "agent:custody_best_interest_analysis",
+      "title": "Dedicación prolongada de la madre al cuidado de los hijos",
+      "verdict": "insufficient",
+      "narrative_verdict": "insufficient",
+      "reviewed_physical_pages": [
+        4,
+        6,
+        7
+      ],
+      "reason": "Fourteen years of care are supported. High quality/capacity of care and a prospective primary-custody advantage require separate evidence; custody was already settled.",
+      "stored_source_page": 4,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": null,
+        "proposition_type": null,
+        "adoption_status": null,
+        "audit_classification": null
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "324eaf6f-b43d-44bc-ab27-5f22e6d0a790",
+      "source_module": "agent:custody_best_interest_analysis",
+      "title": "Actividad profesional a tiempo completo del padre",
+      "verdict": "insufficient",
+      "narrative_verdict": "insufficient",
+      "reviewed_physical_pages": [
+        4,
+        6,
+        7
+      ],
+      "reason": "Full-time employment is supported. Possible availability limits are a tentative inference, not proved parenting incapacity or a current basis for reallocating custody.",
+      "stored_source_page": 4,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": null,
+        "proposition_type": null,
+        "adoption_status": null,
+        "audit_classification": null
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "84692137-4944-45c8-9193-b6a7c4c87792",
+      "source_module": "agent:custody_best_interest_analysis",
+      "title": "Existencia de dos hijos menores de edad",
+      "verdict": "insufficient",
+      "narrative_verdict": "insufficient",
+      "reviewed_physical_pages": [
+        4,
+        6
+      ],
+      "reason": "Parentage and two children are supported. Parentage alone does not establish an affectionate bond with each parent; the record also describes therapy to restore the maternal relationship.",
+      "stored_source_page": 4,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": null,
+        "proposition_type": null,
+        "adoption_status": null,
+        "audit_classification": null
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "62f6cb0b-f124-4259-8f45-9da20b88ea3d",
+      "source_module": "agent:custody_best_interest_analysis",
+      "title": "Ausencia de pronunciamiento sobre guarda y custodia en la sentencia de divorcio",
+      "verdict": "contradicted",
+      "narrative_verdict": "contradicted",
+      "reviewed_physical_pages": [
+        4,
+        6,
+        7
+      ],
+      "reason": "The2017 nondecision is historical. Later2018 settlement resolved custody/visits and was approved; presenting ongoing uncertainty until a settlement and recommending that settlement ignores subsequent events.",
+      "stored_source_page": 4,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": null,
+        "proposition_type": null,
+        "adoption_status": null,
+        "audit_classification": null
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "99b8d50d-4fef-4e61-9126-55bb2adeebf7",
+      "source_module": "agent:witness_credibility",
+      "title": "Acuerdo con cláusulas de guarda y custodia",
+      "verdict": "contradicted",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        6,
+        7,
+        9
+      ],
+      "reason": "Agreement by the male appellate party is supported. metadata.raw attributes him to quejoso, but the principal constitutional claimant is the woman and the man is the third interested/adhesive party. The added prospective custody advantage is unsupported in this final ADR.",
+      "stored_source_page": 6,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": "quejoso",
+        "proposition_type": "party_argument",
+        "adoption_status": null,
+        "audit_classification": "VERIFIED_FACT"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "cea6f49a-4554-411f-9cbe-da7a9d82a223",
+      "source_module": "agent:witness_credibility",
+      "title": "Compromiso de terapia psicológica para los menores",
+      "verdict": "contradicted",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        6,
+        9
+      ],
+      "reason": "Therapy promise and joint choice of therapist are supported. metadata.raw speaker_role=quejoso misidentifies the male obligor as the principal female claimant. Preserve the promise as historical fact with correct party attribution.",
+      "stored_source_page": 6,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": "quejoso",
+        "proposition_type": "party_argument",
+        "adoption_status": null,
+        "audit_classification": "VERIFIED_FACT"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "ad8ae0eb-1d19-4b9d-9b27-904e5837d700",
+      "source_module": "agent:witness_credibility",
+      "title": "Compromiso de adquirir recámara para los hijos",
+      "verdict": "contradicted",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        6,
+        9
+      ],
+      "reason": "Bedroom-purchase promise is supported. metadata.raw speaker_role=quejoso misidentifies the male obligor; a promise also is not evidence of fulfilled payment or financial means.",
+      "stored_source_page": 6,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": "quejoso",
+        "proposition_type": "party_argument",
+        "adoption_status": null,
+        "audit_classification": "VERIFIED_FACT"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "765c36c1-0e2a-43f3-8b3e-44bd2d1c868e",
+      "source_module": "agent:witness_credibility",
+      "title": "Legitimación de las partes recurrentes",
+      "verdict": "insufficient",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        1,
+        19
+      ],
+      "reason": "Standing is expressly supported. Additional assertion that this avoids nullity is not established in the cited standing ruling; retain the standing finding without an invented procedural consequence.",
+      "stored_source_page": 1,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": "scjn",
+        "proposition_type": "holding",
+        "adoption_status": "adopted",
+        "audit_classification": "VERIFIED_COURT_HOLDING"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "33346625-9fb0-4305-92d7-0133522c7852",
+      "source_module": "agent:witness_credibility",
+      "title": "Hechos: Fecha y régimen del matrimonio",
+      "verdict": "supported",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        3,
+        4
+      ],
+      "reason": "Date appears onp3 and separation-of-property regime continues onp4; second evidence_ref covers the continuation. Supported historical fact.",
+      "stored_source_page": 3,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": "scjn",
+        "proposition_type": "case_fact",
+        "adoption_status": "historical",
+        "audit_classification": "VERIFIED_FACT"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "d0b12f45-8e4e-4a1c-b9a1-e328dc8ff650",
+      "source_module": "agent:witness_credibility",
+      "title": "Hechos: Existencia de dos hijos",
+      "verdict": "supported",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        4
+      ],
+      "reason": "Judgment records two children S.andP. Treat as historical family composition, not an independent new custody determination.",
+      "stored_source_page": 4,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": "scjn",
+        "proposition_type": "case_fact",
+        "adoption_status": "historical",
+        "audit_classification": "VERIFIED_FACT"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "0740ec89-48a0-42fe-88bc-82399cb6907a",
+      "source_module": "agent:witness_credibility",
+      "title": "Hechos: Orden de pensión alimenticia provisional",
+      "verdict": "supported",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        4,
+        7
+      ],
+      "reason": "Paragraph4 records the20June2017 provisional support order. It is a dated historical event; p7 later terminates provisional measures, so it must not be displayed as still operative.",
+      "stored_source_page": 4,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": "scjn",
+        "proposition_type": "case_fact",
+        "adoption_status": "historical",
+        "audit_classification": "VERIFIED_FACT"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "68b597c9-9488-4c8a-b0ae-2ba762805906",
+      "source_module": "agent:witness_credibility",
+      "title": "Hechos: Sentencia de divorcio sin pronunciamiento sobre guarda y custodia",
+      "verdict": "insufficient",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        4,
+        6,
+        7
+      ],
+      "reason": "Dated2017 nondecision is accurate. Legal-significance/impact language about issues remaining pending is stale unless explicitly confined to2017; subsequent settlement is documented.",
+      "stored_source_page": 4,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": "scjn",
+        "proposition_type": "case_fact",
+        "adoption_status": "historical",
+        "audit_classification": "VERIFIED_FACT"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "1b1cce00-320f-464d-b58d-418752539b40",
+      "source_module": "agent:witness_credibility",
+      "title": "Convenio tratado como sentencia firme",
+      "verdict": "contradicted",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        6,
+        7
+      ],
+      "reason": "Agreement received judgment-like enforceability. metadata.raw wrongly attributes it to Tribunal Colegiado instead of Quinta Sala Familiar. The added absolute bar to later challenge is not established; source expressly reserves article94.",
+      "stored_source_page": 7,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": "tribunal_colegiado",
+        "proposition_type": "holding",
+        "adoption_status": "adopted",
+        "audit_classification": "VERIFIED_COURT_HOLDING"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "2f098c6f-f759-43d4-ab94-e9013a18591f",
+      "source_module": "agent:witness_credibility",
+      "title": "Extinción de medidas provisionales",
+      "verdict": "contradicted",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        6,
+        7
+      ],
+      "reason": "Ending provisional measures is supported, but metadata.raw attributes Quinta Sala's act to Tribunal Colegiado. Claim that parties were left without protection omits the replacement settlement and continuing spousal-support proceedings.",
+      "stored_source_page": 7,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": "tribunal_colegiado",
+        "proposition_type": "holding",
+        "adoption_status": "adopted",
+        "audit_classification": "VERIFIED_COURT_HOLDING"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "72036192-6780-47fe-929f-4280dbef3823",
+      "source_module": "agent:witness_credibility",
+      "title": "Inconstitucionalidad de los artículos 281 y 282 del CPC CDMX por carga probatoria discriminatoria",
+      "verdict": "insufficient",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        9,
+        10,
+        51,
+        52
+      ],
+      "reason": "Description correctly reports claimant's constitutional argument, including cited constitutional articles onp10. Suggested future nullity/reform of CPC281/282 is ungrounded for a final ADR whose paragraph129 rejects unconstitutional differential treatment.",
+      "stored_source_page": 9,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": "quejoso",
+        "proposition_type": "argument",
+        "adoption_status": "party_position",
+        "audit_classification": "POTENTIAL_ISSUE"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "554435a8-b63c-4ed3-a546-e4d93f37dbda",
+      "source_module": "agent:witness_credibility",
+      "title": "Aplicación indistinta de reglas probatorias a relaciones civiles familiares y no familiares",
+      "verdict": "supported",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        10,
+        51,
+        52
+      ],
+      "reason": "Accurately attributed claimant argument about unequal family litigation burdens; tentative reinterpretation is consistent with the final special-presumption ruling. Not itself proof that the statutes were invalidated.",
+      "stored_source_page": 10,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": "quejoso",
+        "proposition_type": "argument",
+        "adoption_status": "party_position",
+        "audit_classification": "POTENTIAL_ISSUE"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "d0f83660-60a5-4212-b59b-0c0a79a215ec",
+      "source_module": "agent:witness_credibility",
+      "title": "Incorrecta valoración de pruebas que resultó en pensión alimenticia insuficiente",
+      "verdict": "contradicted",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        11
+      ],
+      "reason": "Description accurately attributes the complaint. Title changes the outcome to insufficient alimony, but source says alimony was denied and the inadequate amount concerned economic compensation. Correct title and retain party-argument attribution.",
+      "stored_source_page": 11,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": "quejoso",
+        "proposition_type": "argument",
+        "adoption_status": "party_position",
+        "audit_classification": "POTENTIAL_ISSUE"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "f565e792-3880-4053-9318-8ccb7555da74",
+      "source_module": "agent:witness_credibility",
+      "title": "Ausencia de perspectiva de género en la valoración del caso",
+      "verdict": "insufficient",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        11,
+        15,
+        16
+      ],
+      "reason": "Description accurately reports claimant's allegation. Predicted partial nullity is not established by the quotation and must not be presented as an available future route after final review.",
+      "stored_source_page": 11,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": "quejoso",
+        "proposition_type": "argument",
+        "adoption_status": "party_position",
+        "audit_classification": "POTENTIAL_ISSUE"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "045f6671-9989-432e-93bb-3e3ba964d058",
+      "source_module": "agent:witness_credibility",
+      "title": "Metodología de cálculo de compensación económica y pensión alimenticia defectuosa",
+      "verdict": "supported",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        11,
+        51
+      ],
+      "reason": "Accurately attributed claimant argument about income/living-standard analysis. Potential reconsideration is conditional and consistent with the final instruction to apply the special presumption; no specific new amount is proved.",
+      "stored_source_page": 11,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": "quejoso",
+        "proposition_type": "argument",
+        "adoption_status": "party_position",
+        "audit_classification": "POTENTIAL_ISSUE"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "55de875f-da14-41c2-8c22-64ff5ae66248",
+      "source_module": "agent:witness_credibility",
+      "title": "Acto discriminatorio de la Sala al negar compensación",
+      "verdict": "insufficient",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        15,
+        16,
+        51,
+        52
+      ],
+      "reason": "Colegiado's criticism is supported. metadata.raw rejected_holding/rejected is not established for this precise proposition: final review corrects the burden rule, not every lower-court observation. Do not infer blanket rejection from modification of judgment.",
+      "stored_source_page": 16,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": "tribunal_colegiado",
+        "proposition_type": "rejected_holding",
+        "adoption_status": "rejected",
+        "audit_classification": "VERIFIED_COURT_HOLDING"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "3ade38df-56e3-4ca6-9465-0cb5f59d8906",
+      "source_module": "agent:witness_credibility",
+      "title": "Indebida exclusión de daños por violencia del análisis",
+      "verdict": "insufficient",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        15,
+        16,
+        52
+      ],
+      "reason": "Colegiado's criticism of excluding damages is supported. metadata.raw rejected_holding/rejected is not demonstrated; adhesive objections are inoperative, and compensation and violence damages should remain distinct.",
+      "stored_source_page": 16,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": "tribunal_colegiado",
+        "proposition_type": "rejected_holding",
+        "adoption_status": "rejected",
+        "audit_classification": "VERIFIED_COURT_HOLDING"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "9f702c12-6243-40f6-a271-fb731700f86f",
+      "source_module": "decision_core",
+      "title": "DETERMINACIÓN DEL TRIBUNAL: El recurso de revisión adhesivo es infundado",
+      "verdict": "supported",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        2,
+        53
+      ],
+      "reason": "FinalSCJN dispositiveTERCERO expressly finds adhesive review unfounded. Stored source_page is missing; bind to physicalp53 before automated certification. Semantically supported, not fabricated.",
+      "stored_source_page": null,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": false,
+      "citation_repair_required": true,
+      "proposition_type": "court_holding",
+      "adoption_status": "adopted",
+      "audit_classification": "VERIFIED_COURT_HOLDING",
+      "raw_semantics": null,
+      "mandatory_decision_core_id": "decision-core:court_holding:4c2e7371"
+    },
+    {
+      "id": "934f96d0-4c93-4c50-9514-a8123e20b91d",
+      "source_module": "agent:witness_credibility",
+      "title": "Falta de valoración y motivación de pruebas por la sala responsable",
+      "verdict": "insufficient",
+      "narrative_verdict": "insufficient",
+      "reviewed_physical_pages": [
+        9,
+        11,
+        12
+      ],
+      "reason": "Source is itemV of claimant's concepts of violation, with 'argumento' and 'A su juicio'. Finding omits attribution and metadata.raw calls it an adopted Tribunal Colegiado fact. Citation proves allegation, not the asserted judicial determination.",
+      "stored_source_page": 12,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": "tribunal_colegiado",
+        "proposition_type": "procedural_fact",
+        "adoption_status": "adopted",
+        "audit_classification": "VERIFIED_FACT"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "58a633a1-778f-4695-b6e8-1b86cfb4dade",
+      "source_module": "agent:witness_credibility",
+      "title": "Declaración de incompetencia del Segundo Tribunal Colegiado",
+      "verdict": "supported",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        13
+      ],
+      "reason": "Paragraph20 records Segundo Colegiado declining competence and identifying Tercer Colegiado; following paragraph records acceptance. Historical procedural event.",
+      "stored_source_page": 13,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": "tribunal_colegiado",
+        "proposition_type": "procedural_fact",
+        "adoption_status": "adopted",
+        "audit_classification": "VERIFIED_FACT"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "aaded2fe-3272-4128-86b0-8db55d934b1b",
+      "source_module": "agent:witness_credibility",
+      "title": "Aceptación de competencia por el Tercer Tribunal Colegiado",
+      "verdict": "supported",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        13
+      ],
+      "reason": "Paragraph21 expressly records Tercer Colegiado accepting competence and docketing the amparos. Historical procedural event, not an outstanding step.",
+      "stored_source_page": 13,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": "tribunal_colegiado",
+        "proposition_type": "procedural_fact",
+        "adoption_status": "adopted",
+        "audit_classification": "VERIFIED_FACT"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "207fc2df-9b44-4f01-9a8e-466dbbf57cf7",
+      "source_module": "agent:witness_credibility",
+      "title": "Concesión del amparo y nulidad de la resolución de la quinta sala familiar",
+      "verdict": "supported",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        13,
+        53
+      ],
+      "reason": "Paragraph22 expressly describes Tercer Colegiado granting amparo to vacate the February2022 ruling. FinalSCJN also grants protection while modifying reasoning; preserve lower-court historical attribution.",
+      "stored_source_page": 13,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": "tribunal_colegiado",
+        "proposition_type": "holding",
+        "adoption_status": "adopted",
+        "audit_classification": "VERIFIED_COURT_HOLDING"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "67227213-e258-4566-8335-6ee818b196ce",
+      "source_module": "agent:witness_credibility",
+      "title": "Fijación de compensación económica del 25 % de los bienes",
+      "verdict": "insufficient",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        13,
+        14,
+        51,
+        52
+      ],
+      "reason": "25percent is the Colegiado's historical award. metadata.raw adopted and present-tense definitive patrimonial entitlement are not established as the final amount after SCJN ordered modification under a different evidentiary rule.",
+      "stored_source_page": 14,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": "tribunal_colegiado",
+        "proposition_type": "holding",
+        "adoption_status": "adopted",
+        "audit_classification": "VERIFIED_COURT_HOLDING"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "602bc6b1-42d9-4d36-8070-b4023cd3760d",
+      "source_module": "agent:witness_credibility",
+      "title": "Condena al tercero interesado al pago de daños y perjuicios",
+      "verdict": "insufficient",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        13,
+        14,
+        52
+      ],
+      "reason": "Colegiado's damages order and deferred quantification are supported. metadata.raw final adoption is not independently established by the historical paragraph; retain as lower-court order without implying a quantified final SCJN award.",
+      "stored_source_page": 14,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": "tribunal_colegiado",
+        "proposition_type": "holding",
+        "adoption_status": "adopted",
+        "audit_classification": "VERIFIED_COURT_HOLDING"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "7c7a71a2-6adb-4c9b-ab11-0dffd50aa6e7",
+      "source_module": "agent:witness_credibility",
+      "title": "Impugnación de artículos 281 y 282",
+      "verdict": "insufficient",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        20,
+        51,
+        52
+      ],
+      "reason": "Claimant's challenge is supported. Possible legislative reform/current future relief is not established by the record; final decision already supplies the controlling interpretive answer.",
+      "stored_source_page": 20,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": "quejoso",
+        "proposition_type": "argument",
+        "adoption_status": null,
+        "audit_classification": "VERIFIED_FACT"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "ca1c964c-c061-4c90-9145-8ce7e4766030",
+      "source_module": "agent:witness_credibility",
+      "title": "Holding del Tribunal Colegiado",
+      "verdict": "supported",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        14,
+        20,
+        51,
+        52
+      ],
+      "reason": "Colegiado's historical constitutional position is accurately attributed; SCJN preserves constitutionality but corrects its discretionary-presumption interpretation.",
+      "stored_source_page": 20,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": "tribunal_colegiado",
+        "proposition_type": "holding",
+        "adoption_status": "historical",
+        "audit_classification": "VERIFIED_COURT_HOLDING"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "18f212bf-05b1-47a1-9211-81e86f1bccc4",
+      "source_module": "agent:witness_credibility",
+      "title": "Adopción de procedencia por la SCJN",
+      "verdict": "supported",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        19
+      ],
+      "reason": "Paragraph34 expressly finds review admissible and warrants merits analysis.",
+      "stored_source_page": 19,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": "scjn",
+        "proposition_type": "holding",
+        "adoption_status": "adopted",
+        "audit_classification": "VERIFIED_COURT_HOLDING"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "3032b8e9-f8d5-4b72-8bdc-b97ab5158d18",
+      "source_module": "agent:witness_credibility",
+      "title": "Aumento de la pensión resarcitoria y compensación",
+      "verdict": "contradicted",
+      "narrative_verdict": "contradicted",
+      "reviewed_physical_pages": [
+        17,
+        51,
+        52,
+        53
+      ],
+      "reason": "Paragraphs26-27 recount recurrente demands, not an SCJN award. Row turns requested10-to20percent into ordered relief and changes40percent OR50percent to40-to50percent. metadata.raw adopted SCJN holding and asserted increased obligation are false attribution/consequence.",
+      "stored_source_page": 17,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": "scjn",
+        "proposition_type": "holding",
+        "adoption_status": "adopted",
+        "audit_classification": "VERIFIED_COURT_HOLDING"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "f7980b95-4649-44c2-91fa-7ab5e32a4827",
+      "source_module": "agent:domestic_violence_assessment",
+      "title": "El tribunal no aplicó una metodología con perspectiva de género en la valoración del caso.",
+      "verdict": "insufficient",
+      "narrative_verdict": "insufficient",
+      "reviewed_physical_pages": [
+        9,
+        11,
+        12
+      ],
+      "reason": "The quoted text begins itemIV with 'Alego que'. It proves claimant alleged missing gender methodology, not a verified adjudicated fact. Reattribute instead of declaring allegation false.",
+      "stored_source_page": 11,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": null,
+        "proposition_type": null,
+        "adoption_status": null,
+        "audit_classification": "VERIFIED_FACT"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "77116297-db77-411f-97ea-3dbfedf0b502",
+      "source_module": "decision_core",
+      "title": "DETERMINACIÓN DEL TRIBUNAL: Se modifica la sentencia recurrida",
+      "verdict": "supported",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        2,
+        53
+      ],
+      "reason": "FinalSCJN dispositivePRIMERO expressly modifies reviewed judgment within scope of review. Stored source_page missing; bind to physicalp53 before automated certification.",
+      "stored_source_page": null,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": false,
+      "citation_repair_required": true,
+      "proposition_type": "court_holding",
+      "adoption_status": "adopted",
+      "audit_classification": "VERIFIED_COURT_HOLDING",
+      "raw_semantics": null,
+      "mandatory_decision_core_id": "decision-core:court_holding:12e96d40"
+    },
+    {
+      "id": "17bf475f-b960-464e-8309-738393a797cb",
+      "source_module": "agent:domestic_violence_assessment",
+      "title": "Se señala que la carga impacta de forma diferenciada a la parte que reclama el derecho a la compensación, generalmente las mujeres.",
+      "verdict": "insufficient",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        11,
+        51,
+        52
+      ],
+      "reason": "A statement about differential burden is recorded as claimant argument. Passive wording and metadata.raw VERIFIED_FACT obscure that status; distinguish reported allegation from accepted final rule and note final constitutionality result.",
+      "stored_source_page": 11,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": null,
+        "proposition_type": null,
+        "adoption_status": null,
+        "audit_classification": "VERIFIED_FACT"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "ad1b3d59-a8c8-4367-bbc8-6bf99d30e41c",
+      "source_module": "agent:domestic_violence_assessment",
+      "title": "El Tribunal Colegiado desarrolló la teoría de la carga de la prueba y determinó que los artículos 281 y 282 del Código de Procedimientos Civiles de la Ciudad de México son inconstitucionales.",
+      "verdict": "contradicted",
+      "narrative_verdict": "contradicted",
+      "reviewed_physical_pages": [
+        14,
+        20,
+        52
+      ],
+      "reason": "Exact quote truncates immediately before 'no contienen el vicio de inconstitucionalidad'. Row reverses that negation; final paragraph129 likewise rejects unjustified differential statutory treatment.",
+      "stored_source_page": 14,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": null,
+        "proposition_type": null,
+        "adoption_status": null,
+        "audit_classification": "VERIFIED_FACT"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "c5b5626c-42a1-42af-a0bf-42a2c662827a",
+      "source_module": "agent:domestic_violence_assessment",
+      "title": "Violencia psicológica ejercida por el excónyuge",
+      "verdict": "insufficient",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        15,
+        16,
+        52
+      ],
+      "reason": "Historical Colegiado finding of emotional violence is supported. Specific LGAMVLV classification, future protection order, and custody consequences are not established by this source passage or final ADR disposition.",
+      "stored_source_page": 16,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": null,
+        "proposition_type": null,
+        "adoption_status": null,
+        "audit_classification": null
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "8e73b7a2-adc2-45e8-9be1-078a0c495f98",
+      "source_module": "decision_core",
+      "title": "RESULTADO: SEGUNDO. Quedan las partes obligadas a estar y pasar por el\nconvenio celebrado ante la Quinta Sala Familiar en fecha TERCERO. Se absuelve al señor **** ****** ******* ******* del pago\nde al",
+      "verdict": "contradicted",
+      "narrative_verdict": "supported_as_history_only",
+      "reviewed_physical_pages": [
+        7,
+        8,
+        9,
+        13,
+        14,
+        51,
+        52,
+        53
+      ],
+      "reason": "Historical2019 first-instance absolutions are real, but this mandatory DISPOSITION/adopted RESULTADO treats them as the reviewed final result. FinalSCJN modifies judgment and grants amparo atp53. Same mandatorycore ID appears nine times: eight excess duplicates, not nine independent substantive errors.",
+      "stored_source_page": 7,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": "procedural_fact",
+      "adoption_status": "adopted",
+      "audit_classification": "VERIFIED_FACT",
+      "raw_semantics": null,
+      "mandatory_decision_core_id": "decision-core:disposition:e4564054"
+    },
+    {
+      "id": "f9218ed6-825b-4265-9a4e-2bb31e6e0c3e",
+      "source_module": "agent:child_support_calculation",
+      "title": "Propuesta de porcentaje sobre bienes como compensación económica",
+      "verdict": "contradicted",
+      "narrative_verdict": "contradicted",
+      "reviewed_physical_pages": [
+        5
+      ],
+      "reason": "Paragraph9 records man's request for declaration that spouse has no compensation right; paragraph10 records woman's50percent request. Row assigns that request to male defendant, reversing the requesting party.",
+      "stored_source_page": 5,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": null,
+        "proposition_type": null,
+        "adoption_status": null,
+        "audit_classification": null
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "dbe4cfc2-993b-4d14-9d6c-5386a19d5107",
+      "source_module": "agent:child_support_calculation",
+      "title": "Propuesta de cubrir la totalidad de los gastos de los menores",
+      "verdict": "insufficient",
+      "narrative_verdict": "insufficient",
+      "reviewed_physical_pages": [
+        6,
+        7
+      ],
+      "reason": "Agreement to cover all child expenses is documented. Calling that short phrase a complete calculation formula or basis for a new amount omits scope/details and already-approved settlement.",
+      "stored_source_page": 6,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": null,
+        "proposition_type": null,
+        "adoption_status": null,
+        "audit_classification": null
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "a0a90e7a-92ea-4e68-b5c8-868c4beb51cd",
+      "source_module": "agent:child_support_calculation",
+      "title": "Necesidad del acreedor no especificada",
+      "verdict": "insufficient",
+      "narrative_verdict": "insufficient",
+      "reviewed_physical_pages": [
+        4,
+        5,
+        11,
+        12
+      ],
+      "reason": "An excerpt about valuation does not prove document-wide absence of financial data. Source includes work history, property context and claimed315000peso debts; actual quantified income proof may still be missing. Phrase as a bounded evidence gap, not categorical absence.",
+      "stored_source_page": 11,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": null,
+        "proposition_type": null,
+        "adoption_status": null,
+        "audit_classification": null
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "9e60cb4d-be3b-40ea-a5c7-fe96d4034aa7",
+      "source_module": "agent:child_support_calculation",
+      "title": "Capacidad económica del deudor no demostrada",
+      "verdict": "insufficient",
+      "narrative_verdict": "insufficient",
+      "reviewed_physical_pages": [
+        11,
+        51
+      ],
+      "reason": "The no-evidence assertion is introduced by 'senalo que' as claimant argument. It does not establish that the entire record lacks debtor capacity evidence; final judgment addresses presumptions/burden allocation.",
+      "stored_source_page": 11,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": null,
+        "proposition_type": null,
+        "adoption_status": null,
+        "audit_classification": null
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "144060eb-ddef-46b1-9513-b68e03ac5d51",
+      "source_module": "agent:child_support_calculation",
+      "title": "Necesidad del acreedor (cuidado de hijos y labores del hogar)",
+      "verdict": "contradicted",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        4,
+        6,
+        13,
+        51
+      ],
+      "reason": "Caregiving history and presumptive spousal need are supported by final reasoning. Added impact shifts relief to children and legal significance invokes federal civil code without support, whereas this record concerns the ex-wife's compensatory rights under local family proceedings.",
+      "stored_source_page": 4,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": null,
+        "proposition_type": null,
+        "adoption_status": null,
+        "audit_classification": null
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "a1f40e13-ddd9-4f20-a9dc-27d58032ece5",
+      "source_module": "agent:child_support_calculation",
+      "title": "Capacidad económica del deudor (profesión a tiempo completo)",
+      "verdict": "insufficient",
+      "narrative_verdict": "insufficient",
+      "reviewed_physical_pages": [
+        4
+      ],
+      "reason": "Historical full-time work is supported; current financial capacity, amount available, and justification for higher support are not proved by employment alone.",
+      "stored_source_page": 4,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": null,
+        "proposition_type": null,
+        "adoption_status": null,
+        "audit_classification": null
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "91e7d329-9297-4482-9eae-8437c7990d52",
+      "source_module": "agent:child_support_calculation",
+      "title": "Porcentaje de compensación económica establecido",
+      "verdict": "contradicted",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        9,
+        13,
+        14,
+        51,
+        52
+      ],
+      "reason": "5percent in February2022 is accurate history. Added significance/impact makes it the applicable present payment criterion, though the Colegiado later set25percent and SCJN ordered modification. Preserve chronology, not obsolete governing percentage.",
+      "stored_source_page": 9,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": null,
+        "proposition_type": null,
+        "adoption_status": null,
+        "audit_classification": null
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "c58ed135-f2f9-4848-8b95-b8eee1b11b57",
+      "source_module": "agent:child_support_calculation",
+      "title": "Necesidad de la quejosa para sufragar sus necesidades",
+      "verdict": "insufficient",
+      "narrative_verdict": "insufficient",
+      "reviewed_physical_pages": [
+        12,
+        13,
+        14,
+        15,
+        16,
+        51
+      ],
+      "reason": "Citedp12 is claimant argument invoking another precedent, not the asserted case-specific judicial recognition. TC recognition exists elsewhere pp15-16 and10percent award pp13-14; repair attribution/citations and avoid definitive final percentage.",
+      "stored_source_page": 12,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": null,
+        "proposition_type": null,
+        "adoption_status": null,
+        "audit_classification": null
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "2460cda6-5aa2-4345-a726-6115f51c1213",
+      "source_module": "agent:child_support_calculation",
+      "title": "Porcentaje y fórmula propuestos para la compensación económica",
+      "verdict": "insufficient",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        13,
+        14,
+        51,
+        52
+      ],
+      "reason": "Historical Colegiado10percent support/25percent compensation are supported acrosspp13-14. Additional definitive current-amount language omits final modification; not an independently verified final SCJN amount.",
+      "stored_source_page": 14,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": null,
+        "proposition_type": null,
+        "adoption_status": null,
+        "audit_classification": null
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "33406c53-4a58-4f6e-a0aa-21ac90766812",
+      "source_module": "agent:child_support_calculation",
+      "title": "Inconformidad sobre el porcentaje de pensión resarcitoria",
+      "verdict": "supported",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        17
+      ],
+      "reason": "Correctly says recurrente requested10-to20percent. Keep the impact as requested/potential relief, never an award; contrasts with false3032b8e9.",
+      "stored_source_page": 17,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": null,
+        "proposition_type": null,
+        "adoption_status": null,
+        "audit_classification": null
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "42f41a43-0d8f-4304-b761-16d8d89d9e26",
+      "source_module": "agent:child_support_calculation",
+      "title": "Planteamiento sobre la carga probatoria en pensión alimenticia compensatoria",
+      "verdict": "supported",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        20,
+        51,
+        52
+      ],
+      "reason": "Accurately describes claimant's constitutional challenge and resulting evidentiary-standard issue; no assertion of statutory invalidation.",
+      "stored_source_page": 20,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": null,
+        "proposition_type": null,
+        "adoption_status": null,
+        "audit_classification": null
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "869d561c-38de-4954-94d7-312a68025e36",
+      "source_module": "agent:ways_out_analysis",
+      "title": "Celebración de convenio parcial en segunda instancia",
+      "verdict": "supported",
+      "narrative_verdict": "supported",
+      "reviewed_physical_pages": [
+        6,
+        7,
+        52
+      ],
+      "reason": "Paragraph11 records the partial settlement and remaining spousal support/compensation issues. Historical scope is supported; children support already settled.",
+      "stored_source_page": 6,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": null,
+        "proposition_type": null,
+        "adoption_status": null,
+        "audit_classification": "VERIFIED_FACT"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "c24e1e50-7b26-466e-9192-ae7ea10da4a6",
+      "source_module": "agent:ways_out_analysis",
+      "title": "Posible interposición de incidente de convivencias para que el tribunal determine régimen de visitas y convivencia, conforme a lo omitido en la sentencia.",
+      "verdict": "insufficient",
+      "narrative_verdict": "insufficient",
+      "reviewed_physical_pages": [
+        4,
+        6,
+        7,
+        53
+      ],
+      "reason": "Possible new visitation incident is based on2017 omission despite later2018 visitation settlement. No new breach/change requiring a fresh incident is shown. Unsupported current recommendation, not proof no route could ever exist.",
+      "stored_source_page": 4,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": null,
+        "proposition_type": null,
+        "adoption_status": null,
+        "audit_classification": "POTENTIAL_ISSUE"
+      },
+      "mandatory_decision_core_id": null
+    },
+    {
+      "id": "85acf9c9-ad79-4769-8adb-7f605175f351",
+      "source_module": "agent:ways_out_analysis",
+      "title": "Posible presentación de convenio regulador para resolver las cuestiones pendientes de guarda, visitas, alimentos y domicilio.",
+      "verdict": "insufficient",
+      "narrative_verdict": "insufficient",
+      "reviewed_physical_pages": [
+        4,
+        6,
+        7,
+        53
+      ],
+      "reason": "Proposes future settlement as though custody/visits remained unresolved; a later approved settlement is already documented. No subsequent facts support a new agreement as a present avenue.",
+      "stored_source_page": 4,
+      "source_document_id": "f037cab6-9be7-49b1-aebc-64dacb43940c",
+      "quote_exact_on_stored_page": true,
+      "citation_repair_required": false,
+      "proposition_type": null,
+      "adoption_status": null,
+      "audit_classification": null,
+      "raw_semantics": {
+        "speaker_role": null,
+        "proposition_type": null,
+        "adoption_status": null,
+        "audit_classification": "POTENTIAL_ISSUE"
+      },
+      "mandatory_decision_core_id": null
+    }
+  ]
+}

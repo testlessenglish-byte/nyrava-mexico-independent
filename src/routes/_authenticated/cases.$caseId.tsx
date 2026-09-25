@@ -1,3 +1,6 @@
+import { DocumentAnalysisPurposeFields } from "@/components/DocumentAnalysisPurposeFields";
+import { DocumentPurposeEditor } from "@/components/DocumentPurposeEditor";
+import { LegalScopeSummary } from "@/components/reports/LegalScopeSummary";
 import { ReportRecovery } from "@/components/ReportRecovery";
 const AGENT_LABELS: Record<string, string> = {
   search_warrant_arrest_legality: "Legalidad de cateo y arresto",
@@ -649,7 +652,7 @@ function Workspace() {
                 disabled={false}
                 onClick={async () => {
                   const { downloadJson } = await import("@/lib/export");
-                  downloadJson(await buildFreshExportData(), c.name);
+                  await downloadJson(await buildFreshExportData(), c.name);
                   void logReportExport({
                     data: { caseId: c.id, format: "json", caseName: c.name },
                   }).catch(() => {});
@@ -848,7 +851,7 @@ function Workspace() {
             )}
             {tab === "strategic" && <StrategicFindingsTab findings={findings} />}
             {tab === "attack" && <AttackSurfaceTab surface={attackSurface} />}
-            {tab === "intel" && <IntelTab docs={docs} caseId={c.id} invalidate={invalidate} />}
+            {tab === "intel" && <IntelTab docs={docs} caseId={c.id} invalidate={invalidate} defaultPurpose={String((c.matter_metadata as Record<string, unknown> | null)?.document_purpose_default ?? "")} />}
             {tab === "analyzers" && <AnalyzersTab a={analysis} />}
             {tab === "agents" && <AgentsTab agents={agents} />}
             {tab === "perspectives" && (
@@ -1617,14 +1620,14 @@ function DocumentTextSection({ documentId }: { documentId: string }) {
   );
 }
 
-function IntelTab({ docs, caseId, invalidate }: { docs: Doc[]; caseId: string; invalidate: () => Promise<void> }) {
+function IntelTab({ docs, caseId, invalidate, defaultPurpose }: { docs: Doc[]; caseId: string; invalidate: () => Promise<void>; defaultPurpose: string }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [busyDocId, setBusyDocId] = useState<string | null>(null);
   const [retryAllBusy, setRetryAllBusy] = useState(false);
   const failedCount = docs.filter((d) => d.status === "failed").length;
   return (
     <div className="space-y-3">
-      <AddEvidenceBlock caseId={caseId} invalidate={invalidate} />
+      <AddEvidenceBlock caseId={caseId} invalidate={invalidate} defaultPurpose={defaultPurpose} />
       {docs.length === 0 ? <Empty msg="No documents uploaded yet." /> : null}
 
       {failedCount > 0 && (
@@ -1747,6 +1750,7 @@ function IntelTab({ docs, caseId, invalidate }: { docs: Doc[]; caseId: string; i
                     </button>
                   )}
                 </div>
+                <DocumentPurposeEditor caseId={caseId} documentId={d.id} metadata={d.metadata} onSaved={invalidate} />
                 <Section title={L("Metadatos", "Metadata")}>
                   <Pre v={d.metadata} />
                 </Section>
@@ -1765,7 +1769,10 @@ function IntelTab({ docs, caseId, invalidate }: { docs: Doc[]; caseId: string; i
   );
 }
 
-function AddEvidenceBlock({ caseId, invalidate }: { caseId: string; invalidate: () => Promise<void> }) {
+function AddEvidenceBlock({ caseId, invalidate, defaultPurpose }: { caseId: string; invalidate: () => Promise<void>; defaultPurpose: string }) {
+  const [documentPurpose, setDocumentPurpose] = useState(defaultPurpose);
+  const [connectionNote, setConnectionNote] = useState("");
+  useEffect(() => {setDocumentPurpose(defaultPurpose); setConnectionNote("");}, [caseId, defaultPurpose]);
   const [busy, setBusy] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [progress, setProgress] = useState<string>("");
@@ -1785,6 +1792,8 @@ function AddEvidenceBlock({ caseId, invalidate }: { caseId: string; invalidate: 
       const fd = new FormData();
       fd.append("caseId", caseId);
       fd.append("rerunScope", rerunScope);
+      fd.append("analysis_purpose", documentPurpose);
+      fd.append("client_connection_note", connectionNote);
       for (const f of arr) fd.append("files", f);
       // useServerFn for createServerFn with FormData input passes the FormData directly.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1903,6 +1912,7 @@ function AddEvidenceBlock({ caseId, invalidate }: { caseId: string; invalidate: 
           </button>
         </div>
       </div>
+      <DocumentAnalysisPurposeFields purpose={documentPurpose} onPurposeChange={setDocumentPurpose} connectionNote={connectionNote} onConnectionNoteChange={setConnectionNote} disabled={busy} />
       {busy && progress && (
         <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
           <Loader2 className="h-3 w-3 animate-spin" /> {progress}
@@ -2988,6 +2998,7 @@ function ReportTab({
 
   return (
     <div className="space-y-6">
+      <LegalScopeSummary fullReport={r.full_report} />
       <CanonicalReportFindings payload={finalPayload} />
       <ParityBadge report={r} projections={projections} />
       <ObjectivePanel r={r} />

@@ -1,34 +1,33 @@
-// Hallucination review: verifies that every finding's cited quote actually
-// appears in the cited source document/page. Pure DB-driven, no LLM cost.
-//
-// Uses the SAME verifier (`verifyQuote` from grounding.server.ts) that the
-// evidence gate applies at write time. Two independent implementations
-// silently disagree on what counts as a match — a finding that passed the
-// gate could still fail this review purely because the tolerances differed.
-// One verifier, one source of truth.
+// Hallucination review: quotation identity and claim support are separate.
+// A matching fragment cannot certify its interpretation or court attribution.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
-import {
-  buildGroundingCorpus,
-  verifyQuote,
-  isLegalAuthorityCitation,
-  type GroundingCorpus,
-} from "./grounding.server";
+import { reviewClaimSupport } from './claim-support-review.server';
+import { supportInput, type SupportClaim, type SupportVerdict } from './claim-support-review';
 import { PROJECTION_LIKE } from "@/lib/intelligence/finding-selection";
 import { isDuplicateTitle } from "./report-recommendations";
 import { checkDomainVocabulary } from "./domain-vocabulary-gate";
 import { validateRenderedReport } from "@/lib/canonical/prerender-validate.server";
 import { decideRenderedReportRelease } from "@/lib/canonical/rendered-report-release";
+import { loadReviewSourceSnapshot, scopedReviewPages } from './review-source-snapshot.server';
 
 type Db = SupabaseClient<Database>;
 
-type Finding = {
+type Finding = SupportClaim & {
+  updated_at: string;
+  finding_status?: string;
+  lifecycle_status?: string;
+  superseded_at?: string | null;
   id: string;
   title: string;
+  description?: string | null;
   source_document_id: string | null;
   source_page: number | null;
   source_quote: string | null;
   source_doc_ids: string[] | null;
+  speaker_role?: string | null;
+  proposition_type?: string | null;
+  adoption_status?: string | null;
 };
 
 type Page = { document_id: string; page: number; text: string };
@@ -499,37 +498,32 @@ async function reconcileSavedReportProse(
 
 }
 
-export async function runHallucinationReview(args: { db: Db; caseId: string }): Promise<HallucinationReport> {
+export async function runHallucinationReview(args: { db: Db; caseId: string; userId?: string }): Promise<HallucinationReport> {
   const { db, caseId } = args;
 
-  const { data: findingsRaw, error: fErr } = await db
-    .from("case_findings")
-    .select("id,title,source_module,source_document_id,source_page,source_quote,source_doc_ids,metadata")
-    .eq("case_id", caseId)
-    .not("source_module", "like", PROJECTION_LIKE);
-  if (fErr) throw new Error(`Load findings failed: ${fErr.message}`);
-  const findings = (findingsRaw ?? []) as Array<Finding & { source_module: string; metadata?: Record<string, unknown> }>;
+  const snapshot=await loadReviewSourceSnapshot(db,caseId);
+  const findings = (snapshot.findings as Array<Finding & { source_module: string; metadata?: Record<string, unknown> }>)
+    .filter(f=>!String(f.source_module ?? '').startsWith(PROJECTION_LIKE.replace(/%$/,'')))
+    .filter(f=>f.finding_status!=="suppressed" && !f.superseded_at && f.lifecycle_status!=="superseded" && f.metadata?.provisional!==true);
 
   const proseReconciliation = await reconcileSavedReportProse(db, caseId);
 
-  const { data: pagesRaw } = await db
-    .from("document_pages")
-    .select("document_id,page,text")
-    .eq("case_id", caseId);
-  const pages = (pagesRaw ?? []) as Page[];
-
-  const perDocPages = new Map<string, Page[]>();
-  for (const p of pages) {
-    const arr = perDocPages.get(p.document_id) ?? [];
-    arr.push(p);
-    perDocPages.set(p.document_id, arr);
-  }
-  const perDocCorpus = new Map<string, GroundingCorpus>();
-  for (const [docId, pgs] of perDocPages) {
-    pgs.sort((a, b) => a.page - b.page);
-    const extracted = pgs.map((p) => p.text ?? "").join("\n");
-    perDocCorpus.set(docId, buildGroundingCorpus([{ id: docId, filename: docId, extracted_text: extracted }]));
-  }
+  const pages = scopedReviewPages(snapshot);
+  const findingsById=new Map(findings.map(f=>[f.id,f]));
+  const persistBatch=async (batch:ReadonlyMap<string,SupportVerdict>)=>{
+    for(const [id,verdict] of batch){
+      const finding=findingsById.get(id)!;
+      const status=!finding.source_quote || !finding.source_document_id ? 'no_citation'
+        : verdict.verdict==='supported' ? 'verified' : 'unverified';
+      const {data:written,error}=await db.from('case_findings').update({
+        verification_status:status,verification_notes:`${verdict.verdict}: ${verdict.reason}`,
+        verified_at:new Date().toISOString(),metadata:{...finding.metadata,semantic_support_review:verdict},
+      } as any).eq('id',id).eq('updated_at',finding.updated_at).select('id,updated_at');
+      if(error || written?.length!==1)throw new Error('Finding changed during semantic review; review must be repeated.');
+      finding.updated_at=written[0].updated_at;
+    }
+  };
+  const support = await reviewClaimSupport(findings, pages, args.userId,persistBatch);
 
   const report: HallucinationReport = {
     ran_at: new Date().toISOString(),
@@ -550,7 +544,6 @@ export async function runHallucinationReview(args: { db: Db; caseId: string }): 
   };
 
   const nowIso = new Date().toISOString();
-  const updates: Array<{ id: string; status: "verified" | "unverified" | "no_citation" | "authority_exempt"; notes: string }> = [];
   for (const f of findings) {
     const mod = f.source_module || "unknown";
     if (!report.by_module[mod]) {
@@ -562,52 +555,16 @@ export async function runHallucinationReview(args: { db: Db; caseId: string }): 
     let notes = "";
     const quote = (f.source_quote ?? "").trim();
     const docId = f.source_document_id ?? ((Array.isArray(f.source_doc_ids) && f.source_doc_ids[0]) || null);
-    const meta = (f.metadata ?? {}) as Record<string, unknown>;
-    const exemptionType = meta.citation_exemption_type as string | undefined;
-    const isExempt =
-      exemptionType === "EXEMPT_METADATA" ||
-      exemptionType === "EXEMPT_STATUTORY_FORMULA" ||
-      Boolean(meta.is_authority_exempt) ||
-      Boolean(meta.authority_level != null && Number(meta.authority_level) > 0);
-
+    const verdict = support.get(f.id);
     if (!quote || !docId) {
-      if (isExempt) {
-        status = "authority_exempt";
-        notes = "Deterministic decision core proposition — exempt from verbatim corpus quote citation.";
-      } else {
-        status = "no_citation";
-        notes = !quote && !docId ? "No source document or quote." : !quote ? "No source quote." : "No source document.";
-      }
+      status = "no_citation";
+      notes = "Claim lacks a document-bound source quote; legal-authority labels do not waive proof.";
+    } else if (verdict?.verdict === 'supported') {
+      status = 'verified';
+      notes = `Source context supports the claim and attribution: ${verdict.reason}`;
     } else {
-      // Search ALL cited documents, not just the first one. A finding may
-      // synthesize across documents; the quote may reside in any of them.
-      let corpus = perDocCorpus.get(docId);
-      if (!corpus && Array.isArray(f.source_doc_ids)) {
-        for (const altId of f.source_doc_ids) {
-          const alt = perDocCorpus.get(altId);
-          if (alt && verifyQuote(quote, alt)) { corpus = alt; break; }
-        }
-      }
-      if (!corpus && perDocCorpus.size === 1) {
-        corpus = Array.from(perDocCorpus.values())[0];
-      }
-      if (corpus && verifyQuote(quote, corpus)) {
-        // Quote text exists in the corpus — this is QUOTATION verification,
-        // not proof that the finding's claim follows from the quote. Mark as
-        // verified for now; a future semantic gate should check claim support,
-        // negation, speaker attribution, and procedural-role alignment.
-        status = "verified";
-        notes = f.source_page != null ? `Quote verified against document (page ${f.source_page}).` : "Quote verified against document.";
-      } else if (isLegalAuthorityCitation(quote) || isExempt) {
-        status = "authority_exempt";
-        notes = "Legal authority reference (constitutional/statutory/tesis) — exempt from verbatim corpus matching.";
-      } else if (!corpus) {
-        status = "unverified";
-        notes = "Cited document has no extracted pages in the corpus.";
-      } else {
-        status = "unverified";
-        notes = "Quote not found in cited source (grounding.verifyQuote).";
-      }
+      status = 'unverified';
+      notes = `${verdict?.verdict ?? 'insufficient'}: ${verdict?.reason ?? 'Semantic support not established.'}`;
     }
 
     report[status] += 1;
@@ -615,24 +572,20 @@ export async function runHallucinationReview(args: { db: Db; caseId: string }): 
     if (status === "unverified" && report.unverified_examples.length < 25) {
       report.unverified_examples.push({ id: f.id, title: f.title, reason: notes });
     }
-    updates.push({ id: f.id, status, notes });
   }
 
-  for (let i = 0; i < updates.length; i += 25) {
-    const batch = updates.slice(i, i + 25);
-    const results = await Promise.all(
-      batch.map((u) =>
-        db.from("case_findings").update({ verification_status: u.status, verification_notes: u.notes, verified_at: nowIso } as any).eq("id", u.id),
-      ),
-    );
-    const failed = results.find((r) => r.error);
-    if (failed?.error) throw new Error(`Finding verification update failed: ${failed.error.message}`);
-  }
+  // A concurrent edit or newly inserted claim invalidates this review as a whole.
+  const current=await loadReviewSourceSnapshot(db,caseId);
+  const currentPages=scopedReviewPages(current);
+  const eligible=current.findings.filter((f:any)=>!String(f.source_module ?? '').startsWith(PROJECTION_LIKE.replace(/%$/,'')) && f.finding_status!=='suppressed' && !f.superseded_at && f.lifecycle_status!=='superseded' && f.metadata?.provisional!==true);
+  if(eligible.length!==findings.length || eligible.some((f:any)=>support.get(f.id)?.hash!==supportInput(f,currentPages).hash))
+    throw new Error('Findings changed during semantic review; final approval withheld.');
 
-  await db
+  const { error: reportError } = await db
     .from("cases")
     .update({ hallucination_report: report as any, hallucination_at: nowIso as any } as any)
     .eq("id", caseId);
+  if (reportError) throw new Error(`Semantic review summary could not be saved: ${reportError.message}`);
 
   return report;
 }

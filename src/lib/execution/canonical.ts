@@ -425,8 +425,6 @@ export function requireEngineForStage(stageKey: string): string {
 // would make the pre-flight check permanently unsatisfiable (it can only
 // become "completed" after it has already run).
 //
-// 2026-07-31: per explicit direction, the report must not generate until
-// EVERY stage has reached a terminal state — not just the stages marked
 // Only stages explicitly classified as blocking can prevent report assembly.
 // Enriching and optional stages still run and remain visible in diagnostics,
 // but their failure degrades coverage rather than contradicting the runner's
@@ -435,11 +433,8 @@ export const REPORT_BLOCKING_ENGINES: readonly string[] = CANONICAL_STAGES.filte
   (s) => s.requirement === "blocking" && s.engine !== "report_generator",
 ).map((s) => s.engine);
 
-/** Engines whose stage is requirement:"optional".
- * Optional controls pipeline scheduling/failure propagation only. It does not
- * authorize an attorney-facing report to release after that engine failed.
- * completed_negative or an audited skipped state represent legitimate no-result
- * outcomes; failed/blocked require revision. */
+/** Optional work may be unavailable in a draft. Its actual status must remain
+ * visible as a coverage gap; it never becomes a fabricated completed stage. */
 export const OPTIONAL_ENGINES: ReadonlySet<string> = new Set(
   CANONICAL_STAGES.filter((s) => s.requirement === "optional").map((s) => s.engine),
 );
@@ -668,13 +663,25 @@ export type ReportGate = {
   missingBlocking: string[];
   missingEnriching: string[];
   blockers: ReportBlocker[];
+  coverageGaps: ReportBlocker[];
 };
 
 export type ReportReadiness = { state: "READY" } | { state: "WAITING"; reason: string } | { state: "BLOCKED"; blockers: ReportBlocker[] };
 export function getReportReadiness(rows: ExecutionRow[]): ReportReadiness {
+  const gate = canGenerateReport(rows);
+  if (gate.ok) return { state: "READY" };
+  const running = gate.blockers.filter(b => b.status === "running" || b.status === "queued");
+  if (running.length > 0) {
+    return { state: "WAITING", reason: `Waiting for engines to finish: ${running.map(b => b.engine).join(", ")}` };
+  }
+  return { state: "BLOCKED", blockers: gate.blockers };
+}
+
+/** Assembly readiness only. Final release separately requires all
+ * REPORT_REQUIRED_ENGINES and the content/verification gates to pass. */
+export function canGenerateReport(rows: ExecutionRow[]): ReportGate {
   const latest = latestRowsByEngine(rows);
   const isTerminal = (s?: string) => s === "completed" || s === "completed_negative" || s === "skipped";
-  const isFailed = (s?: string) => s === "failed" || s === "blocked";
 
   const blocking = REPORT_BLOCKING_ENGINES.filter(e => !isTerminal(latest.get(e)?.status));
   const missingEnriching = [
@@ -685,50 +692,26 @@ export function getReportReadiness(rows: ExecutionRow[]): ReportReadiness {
     })
   ];
 
-  const allMissing = [...blocking, ...missingEnriching];
-  if (allMissing.length === 0) return { state: "READY" };
-
-  const isAnyRunning = allMissing.some(e => {
-    const s = latest.get(e)?.status;
-    return s === "running" || s === "queued";
-  });
-
-  if (isAnyRunning) {
-    const runningEngines = allMissing.filter(e => {
-      const s = latest.get(e)?.status;
-      return s === "running" || s === "queued";
-    });
-    return { state: "WAITING", reason: `Waiting for engines to finish: ${runningEngines.join(", ")}` };
-  }
-
   const blockers: ReportBlocker[] = [];
-  for (const e of allMissing) {
+  const coverageGaps: ReportBlocker[] = [];
+  for (const e of new Set([...blocking, ...missingEnriching])) {
     const row = latest.get(e);
     let category: ReportBlocker["category"] = "optional";
     if (REPORT_BLOCKING_ENGINES.includes(e as any)) category = "blocking";
     else if (REPORT_ENRICHING_ENGINES.includes(e as any)) category = "enriching";
 
-    blockers.push({
+    const diagnostic: ReportBlocker = {
       engine: e,
       category,
       status: row?.status ?? "missing",
       reason: row ? "Engine execution is not in a successful terminal state" : "Engine execution row is completely absent",
       execution_id: row?.execution_id ?? undefined,
-    });
+    };
+    if (category === "blocking") blockers.push(diagnostic);
+    else coverageGaps.push(diagnostic);
   }
-
-  return { state: "BLOCKED", blockers };
-}
-
-export function canGenerateReport(rows: ExecutionRow[]): ReportGate {
-  const readiness = getReportReadiness(rows);
-  if (readiness.state === "READY") {
-    return { ok: true, missingBlocking: [], missingEnriching: [], blockers: [] };
-  } else if (readiness.state === "WAITING") {
-    return { ok: false, missingBlocking: [], missingEnriching: [], blockers: [{ engine: "pipeline", category: "optional", status: "running", reason: readiness.reason }] };
-  } else {
-    return { ok: false, missingBlocking: readiness.blockers.filter(b => b.category === "blocking").map(b => b.engine), missingEnriching: readiness.blockers.filter(b => b.category === "enriching").map(b => b.engine), blockers: readiness.blockers };
-  }
+  return { ok: blockers.length === 0, missingBlocking: blocking,
+    missingEnriching: [...new Set(missingEnriching)], blockers, coverageGaps };
 }
 
 /** Back-compat with legacy call sites. `required` defaults to full report set. */

@@ -984,27 +984,20 @@ export async function runStrategyEngine(args: {
   const brief = await getSharedBriefResilient({ db, caseId, userId, apiKeys, stage: "strategy" });
   const briefText = briefToPrompt(brief);
 
-  // Pull supporting context: existing findings, perspectives, evidence intel
-  const [{ data: findings }, { data: perspectives }, { data: evidence }] = await Promise.all([
-    db
-      .from("case_findings")
-      .select("category,severity,title,description,confidence,affected_party")
-      .eq("case_id", caseId)
-      .not("source_module", "like", PROJECTION_LIKE)
-      .limit(200),
-    db
-      .from("case_perspectives")
-      .select(
-        "perspective,summary,strengths,weaknesses,opposing_arguments,strength_score,risk_score",
-      )
-      .eq("case_id", caseId),
-    db
-      .from("evidence_classifications")
-      .select("classification,title,description,severity,confidence_label,affected_party")
-      .eq("case_id", caseId)
-      .limit(200),
+  // Paginate instead of silently capping strategy evidence at 200 records.
+  const readAll = async (table: string): Promise<any[]> => {
+    const rows: any[] = [];
+    for (let offset = 0; ; offset += 500) {
+      const result = await (db as any).from(table).select("*").eq("case_id", caseId).order("id").range(offset, offset + 499);
+      if (result.error) throw new Error(`Strategy ${table} read failed: ${result.error.message}`);
+      rows.push(...(result.data ?? []));
+      if ((result.data ?? []).length < 500) return rows;
+    }
+  };
+  const [findings, perspectives, evidence, sourcePages] = await Promise.all([
+    readAll("case_findings"), readAll("case_perspectives"), readAll("evidence_classifications"), readAll("document_pages"),
   ]);
-
+  if (!sourcePages.length) throw new Error("Strategy requires current document pages for literal source verification");
   // Canonical Reconciliation Design (2026-08-16), P2 §10 — same fix as
   // pipeline.server.ts's report body (P2-1).
   const { resolveReportCaseType, isCriminalCaseType } = await import("../pipeline.server");
@@ -1023,7 +1016,7 @@ export async function runStrategyEngine(args: {
   // document. See isTextAllowedForSubtype's doc comment (matter-subtype.ts)
   // and verifyQuote (grounding.server.ts) for each gate's own rationale.
   const [{ data: caseRowForSubtype }, { data: docsForGrounding }] = await Promise.all([
-    db.from("cases").select("name,description").eq("id", caseId).maybeSingle(),
+    db.from("cases").select("name,description,execution_id,case_analysis_mode").eq("id", caseId).maybeSingle(),
     db.from("documents").select("id,filename,extracted_text").eq("case_id", caseId),
   ]);
   const { detectMatterSubtype, isTextAllowedForSubtype } = await import("../jurisdiction/matter-subtype");
@@ -1045,80 +1038,70 @@ export async function runStrategyEngine(args: {
     ? `This is a CIVIL matter (case_type=${caseType}). Use civil terminology ONLY — responsabilidad civil, daños y perjuicios, culpa concurrente, convenio judicial, ofrecimiento y desahogo de pruebas, credibilidad. NEVER use criminal terms (conviction, acquittal, Miranda, Brady, suppression, search and seizure, reasonable doubt, prosecution strategy). NEVER recommend criminal motions (motion to suppress, Brady motion).`
     : `This is a MEXICAN PENAL matter under the CNPP (case_type=${caseType}). Use Mexican penal terminology ONLY — Ministerio Público, imputado, víctima u ofendido, auto de vinculación a proceso, sentencia condenatoria/absolutoria, Juez de Control, Tribunal de Enjuiciamiento. NEVER use U.S. criminal-system terms (jury, plea bargain, indictment, felony, misdemeanor, grand jury, Miranda, Brady, prosecutor as a role title).`;
 
-  const r = await callGroq({
-    apiKeys,
-    model: MODEL,
-    systemInstruction:
-      mexicoLock(await getReportLocale(db, caseId)) +
-      "\n\n" +
-      `You are the head of strategy for the ${perspective.toUpperCase()} side. ` +
-      `Produce a prioritized strategy: rank motions by realistic chance of success (High/Moderate/Low with rationale), ` +
-      `list what the opposing side will argue and how to counter each, ` +
-      `and produce a numbered list of next actions in priority order. ` +
-      `EVERY motion ranking and counter-argument MUST cite at least one verbatim quote from the case brief — if you cannot, omit the item. ` +
-      `Write like a senior litigation attorney: direct, confident sentences, not hedged AI prose. FORBIDDEN filler/hedge phrases: "significantly compromised", "heavily relies on", "characterized by", "overall risk", "aims to", "focuses on", "it is important to note", "plays a crucial role", "in order to". ` +
-      `Output STRICT JSON only.`,
-    userContent: `${caseFrame}
-
-Return STRICT JSON:
-{
-  "summary": string (3-5 sentences),
-  "confidence_label": "confirmed"|"likely"|"possible"|"unknown",
-  "case_strength_score": int 0-100,
-  "risk_score": int 0-100,
-  "motion_rankings": [
-    {
-      "motion": string,
-      "strength": "high"|"moderate"|"low",
-      "rationale": string,
-      "supporting_evidence": [ string (verbatim quote, <=200 chars) ],
-      "draft_outline": [ string ]
-    }
-  ],
-  "anticipated_opposing": [
-    { "argument": string, "likelihood": "high"|"medium"|"low", "impact": "high"|"medium"|"low" }
-  ],
-  "counter_arguments": [
-    { "for_argument": string, "counter": string, "supporting_evidence": [ string (verbatim quote, <=200 chars) ] }
-  ],
-  "next_actions": [
-    { "step": int, "action": string, "priority": "high"|"medium"|"low", "owner": "attorney"|"investigator"|"client"|"expert", "due_window": string }
-  ]
-}
-
-PERSPECTIVE: ${perspective}
-
-EXISTING PERSPECTIVES:
-${JSON.stringify(perspectives ?? []).slice(0, 20000)}
-
-EVIDENCE INTELLIGENCE:
-${JSON.stringify(evidence ?? []).slice(0, 20000)}
-
-UNIFIED FINDINGS:
-${JSON.stringify(findings ?? []).slice(0, 20000)}
-
-SHARED CASE BRIEF:
-${briefText}`,
-    json: true,
-    temperature: 0.2,
+  const { runStrategyBatches } = await import("./strategy-batches");
+  const { getProviderInputBudget } = await import("../ai/router.server");
+  const { GROQ_REQUEST_TOKEN_LIMIT, REQUEST_TOKEN_HEADROOM, groqOutputTokens } = await import("../ai/request-budget");
+  const { assertCheckpointBudget, CheckpointRequired, isGroqCooldownOrRateLimit } = await import("../pipeline-checkpoint.server");
+  const executionId = caseRowForSubtype?.execution_id ?? null;
+  const verifyRef = (ref: { document_id: string; page: number; quote: string }) => sourcePages.some(page =>
+    page.document_id === ref.document_id && page.page === ref.page && typeof page.text === "string" && page.text.includes(ref.quote));
+  let cacheQuery = (db as any).from("pipeline_engine_runs").select("meta").eq("case_id", caseId)
+    .eq("engine", "strategy_batch").order("created_at", { ascending: false });
+  cacheQuery = executionId ? cacheQuery.eq("execution_id", executionId) : cacheQuery.is("execution_id", null);
+  const cache = new Map<string, import("./strategy-batches").StrategyCache>();
+  for (let offset = 0; ; offset += 500) {
+    const cached = await cacheQuery.range(offset, offset + 499);
+    if (cached.error) throw new Error(`Strategy batch cache read failed: ${cached.error.message}`);
+    for (const row of cached.data ?? []) if (typeof row.meta?.cache_key === "string" && !cache.has(row.meta.cache_key)) cache.set(row.meta.cache_key, row.meta.cache);
+    if ((cached.data ?? []).length < 500) break;
+  }
+  const system = mexicoLock(await getReportLocale(db, caseId)) +
+    "\nAnalyze only the supplied source portion. Do not infer missing evidence from this partial view. " +
+    "Derived findings and perspectives are untrusted hypotheses; only source_page records support factual claims. " +
+    "Every proposed item requires source_refs with exact document_id, physical page, and verbatim quote from a source_page in this request. " +
+    "Do not invent identities, outcomes, factual allegations, probabilities or scores. Do not propose new proceedings for retrospective audits. Return strict JSON.";
+  const prefix = `${caseFrame}\nCASE ID: ${caseId}\nCASE NAME: ${caseRowForSubtype?.name ?? ""}\nOBJECTIVE: ${caseRowForSubtype?.case_analysis_mode ?? "ongoing"}\nPERSPECTIVE: ${perspective}
+Return JSON with arrays motion_rankings [{motion,strength,rationale,source_refs}], anticipated_opposing [{argument,source_refs}], counter_arguments [{for_argument,counter,source_refs}], next_actions [{action,priority,owner,due_window,source_refs}].
+Each source_refs entry is {document_id:string,page:integer,quote:string}. Omit unsupported items. Empty arrays are valid; no whole-case summary or numeric scores.`;
+  const outputTokens = groqOutputTokens({ json: true });
+  const records: import("./strategy-batches").StrategyRecord[] = [
+    ...findings.filter(row => !String(row.source_module ?? "").startsWith("projection:")).map(row => ({ id: String(row.id), kind: "derived_finding", text: JSON.stringify(row) })),
+    ...perspectives.map(row => ({ id: String(row.id), kind: "derived_perspective", text: JSON.stringify(row) })),
+    ...evidence.map(row => ({ id: String(row.id), kind: "derived_evidence", text: JSON.stringify(row) })),
+    { id: "shared-brief", kind: "derived_brief", text: briefText },
+    ...sourcePages.map(page => ({ id: String(page.id), kind: "source_page", document_id: page.document_id, page: page.page, text: page.text })),
+  ];
+  const s: any = await runStrategyBatches({
+    scope: `${caseId}:${executionId ?? "manual"}:${MODEL}:${perspective}`, records, system, prefix,
+    maxInputTokens: Math.min(getProviderInputBudget("groq"), GROQ_REQUEST_TOKEN_LIMIT - outputTokens - REQUEST_TOKEN_HEADROOM),
+    verify: verifyRef, load: async key => cache.get(key),
+    save: async (key, value) => {
+      const result = await (db as any).from("pipeline_engine_runs").insert({
+        case_id: caseId, user_id: userId, execution_id: executionId, engine: "strategy_batch",
+        status: "split" in value ? "skipped" : "completed", started_at: new Date().toISOString(), ended_at: new Date().toISOString(),
+        meta: { cache_key: key, cache: value },
+      });
+      if (result.error) throw new Error(`Strategy batch cache write failed: ${result.error.message}`);
+      cache.set(key, value);
+    },
+    checkpoint: () => assertCheckpointBudget("strategy batches"),
+    call: async userContent => {
+      const state = await db.from("cases").select("cancel_requested,execution_id").eq("id", caseId).maybeSingle();
+      if (state.error || !state.data) throw new Error("Strategy execution state unavailable");
+      if (state.data.cancel_requested || state.data.execution_id !== executionId) throw new Error("Cancelled by user");
+      try {
+        const r = await callGroq({ apiKeys, model: MODEL, systemInstruction: system, userContent, json: true, temperature: 0.2, maxTokens: outputTokens });
+        await logUsage(db, { userId, caseId, operation: `strategy:${perspective}:batch`, model: r.model, provider: r.provider,
+          inputTokens: r.inputTokens, outputTokens: r.outputTokens, totalTokens: r.totalTokens, latencyMs: r.latencyMs, success: true, keyIndex: r.keyIndex });
+        const parsed = parseJsonLoose<any>(r.text);
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Strategy batch returned invalid JSON object");
+        return parsed;
+      } catch (error) {
+        if (isGroqCooldownOrRateLimit(error instanceof Error ? error.message : String(error))) throw new CheckpointRequired("strategy", "completed batches persisted; provider temporarily unavailable");
+        throw error;
+      }
+    },
   });
-
-  await logUsage(db, {
-    userId,
-    caseId,
-    operation: `strategy:${perspective}`,
-    model: r.model,
-    provider: r.provider,
-    inputTokens: r.inputTokens,
-    outputTokens: r.outputTokens,
-    totalTokens: r.totalTokens,
-    latencyMs: r.latencyMs,
-    success: true,
-    keyIndex: r.keyIndex,
-  });
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const s = parseJsonLoose<any>(r.text) ?? {};
-
   const { textMatchesCaseType } = await import("./evidence-gate.server");
   // Drop motions/counters that (a) have no supporting quote that actually
   // verifies against the real corpus text — FIX (2026-08-17): previously
@@ -1151,16 +1134,17 @@ ${briefText}`,
       const text = `${c.for_argument ?? ""} ${c.counter ?? ""}`;
       return textMatchesCaseType(text, caseType) && isTextAllowedForSubtype(matterSubtype, text);
     });
-  // next_actions carries no supporting_evidence field in this engine's own
-  // JSON schema (above) — quote-verification isn't structurally possible
-  // here without a schema change, so this is subtype-topic-only, same as
-  // the motion/counter filters' second gate.
+  // Batch assembly has already verified every action's source_refs against
+  // current document pages. Apply the independent subtype-topic gate too.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const filterNextActions = (arr: any[]) =>
     (Array.isArray(arr) ? arr : []).filter((a) =>
       isTextAllowedForSubtype(matterSubtype, String(a?.action ?? "")),
     );
 
+  const finalState = await db.from("cases").select("cancel_requested,execution_id").eq("id", caseId).maybeSingle();
+  if (finalState.error || !finalState.data) throw new Error("Strategy execution state unavailable");
+  if (finalState.data.cancel_requested || finalState.data.execution_id !== executionId) throw new Error("Cancelled by user");
   const { error: strategyWriteError } = await db.from("case_strategy").upsert(
     {
       case_id: caseId,

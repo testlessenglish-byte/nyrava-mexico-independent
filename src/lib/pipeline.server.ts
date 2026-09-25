@@ -2,6 +2,7 @@
 // both from an authenticated server function (user click) and from the
 // background worker route (cron / queue drain) with an admin client.
 import { CASE_RESET_FIELDS, clearCaseDerivedData } from "./pipeline-reset";
+import { cachedExtraction, persistExtraction } from './extraction-persistence.server';
 import { unzipSync } from "fflate";
 import { classifyMexicanCaseType } from "@/lib/mx-case-classifier";
 import { normalizeMexicanCaseType } from "@/lib/jurisdiction/mexico";
@@ -66,6 +67,8 @@ import {
 } from "@/lib/intelligence/finding-taxonomy";
 import { constitutionalAnalysisNotApplicable } from "@/lib/reporting/report-language-fallback";
 
+import { packRequestChunks, requestBatchKey } from './ai/corpus-request-budget';
+import { packingRequestInputBudget } from './ai/router.server';
 type Db = SupabaseClient<Database>;
 
 const MODEL = "openai/gpt-oss-120b";
@@ -238,6 +241,7 @@ export async function uploadFiles(opts: {
   // corpus until a user explicitly promotes it (promoteRevisionDocument in
   // cases.functions.ts). See migration 20260813224813_document_evidence_scope.
   evidenceScope?: "case_corpus" | "revision_context";
+  documentAnalysisMetadata?: Record<string, unknown>;
 }): Promise<UploadResult> {
   const { db, caseId, userId, uploads: rawUploads, evidenceScope = "case_corpus" } = opts;
   const { sha256Hex } = await import("./hash.server");
@@ -339,6 +343,7 @@ export async function uploadFiles(opts: {
       revision_version: revisionVersion,
       revision_of_document_id: priorRevision?.id ?? null,
       revision_root_document_id: revisionRootDocumentId,
+      ...opts.documentAnalysisMetadata,
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: inserted, error: insertError } = await (db as any)
@@ -1719,7 +1724,7 @@ async function _runExtractionInner(args: {
   const MAX_RETRIES = 3;
   const { data: docs } = await db
     .from("documents")
-    .select("id,filename,mime_type,storage_path,content_hash,status,extraction_retry_count")
+    .select("id,filename,mime_type,storage_path,content_hash,status,extraction_retry_count,metadata,extracted_text,entities")
     .eq("case_id", caseId)
     .order("created_at", { ascending: true });
   // Exclude files that are conventionally instructions/metadata about the
@@ -1774,6 +1779,11 @@ async function _runExtractionInner(args: {
       skipped += 1;
       continue;
     }
+    if (d.status === "failed") {
+      extractedFail += 1;
+      skipped += 1;
+      continue;
+    }
     const pct = 5 + Math.floor((processed / total) * 90);
     await setCase(db, caseId, {
       status_message: `Extracting ${processed}/${total}: ${d.filename}`,
@@ -1817,6 +1827,9 @@ async function _runExtractionInner(args: {
       skipped += 1;
       continue;
     }
+    const documentStartedAt = Date.now();
+    const timings = { download_ms: 0, text_extraction_ms: 0, ocr_ms: 0, indexing_ms: 0 };
+    const cached = cachedExtraction(d);
     try {
       // Storage downloads have no client-side timeout of their own — wrap so
       // a hung network call fails this ONE document (caught below, marked
@@ -1824,24 +1837,33 @@ async function _runExtractionInner(args: {
       // stage's timeout budget on a single stuck file and blocking every
       // other document behind it.
       const DOWNLOAD_TIMEOUT_MS = 30_000;
-      const { data: blob, error: dlErr } = await Promise.race([
+      const downloadStartedAt = Date.now();
+      let downloadTimer: ReturnType<typeof setTimeout> | undefined;
+      const { data: blob, error: dlErr } = cached ? {data: null, error: null} : await Promise.race([
         db.storage.from("case-files").download(d.storage_path!),
         new Promise<never>((_, reject) =>
-          setTimeout(
+          downloadTimer = setTimeout(
             () => reject(new Error(`Storage download timed out after ${DOWNLOAD_TIMEOUT_MS}ms`)),
             DOWNLOAD_TIMEOUT_MS,
           ),
         ),
-      ]);
-      if (dlErr || !blob) throw new Error(dlErr?.message ?? "download failed");
-      const bytes = new Uint8Array(await blob.arrayBuffer());
+      ]).finally(() => clearTimeout(downloadTimer));
+      if (!cached && (dlErr || !blob)) throw new Error(dlErr?.message ?? "download failed");
+      const bytes = blob ? new Uint8Array(await blob.arrayBuffer()) : new Uint8Array();
+      timings.download_ms = cached ? 0 : Date.now() - downloadStartedAt;
 
       let extractedText = "";
       let entities: unknown = [];
       let metadata: unknown = {};
       let pageTexts: string[] | null = null;
+      const parsingStartedAt = Date.now();
+      const usesOcr = !cached && IMAGE_EXT.test(d.filename);
 
-      if (TEXT_EXT.test(d.filename) || (d.mime_type ?? "").startsWith("text/")) {
+      if (cached) {
+        extractedText = cached.text;
+        pageTexts = cached.pageTexts;
+        entities = cached.entities;
+      } else if (TEXT_EXT.test(d.filename) || (d.mime_type ?? "").startsWith("text/")) {
         const ex = extractPlainText(bytes, d.mime_type ?? "text/plain");
         extractedText = ex.text;
         metadata = ex.metadata;
@@ -1855,10 +1877,7 @@ async function _runExtractionInner(args: {
           extractedText = ex.text;
           metadata = ex.metadata;
           pageTexts = ex.pageTexts ?? null;
-          // If the PDF was scanned (no extractable text), try LLM OCR on the file directly.
-          if (!extractedText && bytes.byteLength <= MAX_IMAGE_BYTES * 4) {
-            extractedText = `[Scanned PDF detected — ${bytes.byteLength} bytes — embedded text layer empty. Page-image OCR not yet enabled for this file type.]`;
-          }
+          if (!extractedText.trim()) throw new Error('PDF requires OCR: no embedded text was found; scanned-PDF OCR is not configured.');
         } catch (pdfErr) {
           const msg = pdfErr instanceof Error ? pdfErr.message : String(pdfErr);
           throw new Error(`PDF extraction failed: ${msg}`);
@@ -1995,23 +2014,27 @@ async function _runExtractionInner(args: {
         );
       }
 
-      const { error: docWriteErr } = await db
-        .from("documents")
-        .update({
-          status: "extracted",
-          extracted_text: extractedText,
-          metadata: metadata as J,
-          entities: entities as J,
-          error: null,
-        })
-        .eq("id", d.id);
+      timings[usesOcr ? 'ocr_ms' : 'text_extraction_ms'] = cached ? 0 : Date.now() - parsingStartedAt;
+      const indexingStartedAt = Date.now();
+      await persistExtraction(db, {
+          document: d, caseId, userId, text: extractedText,
+          pageTexts: pageTexts?.length ? pageTexts : [extractedText],
+          metadata: { ...((d.metadata as Record<string, unknown> | null) ?? {}), ...(metadata as Record<string, unknown>),
+            analysis_purpose: (d.metadata as Record<string, unknown> | null)?.analysis_purpose ?? null,
+            client_connection_note: (d.metadata as Record<string, unknown> | null)?.client_connection_note ?? null,
+            ocr_attempted: usesOcr || Boolean((d.metadata as any)?.ocr_attempted),
+            extraction_method: usesOcr ? 'image_ocr' : (d.metadata as any)?.extraction_method ?? 'embedded_text',
+          },
+          entities, reused: Boolean(cached),
+      });
+      timings.indexing_ms = Date.now() - indexingStartedAt;
       {
         const { trace } = await import("./pipeline-trace.server");
         await trace({
           phase: "engine",
           step: "extraction.document",
-          status: docWriteErr ? "error" : extractedText.trim().length === 0 ? "warn" : "ok",
-          error: docWriteErr?.message ?? null,
+          status: extractedText.trim().length === 0 ? "warn" : "ok",
+          durationMs: Date.now() - documentStartedAt,
           detail: {
             document_id: d.id,
             filename: d.filename,
@@ -2020,7 +2043,9 @@ async function _runExtractionInner(args: {
             chars_extracted: extractedText.length,
             pages: pageTexts?.length ?? null,
             index: `${processed}/${total}`,
-            pg_code: docWriteErr?.code ?? null,
+            ...timings,
+            extraction_reused: Boolean(cached),
+            ocr_used: usesOcr,
           },
           db,
           caseId,
@@ -2028,29 +2053,6 @@ async function _runExtractionInner(args: {
         });
       }
 
-      // Persist per-page text for citation verification. Replace any prior pages
-      // for this document so re-extraction stays consistent.
-      try {
-        await db.from("document_pages").delete().eq("document_id", d.id);
-        const pages = pageTexts && pageTexts.length > 0 ? pageTexts : [extractedText];
-        const rows = pages.map((t, i) => ({
-          document_id: d.id,
-          case_id: caseId,
-          user_id: userId,
-          page: i + 1,
-          text: t ?? "",
-          char_count: (t ?? "").length,
-        }));
-        if (rows.length > 0) {
-          // chunk in case of very large PDFs
-          const CHUNK = 200;
-          for (let i = 0; i < rows.length; i += CHUNK) {
-            await db.from("document_pages").insert(rows.slice(i, i + CHUNK));
-          }
-        }
-      } catch (pageErr) {
-        console.error("document_pages persist failed", d.id, pageErr);
-      }
       extractedOk += 1;
     } catch (e) {
       rethrowIfCheckpoint(e);
@@ -2062,7 +2064,10 @@ async function _runExtractionInner(args: {
           step: "extraction.document",
           status: "error",
           error: msg,
+          durationMs: Date.now() - documentStartedAt,
           detail: {
+            ...timings,
+            extraction_reused: Boolean(cached),
             document_id: d.id,
             filename: d.filename,
             mime_type: d.mime_type,
@@ -2098,6 +2103,9 @@ async function _runExtractionInner(args: {
   }
 
   const coverage = await computeCoverage(db, caseId);
+  if (processed > 0 && extractedOk + extractedFail < total) {
+    throw new CheckpointRequired('extraction', 'Waiting for outstanding document claims');
+  }
   if (extractedOk === 0) {
     // Every document failed — do NOT mark the case as extracted, or downstream
     // steps will look "unlocked" while having nothing to work with.
@@ -2174,14 +2182,13 @@ export async function retryFailedExtractions(args: {
     };
   }
 
-  // Reset status to pending and increment retry count
+  // Only an actual failed attempt increments the retry count (in extraction).
   for (const d of docsToRetry) {
     await db
       .from("documents")
       .update({
         status: "pending",
         error: null,
-        extraction_retry_count: (d.extraction_retry_count ?? 0) + 1,
         last_extraction_attempt_at: new Date().toISOString(),
       })
       .eq("id", d.id);
@@ -2485,10 +2492,13 @@ async function _runAnalyzersInner(args: {
   const analyzerPosturePrompt = formatPosturePromptConstraint(analyzerPosture, analyzerLocaleForPreamble);
   const { loadReportSourceConstraint } = await import('./reporting/report-source-constraint.server');
   const analyzerSourceConstraint = await loadReportSourceConstraint(db,caseId);
+  const { loadLegalReasoningContext: loadAnalyzerLegalContext } = await import("./legal/case-law-context.server");
+  const analyzerLegalContext = await loadAnalyzerLegalContext(db, caseId);
 
   const analyzerPreamble =
     (analyzerSourceConstraint?.prompt ? analyzerSourceConstraint.prompt + '\n' : '') +
     `${mexicoLock(analyzerLocaleForPreamble)}\n` +
+    `${analyzerLegalContext}\n` +
     `${groundingContract(analyzerLocaleForPreamble)}\n` +
     (analyzerProceduralTypeLock ? `${analyzerProceduralTypeLock}\n` : "") +
     (analyzerPosturePrompt ? `${analyzerPosturePrompt}\n` : "") +
@@ -2496,7 +2506,7 @@ async function _runAnalyzersInner(args: {
     (analyzerCaseAnalysisObjective ? `${analyzerCaseAnalysisObjective}\n` : "") +
     (analyzerAuditClassificationInstructions ? `${analyzerAuditClassificationInstructions}\n` : "") +
     `CASE TYPE: ${analyzerAreaLabel} (${analyzerArea}). ` +
-    `Only surface findings whose legal theory applies to a ${analyzerAreaLabel} matter. ` +
+    `Keep the procedural vehicle separate from underlying substantive issues. Active legal domains: ${[...analyzerDomains].sort().join(", ")}. Only surface theories supported within those domains. ` +
     `Do NOT generate findings framed around sistema penal acusatorio concepts (vinculación a proceso, ` +
     `medidas cautelares, cadena de custodia), derecho laboral, derecho migratorio, or derecho fiscal ` +
     `unless this case type expressly covers them. ` +
@@ -2534,15 +2544,9 @@ ${corpusText}`;
   // Batch-level execution with dynamic sizing + 413 auto-split.
   // The budget is capped by the NARROWEST configured provider so Groq stays in
   // the fallback chain instead of being skipped as oversize on every call.
-  const { packingCharBudget, PROMPT_OVERHEAD_CHARS } = await import("@/lib/ai/router.server");
-  const analyzerBudgetChars = await packingCharBudget(
-    ANALYZER_CORPUS_BUDGET_CHARS,
-    PROMPT_OVERHEAD_CHARS.analyzers,
-  );
-  const initialBatches = packChunks(chunks, analyzerBudgetChars);
-  console.log(
-    `[analyzers] docs=${chunks.length} totalChars=${corpus.length} batches=${initialBatches.length} budgetChars=${analyzerBudgetChars}`,
-  );
+  const analyzerInputBudget = await packingRequestInputBudget(userId, systemInstruction, buildPrompt(''));
+  const initialBatches = packRequestChunks(chunks, systemInstruction, buildPrompt, analyzerInputBudget);
+  console.log(`[analyzers] docs=${chunks.length} totalChars=${corpus.length} batches=${initialBatches.length} fullRequestBudgetTokens=${analyzerInputBudget}`);
 
   // Resume support: skip batches already completed in a prior run.
 
@@ -2554,10 +2558,10 @@ ${corpusText}`;
   const completedDocSets = new Set<string>();
   for (const row of (priorBatchRuns ?? []) as unknown as Array<{
     status: string;
-    meta: { docIds?: string[] } | null;
+    meta: { batchKey?: string; parsed?: Record<string, unknown[]>; docIds?: string[] } | null;
   }>) {
-    if (row.status === "completed" && Array.isArray(row.meta?.docIds)) {
-      completedDocSets.add(row.meta!.docIds!.slice().sort().join("|"));
+    if (row.status === "completed" && row.meta?.batchKey && row.meta.parsed) {
+      completedDocSets.add(row.meta.batchKey);
     }
   }
 
@@ -2577,11 +2581,23 @@ ${corpusText}`;
     evidence_relationships: [],
     key_findings: [],
   };
+  const restoredKeys = new Set<string>();
+  const currentBatchKeys = new Set(initialBatches.map(batch => requestBatchKey(batch, systemInstruction, buildPrompt)));
+  for (const row of (priorBatchRuns ?? []) as any[]) {
+    const key = row.meta?.batchKey;
+    if (row.status === 'completed' && key && row.meta?.parsed && currentBatchKeys.has(key) && !restoredKeys.has(key)) {
+      restoredKeys.add(key);
+      for (const bucket of Object.keys(merged) as Array<keyof AnalyzerBucket>) {
+        if (Array.isArray(row.meta.parsed[bucket])) merged[bucket].push(...row.meta.parsed[bucket]);
+      }
+    }
+  }
   const providerErrors: string[] = [];
 
   const queue: CorpusChunk[][] = [...initialBatches];
   let batchIdx = 0;
   let successes = 0;
+  let resumedCompletedBatches = 0;
   // Wall-clock checkpoint for the analyzer batch loop. Completed batches
   // persist their own `analyzers_batch` row and are skipped on resume, so
   // yielding here loses no work.
@@ -2606,11 +2622,9 @@ ${corpusText}`;
     batch: CorpusChunk[],
     idx: number,
   ): Promise<AnalyzerFailure | null> => {
-    const key = batch
-      .map((c) => c.docId)
-      .sort()
-      .join("|");
+    const key = requestBatchKey(batch, systemInstruction, buildPrompt);
     if (completedDocSets.has(key)) {
+      resumedCompletedBatches++;
       console.log(
         `[analyzers] batch ${idx} skipped (already completed in prior run) docs=${batch.length}`,
       );
@@ -2631,6 +2645,7 @@ ${corpusText}`;
           task: "analysis",
           systemInstruction,
           userContent: buildPrompt(batchCorpus),
+          maxTokens: 4096,
           json: true,
           temperature: 0.1,
         }),
@@ -2688,6 +2703,8 @@ ${corpusText}`;
         suppressed_validator: 0,
         meta: {
           batchIdx: idx,
+          batchKey: key,
+          parsed,
           docs: batch.length,
           chars: batchCorpus.length,
           docIds: batch.map((c) => c.docId),
@@ -2855,19 +2872,10 @@ ${corpusText}`;
     }
   }
 
-  if (successes === 0) {
-    // Soft-catch: a transient batch failure (malformed JSON, provider capacity,
-    // transport hiccup) must not hard-fail the stage and cascade every
-    // downstream engine into `blocked`. Only a real configuration error
-    // (bad/absent API key) is fatal here.
-    const fatalConfig = providerErrors.some((m) => isAuthProviderError(m));
-    if (fatalConfig) {
-      throw new Error(`Analyzers failed on every batch. Details:\n${providerErrors.join("\n")}`);
-    }
-    console.warn(
-      `[analyzers] every batch failed transiently — continuing with empty analyzer buckets so downstream stages still run. Details:\n${providerErrors.join("\n")}`,
-    );
-  }
+  // Zero findings after a successful analysis is valid; zero successful
+  // analyses after provider errors is a failed stage, regardless of error type.
+  const { assertAnalyzerBatchCompletion } = await import("./execution/analyzer-completion");
+  assertAnalyzerBatchCompletion(successes, resumedCompletedBatches, providerErrors);
   if (providerErrors.length) {
     console.warn(
       `[analyzers] completed with ${providerErrors.length} failed batch(es); ${successes} succeeded`,
@@ -3537,7 +3545,7 @@ ${AGENT_JH_INSTRUCTIONS}
     type: "agrarian_jurisdiction_restitution",
     category: "agrarian_jurisdiction_restitution",
     system:
-      "You are a Mexican agrarian-tribunal jurisdiction and land-restitution investigator. Examine the corpus for whether the Tribunal Unitario Agrario properly has competencia (materia agraria, territorio del distrito) over the matter versus a claim that actually belongs to another jurisdiction (civil ordinaria, amparo agrario), and for the elements of an acción de restitución de tierras (Ley Agraria arts. 18, 48-49: despojo o privación ilegal de la posesión o titularidad, identidad de la superficie reclamada, y la cadena de actos que produjeron la pérdida de la tierra). Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+      "You are a Mexican agrarian-tribunal jurisdiction and land-restitution investigator. Separate subject-matter competence (Ley Orgánica de los Tribunales Agrarios, art. 18, exact applicable fraction to verify) from territorial district assignment and from substantive rights under the Ley Agraria. Identify the actual action and land regime before analyzing restitution, possession, title, the identity of the claimed land and the acts alleged to have deprived the claimant of it. Do not treat Ley Agraria art. 18 as the tribunal's organic competence provision or assume every agrarian dispute is restitution. Verify the precise governing provision, version and exceptions; unsupported legal conclusions remain unresolved. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
     prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
 { "summary": string, "confidence": number (0-1),
   "findings": [ { "title": string, "issue_type": "competencia_del_tribunal"|"elementos_de_restitucion"|"identidad_de_superficie"|"cadena_de_despojo", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"nucleo_agrario"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
@@ -4074,6 +4082,31 @@ export const AGENT_SKIP_PROVIDERS: ProviderType[] = [];
  */
 const AGENT_CONCURRENCY = 2;
 
+/** Remove artifacts that cannot survive a changed specialist scope. */
+export async function clearSpecialistScopeArtifacts(db: Db, caseId: string, agentType: string, engine: string) {
+  assertDbOk((await db.from("agent_findings").delete().eq("case_id", caseId).eq("agent_type", agentType)).error,
+    `Failed to clear stale ${agentType} agent findings`);
+  assertDbOk((await db.from("case_findings").delete().eq("case_id", caseId).like("source_module", `agent:${agentType}%`)).error,
+    `Failed to clear stale ${agentType} case findings`);
+  assertDbOk((await db.from("pipeline_engine_runs").delete().eq("case_id", caseId).eq("engine", `${engine}_batch`)).error,
+    `Failed to clear stale ${agentType} batch checkpoints`);
+}
+
+/** Context/prompt changes invalidate checkpoints even if documents are unchanged. */
+export async function specialistBatchContextKey(context: unknown): Promise<string> {
+  return sha256Hex(new TextEncoder().encode(JSON.stringify(context)));
+}
+
+/** Rows are newest-first; older compatible output cannot validate newer findings. */
+export function hasCurrentSpecialistCheckpoint(
+  rows: readonly { engine: string; status: string; meta: unknown }[],
+  engine: string,
+  contextKey: string,
+): boolean {
+  const latest = rows.find((row) => row.engine === engine && row.status === "completed");
+  return (latest?.meta as Record<string, unknown> | null)?.scopeContextKey === contextKey;
+}
+
 export async function runAgents(args: {
   db: Db;
   caseId: string;
@@ -4167,7 +4200,11 @@ export async function runAgents(args: {
       String((caseRow as any)?.description ?? ""),
       corpus.slice(0, 20_000),
     ].join("\n");
-    const matterSubtype = detectMatterSubtype(area, subtypeSignalText);
+    const matterSubtype = detectMatterSubtype(area, subtypeSignalText, {
+      underlyingMateria: agentsIdentity.underlyingMateria,
+      proceduralVehicle: agentsIdentity.proceduralVehicle,
+      activeMaterias: [...activeDomains],
+    });
 
     // CASE-ANALYSIS-MODE GATE: agents in AUDIT_ONLY_AGENT_TYPES only make
     // sense for a completed case being audited retrospectively — never for
@@ -4189,6 +4226,16 @@ export async function runAgents(args: {
     const isPenalContext =
       area === "penal" || agentsIdentity.underlyingMateria === "penal";
 
+    const { specialistLawScopeDecision } = await import("./jurisdiction/specialist-law-scope");
+    const { loadLegalReasoningContext } = await import("./legal/case-law-context.server");
+    const legalReasoningContext = await loadLegalReasoningContext(db, caseId);
+    const lawScopeInput = {
+      jurisdiction: agentsIdentity.jurisdiction,
+      proceduralVehicle: agentsIdentity.proceduralVehicle,
+      proceedingType: agentsIdentity.proceedingType,
+      documents: chunks.map((chunk) => ({ id: chunk.docId, text: chunk.text })),
+    };
+
     const activeAgents: typeof AGENTS = [];
     for (const agent of AGENTS) {
       const engine = AGENT_ENGINE[agent.type] ?? agent.type;
@@ -4203,11 +4250,15 @@ export async function runAgents(args: {
           )
         : { run: true, reason: null };
       const prerequisiteBlocked = !prerequisiteDecision.run;
+      const policyAllowed = isAnalyzerAllowed(area, engine, activeDomains);
+      const lawScopeDecision = specialistLawScopeDecision(agent.type, lawScopeInput);
+      const lawScopeBlocked = policyAllowed && !lawScopeDecision.run;
       if (
         !subtypeBlocked &&
         !auditOnlyBlocked &&
         !prerequisiteBlocked &&
-        isAnalyzerAllowed(area, engine, activeDomains)
+        !lawScopeBlocked &&
+        policyAllowed
       ) {
         activeAgents.push(agent);
       } else {
@@ -4215,24 +4266,15 @@ export async function runAgents(args: {
         // this cleanup, a prior active run can leak stale witness/custody or
         // prospective advice into a concluded-case report even though the
         // current run correctly marks that agent not applicable.
-        if (prerequisiteBlocked) {
-          assertDbOk(
-            (
-              await db
-                .from("agent_findings")
-                .delete()
-                .eq("case_id", caseId)
-                .eq("agent_type", agent.type)
-            ).error,
-            `Failed to clear stale ${agent.type} agent findings`,
-          );
-          await clearFindingsByModule(db, caseId, `agent:${agent.type}`);
-        }
+        await clearSpecialistScopeArtifacts(db, caseId, agent.type, engine);
+        completedAgentTypes.delete(agent.type);
         await recordSkipped(db, {
           caseId,
           userId,
           engine: engine as never,
-          reason: prerequisiteBlocked
+          reason: lawScopeBlocked
+            ? lawScopeDecision.reason!
+            : prerequisiteBlocked
             ? `skipped_not_applicable:${prerequisiteDecision.reason}`
             : auditOnlyBlocked
               ? SKIP_REASON_NOT_COMPLETED_CASE_MODE
@@ -4248,6 +4290,44 @@ export async function runAgents(args: {
     // so a checkpointed resume doesn't wipe finished work. Finding rows
     // scoped `agent:<type>:` are cleared per-agent inside runOneAgent just
     // before that agent writes fresh output.
+    // Re-entry may reuse only outputs produced under the same subject,
+    // procedure, analysis objective, evidence and specialist prompt.
+    const corpusHash = await specialistBatchContextKey(corpus);
+    const scopeReportLocale = await getReportLocale(db, caseId);
+    const agentContextKeys = new Map<string, string>();
+    for (const agent of activeAgents) {
+      agentContextKeys.set(agent.type, await specialistBatchContextKey({
+        version: 1,
+        area,
+        underlyingMateria: agentsIdentity.underlyingMateria,
+        proceduralVehicle: agentsIdentity.proceduralVehicle,
+        identityStatus: agentsIdentity.status,
+        activeDomains: [...activeDomains].sort(),
+        matterSubtype,
+        caseAnalysisMode,
+        subtypeSignalText,
+        penalPrerequisites,
+        corpusHash,
+        legalReasoningContext,
+        jurisdiction: agentsIdentity.jurisdiction,
+        proceedingType: agentsIdentity.proceedingType,
+        locale: scopeReportLocale,
+        system: agent.system,
+        prompt: agent.prompt,
+      }));
+    }
+    const { data: priorScopeRuns, error: priorScopeError } = await db.from("pipeline_engine_runs")
+      .select("engine,status,meta").eq("case_id", caseId).order("ended_at", { ascending: false });
+    assertDbOk(priorScopeError, "Failed to inspect specialist checkpoint scope");
+    for (const agent of activeAgents) {
+      if (!completedAgentTypes.has(agent.type)) continue;
+      const engine = AGENT_ENGINE[agent.type] ?? agent.type;
+      const reusable = hasCurrentSpecialistCheckpoint(priorScopeRuns ?? [], engine, agentContextKeys.get(agent.type)!);
+      if (!reusable) {
+        await clearSpecialistScopeArtifacts(db, caseId, agent.type, engine);
+        completedAgentTypes.delete(agent.type);
+      }
+    }
     const agentsToRun = activeAgents.filter((a) => !completedAgentTypes.has(a.type));
     const agentTypesToRun = agentsToRun.map((a) => a.type);
     if (agentTypesToRun.length > 0) {
@@ -4338,6 +4418,7 @@ export async function runAgents(args: {
 
     const areaPreamble =
       `${mexicoLock(areaPreambleLocale)}\n` +
+      `${legalReasoningContext}\n` +
       `${groundingContract(areaPreambleLocale)}\n` +
       (proceduralTypeLock ? `${proceduralTypeLock}\n` : "") +
       (agentPosturePrompt ? `${agentPosturePrompt}\n` : "") +
@@ -4345,8 +4426,8 @@ export async function runAgents(args: {
       (areaCaseAnalysisObjective ? `${areaCaseAnalysisObjective}\n` : "") +
       (areaAuditClassificationInstructions ? `${areaAuditClassificationInstructions}\n` : "") +
       `CASE TYPE: ${areaLabel} (${area}). ` +
-      `Only surface findings whose legal theory is applicable to a ${areaLabel} matter. ` +
-      `Do NOT manufacture findings from other practice areas. ` +
+      `Keep the procedural vehicle separate from underlying substantive issues. Active legal domains: ${[...activeDomains].sort().join(", ")}. Only surface theories supported within those domains. ` +
+      `Documentary scope anchors select a specialist for review; they do not validate applicable law or establish a legal outcome. ` +
       `Do NOT infer missing procedural facts (service of process, deadlines, custody chains) ` +
       `that are not affirmatively established by a verbatim quote in the corpus. ` +
       `If the corpus does not establish a fact, omit the finding.\n` +
@@ -4432,34 +4513,15 @@ export async function runAgents(args: {
           // processes the FULL corpus in payload-safe chunks instead of a
           // single 180K-char slice that (a) blows past Groq's per-request TPM
           // cap and (b) silently drops every document past the truncation.
-          const { packingCharBudget: agentBudgetFn, PROMPT_OVERHEAD_CHARS: AGENT_OVERHEAD } =
-            await import("@/lib/ai/router.server");
-          const agentBudgetChars = await agentBudgetFn(
-            AGENT_CORPUS_BUDGET_CHARS,
-            AGENT_OVERHEAD.agents,
-            AGENT_SKIP_PROVIDERS,
-          );
-          const { listProviderRows } = await import("@/lib/ai/router.server");
-          console.log("[DEBUG] packingCharBudget call", {
-            stage: agent.type,
-            engine,
-            ceiling: AGENT_CORPUS_BUDGET_CHARS,
-            overhead: AGENT_OVERHEAD.agents,
-            budget: agentBudgetChars,
-            skipProviders: AGENT_SKIP_PROVIDERS,
-            providers: (await listProviderRows()).map((r) => r.provider_type),
-          });
-
-          const agentBatches = packChunks(chunks, agentBudgetChars);
-
+          const agentSystem = `${areaPreamble}\n${agent.system}`;
+          const agentPrompt = (text: string) => `${agent.prompt}\n\nCASE CORPUS:\n${text}`;
+          const agentInputBudget = await packingRequestInputBudget(userId, agentSystem, agentPrompt(''));
+          const agentBatches = packRequestChunks(chunks, agentSystem, agentPrompt, agentInputBudget);
           const batchEngine = `${engine}_batch`;
-          const batchKey = (batch: CorpusChunk[]) =>
-            batch
-              .map((c) => `${c.docId}:${c.index}:${c.size}:${c.text.slice(0, 24)}`)
-              .sort()
-              .join("|");
+          const batchKey = (batch: CorpusChunk[]) => requestBatchKey(batch, agentSystem, agentPrompt);
 
           type AgentBatchMeta = {
+            scopeContextKey?: string;
             batchKey?: string;
             docIds?: string[];
             findings?: unknown[];
@@ -4478,7 +4540,8 @@ export async function runAgents(args: {
             status: string;
             meta: AgentBatchMeta | null;
           }>) {
-            if (row.status !== "completed" || !Array.isArray(row.meta?.docIds)) continue;
+            if (row.status !== "completed" || !Array.isArray(row.meta?.docIds) ||
+                row.meta.scopeContextKey !== agentContextKeys.get(agent.type)) continue;
             completedBatchKeys.add(row.meta.batchKey ?? row.meta.docIds.slice().sort().join("|"));
             priorBatchMetas.push(row.meta);
           }
@@ -4527,8 +4590,10 @@ export async function runAgents(args: {
                 callGroq({
                   apiKey,
                   apiKeys,
-                  systemInstruction: `${areaPreamble}\n${agent.system}`,
-                  userContent: `${agent.prompt}\n\nCASE CORPUS:\n${batchCorpus}`,
+                  systemInstruction: agentSystem,
+                  userContent: agentPrompt(batchCorpus),
+                  userId,
+                  maxTokens: 4096,
                   json: true,
                   temperature: 0.15,
                   skipProviders: AGENT_SKIP_PROVIDERS,
@@ -4585,6 +4650,7 @@ export async function runAgents(args: {
                       agent_type: agent.type,
                       batchIdx: idx,
                       batchKey: key,
+                      scopeContextKey: agentContextKeys.get(agent.type),
                       docs: batch.length,
                       chars: batchCorpus.length,
                       docIds: batch.map((c) => c.docId),
@@ -4825,6 +4891,8 @@ export async function runAgents(args: {
               accepted,
               rejected: Math.max(0, generated - accepted),
               meta: {
+                scopeContextKey: agentContextKeys.get(agent.type),
+                law_scope: specialistLawScopeDecision(agent.type, lawScopeInput),
                 evidence_gate: {
                   mode: gate.mode,
                   audit: gate.audit,
@@ -5152,11 +5220,24 @@ async function _runScoringInner(args: {
     audit_classification: f.audit_classification ?? null,
   }));
 
-  const r = await callGroq({
+  const { splitScoringFindings, scoringSynthesisPrompt } = await import('./ai/scoring-batches');
+  const scoreBatches = splitScoringFindings(findingsForLlm, 40);
+  const scoreSystem = `${mexicoLock(await getReportLocale(db, caseId))}\nYou score legal cases objectively across 10 dimensions. EVERY score must list specific positive and negative contributors that reference finding ids. NEVER produce opaque scores. Output STRICT JSON only.`;
+  const scoreSchema = `Return STRICT JSON with numeric fields evidence_strength,witness_reliability,timeline_integrity,chain_of_custody,constitutional_compliance,investigation_completeness,case_quality,conviction_risk,appeal_risk,overall_confidence; methodology; positive_contributors; negative_contributors; and dimension_breakdowns. Each contributor should include finding_id when available.`;
+  const partialScores: Record<string, unknown>[] = [];
+  for (let batchIndex = 0; batchIndex < scoreBatches.length; batchIndex++) {
+    const batch = scoreBatches[batchIndex];
+    const partial = await callGroq({ apiKey, apiKeys, systemInstruction: scoreSystem, userContent: `${scoreSchema}\nBATCH ${batchIndex + 1}/${scoreBatches.length}:\n${JSON.stringify(batch)}`, json:true, temperature:0.1, maxTokens:4096 });
+    const parsed = parseJsonLoose<Record<string, unknown>>(partial.text);
+    if (parsed) partialScores.push(parsed);
+    await db.from('case_scores').upsert({ case_id:caseId, user_id:userId, methodology:`Scoring checkpoint ${batchIndex+1}/${scoreBatches.length}`, rationale:{partial_scores:partialScores,batch_index:batchIndex} as unknown as J }, {onConflict:'case_id'});
+  }
+
+  const r = partialScores.length === 1 ? { ...({text:JSON.stringify(partialScores[0]), model:'local-synthesis', latencyMs:0} as any), provider:'local', inputTokens:0, outputTokens:0, totalTokens:0 } : await callGroq({
     apiKey,
     apiKeys,
-    systemInstruction: `${mexicoLock(await getReportLocale(db, caseId))}\nYou score legal cases objectively across 10 dimensions. EVERY score must list specific positive and negative contributors that reference finding ids. NEVER produce opaque scores. Output STRICT JSON only.\nCRITICAL: each finding carries audit_classification. NOT_FOUND and EVIDENCE_GAP mean Nyrava searched for that issue and found no supporting basis — that is the ABSENCE of a defect, never proof of one. NEVER cite a NOT_FOUND/EVIDENCE_GAP finding as a negative contributor implying a confirmed problem (e.g. do not treat "interés jurídico no identificado en el corpus" as proof the case lacks standing) — only VERIFIED_FACT, VERIFIED_COURT_HOLDING, VERIFIED_LEGAL_RULE, or a clearly-labeled SUPPORTED_INFERENCE/POTENTIAL_ISSUE may be cited as a negative contributor, and POTENTIAL_ISSUE/SUPPORTED_INFERENCE must be phrased as unconfirmed, not as an established weakness.`,
-    userContent: `Return STRICT JSON. Each numeric field is 0-100 (integer). Each dimension_breakdowns entry must list at least 2 positive and 2 negative contributors with finding_id references when available.
+    systemInstruction: scoreSystem,
+    userContent: `${scoreSchema}
 
 {
   "evidence_strength": number,
@@ -5186,8 +5267,8 @@ async function _runScoringInner(args: {
   }
 }
 
-FINDINGS (${findings.length}):
-${JSON.stringify(findingsForLlm)}`,
+PARTIAL SCORECARDS (${partialScores.length}):
+${scoringSynthesisPrompt(partialScores)}`,
     json: true,
     temperature: 0.1,
   });
@@ -6326,10 +6407,13 @@ async function _runReportInner(args: {
   );
   const reportIdentity = await resolveReportIdentity(db, caseId);
   const reportUnderlyingMateria = reportIdentity.underlyingMateria;
+  const { loadLegalReasoningContext: loadReportLawContext, loadCaseLawProfile } = await import("./legal/case-law-context.server");
+  const reportLawProfile = await loadCaseLawProfile(db, caseId);
+  const reportLawContext = await loadReportLawContext(db, caseId);
   // Control constitucional aplica en materia penal, amparo y constitucional.
   const materiaForReport = normalizeMexicanCaseType(caseType);
-  const { data: proceduralSysEvidence } = await (db as any).from("case_classification_evidence").select("value").eq("case_id", caseId).eq("field", "procedural_system").order("created_at", { ascending: false }).limit(1).maybeSingle();
-  const proceduralSystem = (proceduralSysEvidence as any)?.value ?? "accusatory_oral_CNPP";
+  const { readLatestClassificationEvidenceValue } = await import("./intelligence/classification-evidence-reader.server");
+  const proceduralSystem = await readLatestClassificationEvidenceValue(db, caseId, "procedural_system") ?? "accusatory_oral_CNPP";
   const isTraditional = proceduralSystem === "traditional_written";
   const isCriminalOrCivilRights =
     materiaForReport === "penal" ||
@@ -6785,7 +6869,9 @@ ${corpus.slice(0, s(160000))}${resolutivoAnchorBlock}${penalDispositionAnchorBlo
   // proportional/chunked corpus budget is the further-out improvement if
   // 40,000 still isn't enough for a longer document; out of scope here.
   const REPORT_STAGE_CORPUS_CHARS = 40000;
-  const sharedContext = `DOCUMENT LEGEND:
+  const sharedContext = `${reportLawContext}
+
+DOCUMENT LEGEND:
 ${docLegend}
 
 KNOWN (DEDUPLICATED) FINDINGS (${findings.length}) — reference by id where relevant; DO NOT restate them:
@@ -6931,7 +7017,7 @@ ${corpus.slice(0, REPORT_STAGE_CORPUS_CHARS)}${resolutivoAnchorBlock}${penalDisp
   let chunkCache: Partial<Record<ChunkName, Record<string, unknown>>> = {};
   const { readReportChunkCache } = await import("./reporting/chunk-cache");
   const chunkContext = await sha256Hex(new TextEncoder().encode(JSON.stringify({
-    version: 3, caseId, executionId: executionId ?? null, caseType,
+    version: 4, reportLawProfile, caseId, executionId: executionId ?? null, caseType,
     corpus, docIndex, reportCaseAnalysisMode, mandatoryDecisionCore,
   })));
   try {
@@ -8108,6 +8194,19 @@ ${paginationTail}`;
   const { loadCaseSourcePages: loadReportSourcePages } = await import("./intelligence/source-matter-audit.server");
   const { relocateSourceRefs } = await import("./reporting/source-location-audit");
   const reportSourcePages = await loadReportSourcePages(db, caseId);
+  // Normalize mandatory decision-core references against the physical page
+  // index before any report section or release audit sees them. This is where
+  // page-boundary OCR references (for example a numbered decision block that
+  // starts on one PDF page and continues on the next) become one verified
+  // single-page quote. The release gate still audits the repaired reference.
+  const repairedMandatoryDecisionCore = mandatoryDecisionCore.map((item) => ({
+    ...item,
+    source_refs: relocateSourceRefs(item.source_refs, reportSourcePages, docIndex),
+  }));
+  mandatoryDecisionCore = repairedMandatoryDecisionCore;
+  if ((reportRow.full_report as any).mandatory_decision_core) {
+    (reportRow.full_report as any).mandatory_decision_core.items = repairedMandatoryDecisionCore;
+  }
   if (mandatoryDecisionCoreRequired && narrativeFallback) {
     const {auditSourceLocations} = await import('./reporting/source-location-audit');
     const {groundedDecisionSummary} = await import('./intelligence/decision-summary');
@@ -9132,6 +9231,9 @@ ${paginationTail}`;
     // Full intelligence package — every engine output the platform produced
     full_report: {
       ...parsed,
+      legal_context: reportLawProfile,
+      document_analysis: await (await import('./intelligence/document-analysis-context.server')).loadDocumentAnalysisContext(db,caseId),
+      doc_index: docIndex.map(d=>({doc_n:d.doc_n,document_id:d.document_id})),
       case_type: caseType,
       case_analysis_mode: reportCaseAnalysisMode,
       procedural_posture: proceduralPosture,
@@ -9511,7 +9613,8 @@ ${paginationTail}`;
         // Three explicit counters used by every UI surface and export.
         finding_counters: {
           generated: findings.length,
-          verified: findings.length,
+          verified: findings.filter(f=>f.verification_status==='verified' &&
+            (f.metadata?.semantic_support_review as {verdict?:string}|undefined)?.verdict==='supported').length,
           rendered: isLimited ? findings.length : findings.length,
         },
         // Findings Summary — cumulative per-pipeline-run audit exposing

@@ -1,3 +1,7 @@
+import { DocumentAnalysisPurposeFields, MatterAnalysisFields } from "@/components/DocumentAnalysisPurposeFields";
+import { CivilFamilyProcedureFields } from "./CivilFamilyProcedureFields";
+import { needsCivilFamilyProcedure } from "@/lib/legal/case-law-configuration";
+import { ApplicableLawStateField } from "./ApplicableLawStateField";
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -63,7 +67,7 @@ export function CaseControlPanel({
   caseUpdatedAt?: string | null;
   invalidate: () => void;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const qc = useQueryClient();
   const running = !!caseStatus && RUNNING_STATUSES.has(caseStatus);
   const queueFn = useServerFn(queueCaseForPipeline);
@@ -75,6 +79,9 @@ export function CaseControlPanel({
   const fileRef = useRef<HTMLInputElement | null>(null);
   const cancelWaitRef = useRef(false);
   const [addBusy, setAddBusy] = useState(false);
+  const [uploadPurpose, setUploadPurpose] = useState(String(matterMetadata?.document_purpose_default ?? ""));
+  const [uploadConnection, setUploadConnection] = useState("");
+  useEffect(() => {setUploadPurpose(String(matterMetadata?.document_purpose_default ?? "")); setUploadConnection("");}, [caseId, matterMetadata?.document_purpose_default]);
   const [addProgress, setAddProgress] = useState("");
   const [awaitingCancel, setAwaitingCancel] = useState(false);
 
@@ -189,6 +196,8 @@ export function CaseControlPanel({
       setAddProgress(t("caseControl.progress.uploading", { count: arr.length }));
       const fd = new FormData();
       fd.append("caseId", caseId);
+      fd.append("analysis_purpose", uploadPurpose);
+      fd.append("client_connection_note", uploadConnection);
       for (const f of arr) fd.append("files", f);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const res = await (addFn as any)({ data: fd });
@@ -299,6 +308,7 @@ export function CaseControlPanel({
           {awaitingCancel ? t("caseControl.rerun.stopping") : t("caseControl.rerun")}
         </button>
 
+        <DocumentAnalysisPurposeFields purpose={uploadPurpose} onPurposeChange={setUploadPurpose} connectionNote={uploadConnection} onConnectionNoteChange={setUploadConnection} locale={locale} disabled={addDisabled} />
         <input
           ref={fileRef}
           type="file"
@@ -375,10 +385,24 @@ function CollapsedCaseSettings({
   const effectiveUserJurisdiction = config.user_selected_jurisdiction ?? jurisdiction ?? "";
   const effectiveUserCaseAnalysisMode = config.user_selected_case_analysis_mode ?? caseAnalysisMode ?? "ongoing";
 
+  const effectivePurpose = String(matterMetadata?.document_purpose_default ?? "");
+  const effectiveQuestion = String(matterMetadata?.legal_question ?? "");
+  const [documentPurpose, setDocumentPurpose] = useState(effectivePurpose);
+  const [legalQuestion, setLegalQuestion] = useState(effectiveQuestion);
+  const [testFixture, setTestFixture] = useState(matterMetadata?.test_fixture === true);
+  useEffect(() => {setDocumentPurpose(effectivePurpose); setLegalQuestion(effectiveQuestion); setTestFixture(matterMetadata?.test_fixture === true);}, [effectivePurpose, effectiveQuestion, matterMetadata?.test_fixture]);
   const [ct, setCt] = useState<string>(effectiveUserCaseType);
   const [pv, setPv] = useState<string>(effectiveUserVehicle);
   const [um, setUm] = useState<string>(effectiveUserUnderlying);
   const [juris, setJuris] = useState<string>(effectiveUserJurisdiction);
+  const effectiveLawState = typeof matterMetadata?.applicable_law_state === "string" ? matterMetadata.applicable_law_state : "";
+  const [lawState, setLawState] = useState(effectiveLawState);
+  const effectiveStartedOn = typeof matterMetadata?.proceeding_started_on === "string" ? matterMetadata.proceeding_started_on : "";
+  const effectiveProceeding = typeof matterMetadata?.civil_family_proceeding === "string" ? matterMetadata.civil_family_proceeding : "";
+  const [startedOn, setStartedOn] = useState(effectiveStartedOn);
+  const [proceeding, setProceeding] = useState(effectiveProceeding);
+  useEffect(() => { setStartedOn(effectiveStartedOn); setProceeding(effectiveProceeding); }, [effectiveStartedOn, effectiveProceeding]);
+  useEffect(() => { setLawState(effectiveLawState); }, [effectiveLawState]);
   const [caseAnalysis, setCaseAnalysis] = useState<string>(effectiveUserCaseAnalysisMode);
 
   useEffect(() => {
@@ -390,7 +414,7 @@ function CollapsedCaseSettings({
   }, [effectiveUserCaseType, effectiveUserVehicle, effectiveUserUnderlying, effectiveUserJurisdiction, effectiveUserCaseAnalysisMode]);
 
   const m = useMutation({
-    mutationFn: (patch: { case_type?: string; procedural_vehicle?: string | null; underlying_materia?: string | null; jurisdiction?: string | null; case_analysis_mode?: string }) =>
+    mutationFn: (patch: { document_purpose_default?: string | null; legal_question?: string | null; test_fixture?: boolean; case_type?: string; procedural_vehicle?: string | null; underlying_materia?: string | null; jurisdiction?: string | null; applicable_law_state?: string | null; proceeding_started_on?: string | null; civil_family_proceeding?: string | null; case_analysis_mode?: string }) =>
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       updateFn({ data: { caseId, ...(patch as any) } }),
     onSuccess: (
@@ -413,10 +437,13 @@ function CollapsedCaseSettings({
   });
 
   const dirty =
+    documentPurpose !== effectivePurpose || legalQuestion !== effectiveQuestion || testFixture !== (matterMetadata?.test_fixture === true) ||
     ct !== effectiveUserCaseType ||
     pv !== effectiveUserVehicle ||
     um !== effectiveUserUnderlying ||
     juris !== effectiveUserJurisdiction ||
+    lawState !== effectiveLawState ||
+    startedOn !== effectiveStartedOn || proceeding !== effectiveProceeding ||
     caseAnalysis !== effectiveUserCaseAnalysisMode;
   const disabled = running || m.isPending;
 
@@ -561,6 +588,8 @@ function CollapsedCaseSettings({
             </select>
           </div>
 
+          {needsCivilFamilyProcedure(ct, um) && <CivilFamilyProcedureFields startedOn={startedOn} proceeding={proceeding} onStartedOnChange={setStartedOn} onProceedingChange={setProceeding} locale={locale} disabled={disabled} />}
+          <ApplicableLawStateField value={lawState} onChange={setLawState} locale={locale} disabled={disabled} />
           <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
             <div className="flex items-start gap-2">
               <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
@@ -598,8 +627,11 @@ function CollapsedCaseSettings({
             </div>
           </div>
 
+          <p className="mt-3 text-xs text-muted-foreground">{locale === "en" ? "Default for future uploads; edit existing documents individually." : "Valor para nuevas cargas; edita los documentos existentes individualmente."}</p>
+          <DocumentAnalysisPurposeFields purpose={documentPurpose} onPurposeChange={setDocumentPurpose} locale={locale} disabled={disabled} />
+          <MatterAnalysisFields question={legalQuestion} onQuestionChange={setLegalQuestion} fixture={testFixture} onFixtureChange={setTestFixture} locale={locale} disabled={disabled} />
           <button
-            onClick={() => m.mutate({ case_type: ct, procedural_vehicle: pv || null, underlying_materia: um || null, jurisdiction: juris || null, case_analysis_mode: caseAnalysis })}
+            onClick={() => m.mutate({ document_purpose_default: documentPurpose || null, legal_question: legalQuestion || null, test_fixture: testFixture, case_type: ct, procedural_vehicle: pv || null, underlying_materia: um || null, jurisdiction: juris || null, applicable_law_state: lawState || null, proceeding_started_on: needsCivilFamilyProcedure(ct, um) ? startedOn || null : null, civil_family_proceeding: needsCivilFamilyProcedure(ct, um) ? proceeding || null : null, case_analysis_mode: caseAnalysis })}
             disabled={disabled || !dirty || !ct}
             className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-sm font-medium text-accent hover:bg-accent/20 disabled:opacity-50"
           >

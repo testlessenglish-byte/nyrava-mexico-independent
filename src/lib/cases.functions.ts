@@ -1,3 +1,5 @@
+import { parseDocumentAnalysisPurpose, buildDocumentAnalysisMetadata, parseLegalQuestion, parseTestFixture, matterAnalysisScopeChanged } from "./intelligence/document-analysis-purpose";
+import { parseApplicableLawState, parseProceedingStartedOn, parseCivilFamilyProceeding, legalScopeChanged } from "./legal/case-law-configuration";
 // Client-safe server-function module. Handlers run on the server only.
 import { CASE_RESET_FIELDS, clearCaseDerivedData } from "./pipeline-reset";
 import { createServerFn } from "@tanstack/react-start";
@@ -145,6 +147,13 @@ export const createCaseAndUpload = createServerFn({ method: "POST" })
       const { parseImmigrationMatterMetadata } = await import("@/lib/jurisdiction/immigration");
       matter_metadata = parseImmigrationMatterMetadata(parsedMetadata);
     }
+    matter_metadata.document_purpose_default = parseDocumentAnalysisPurpose(data.get("analysis_purpose"));
+    matter_metadata.legal_question = parseLegalQuestion(data.get("legal_question"));
+    matter_metadata.test_fixture = parseTestFixture(data.get("test_fixture"));
+    matter_metadata.applicable_law_state = parseApplicableLawState(data.get("applicable_law_state"));
+    matter_metadata.proceeding_started_on = parseProceedingStartedOn(data.get("proceeding_started_on"));
+    matter_metadata.civil_family_proceeding = parseCivilFamilyProceeding(data.get("civil_family_proceeding"));
+    const documentAnalysisMetadata = buildDocumentAnalysisMetadata({}, data.get("analysis_purpose"), data.get("client_connection_note"));
     const files = data.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
     if (files.length === 0) throw new Error("No files uploaded");
 
@@ -377,7 +386,7 @@ export const createCaseAndUpload = createServerFn({ method: "POST" })
           bytes: uploads.reduce((a, u) => a + u.bytes.byteLength, 0),
         },
       },
-      () => uploadFiles({ db: supabase, caseId, userId, uploads }),
+      () => uploadFiles({ db: supabase, caseId, userId, uploads, documentAnalysisMetadata }),
     );
     const { count: docCount } = await supabase
       .from("documents")
@@ -3042,6 +3051,12 @@ export const updateCaseSettings = createServerFn({ method: "POST" })
         case_type: z.enum(CASE_TYPE_VALUES).nullable().optional(),
         analysis_mode: z.enum(["strict", "balanced", "exploratory"]).optional(),
         jurisdiction: z.enum(JURISDICTION_VALUES).nullable().optional(),
+        proceeding_started_on: z.string().nullable().optional().transform(v => v === undefined ? undefined : parseProceedingStartedOn(v)),
+        civil_family_proceeding: z.string().nullable().optional().transform(v => v === undefined ? undefined : parseCivilFamilyProceeding(v)),
+        document_purpose_default: z.enum(["legal_research", "client_matter_evidence"]).nullable().optional(),
+        legal_question: z.string().nullable().optional().transform(v => v === undefined ? undefined : parseLegalQuestion(v)),
+        test_fixture: z.boolean().optional(),
+        applicable_law_state: z.string().nullable().optional().transform(v => v === undefined ? undefined : parseApplicableLawState(v)),
         case_analysis_mode: z
           .enum(["ongoing", "concluded_audit", "judgment_audit", "appeal_routes"])
           .optional(),
@@ -3085,7 +3100,9 @@ export const updateCaseSettings = createServerFn({ method: "POST" })
       patch.case_type_source = resolved.case_type_source;
     }
 
-    if (Object.keys(patch).length === 0) return { ok: true };
+    if (Object.keys(patch).length === 0 && data.applicable_law_state === undefined
+      && data.proceeding_started_on === undefined && data.civil_family_proceeding === undefined
+      && data.document_purpose_default === undefined && data.legal_question === undefined && data.test_fixture === undefined) return { ok: true };
 
     // Read the current mode/case_type first so we can tell whether this save
     // actually changes either one. Mode decides which engines are ALLOWED to
@@ -3096,11 +3113,13 @@ export const updateCaseSettings = createServerFn({ method: "POST" })
     // any direction) leaves every previously-skipped engine permanently
     // skipped and the rerun looks like it did nothing.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: before } = await (supabase as any)
+    const { data: before, error: beforeError } = await (supabase as any)
       .from("cases")
-      .select("analysis_mode,case_type,case_analysis_mode,matter_metadata,jurisdiction,procedural_vehicle,underlying_materia")
+      .select("analysis_mode,case_type,case_analysis_mode,matter_metadata,jurisdiction,procedural_vehicle,underlying_materia,status,worker_lease_until,execution_id,updated_at")
       .eq("id", data.caseId)
       .maybeSingle();
+    if (beforeError || !before) throw new Error("Case not found");
+    if ((before.worker_lease_until && new Date(before.worker_lease_until).getTime() > Date.now()) || ["queued", "running", "extracting", "analyzing", "agents_running", "ocr", "scoring", "reporting", "generating_report", "intelligence_running", "extraction_running", "extraction_complete", "analyzers_running", "analyzers_complete"].includes(before.status ?? "")) throw new Error("Stop the active analysis before changing case settings.");
     const previousMode = (before?.analysis_mode as string | null) ?? null;
     const previousCaseType = (before?.case_type as string | null) ?? null;
     const previousCaseAnalysisMode = (before?.case_analysis_mode as string | null) ?? "ongoing";
@@ -3135,8 +3154,9 @@ export const updateCaseSettings = createServerFn({ method: "POST" })
     // derived analysis is cleared.
     const caseTypeChanged = data.case_type !== undefined && data.case_type !== previousCaseType;
 
-    if (caseTypeChanged || caseAnalysisModeChanged) {
-      await clearCaseDerivedData(supabase, data.caseId);
+    const lawScopeChanged = legalScopeChanged(before ?? {}, data);
+    const resetDerived = caseTypeChanged || caseAnalysisModeChanged || lawScopeChanged || matterAnalysisScopeChanged(before?.matter_metadata ?? {}, data);
+    if (resetDerived) {
       Object.assign(patch, CASE_RESET_FIELDS);
       // clearCaseDerivedData/CASE_RESET_FIELDS don't touch case_type/
       // analysis_mode/case_analysis_mode/jurisdiction — patch's own values
@@ -3178,9 +3198,23 @@ export const updateCaseSettings = createServerFn({ method: "POST" })
       selected_at: new Date().toISOString(),
     };
     const currentMeta = (before?.matter_metadata as Record<string, unknown> | null) ?? {};
-    patch.matter_metadata = { ...currentMeta, case_configuration: updatedConfig };
+    patch.matter_metadata = { ...currentMeta, case_configuration: updatedConfig,
+      ...(data.document_purpose_default !== undefined ? {document_purpose_default: data.document_purpose_default} : {}),
+      ...(data.legal_question !== undefined ? {legal_question: data.legal_question} : {}),
+      ...(data.test_fixture !== undefined ? {test_fixture: data.test_fixture} : {}),
+      ...(data.applicable_law_state !== undefined ? { applicable_law_state: data.applicable_law_state } : {}),
+      ...(data.proceeding_started_on !== undefined ? { proceeding_started_on: data.proceeding_started_on } : {}),
+      ...(data.civil_family_proceeding !== undefined ? { civil_family_proceeding: data.civil_family_proceeding } : {}) };
 
-    await updateCaseWithSchemaDriftRetry(supabase, data.caseId, patch);
+    // Claim the exact inactive state before clearing any derived rows. A concurrent
+    // queue/worker or settings save must win or lose the whole guarded update.
+    if (resetDerived || modeChanged) Object.assign(patch, {cancel_requested: true, queued_at: null});
+    let save = supabase.from("cases").update(patch).eq("id", data.caseId).eq("updated_at", before.updated_at);
+    save = before.status == null ? save.is("status", null) : save.eq("status", before.status);
+    save = before.execution_id == null ? save.is("execution_id", null) : save.eq("execution_id", before.execution_id);
+    const {data: saved, error: saveError} = await save.select("id").maybeSingle();
+    if (saveError || !saved) throw new Error("Case changed while editing. Reload before changing case settings.");
+    if (resetDerived) await clearCaseDerivedData(supabase, data.caseId);
 
     if (modeChanged || caseAnalysisModeChanged) {
       // Drop non-authoritative ledger rows so the next run re-executes those
@@ -4413,6 +4447,7 @@ export const uploadCaseEvidence = createServerFn({ method: "POST" })
     const { supabase, userId } = await getAuthedContext(context, "EvidenceUpload");
     const caseId = String(data.get("caseId") ?? "");
     if (!/^[0-9a-f-]{36}$/i.test(caseId)) throw new Error("Invalid caseId");
+    const documentAnalysisMetadata = buildDocumentAnalysisMetadata({}, data.get("analysis_purpose"), data.get("client_connection_note"));
     const files = data.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
     if (files.length === 0) throw new Error("No files provided");
 
@@ -4450,7 +4485,7 @@ export const uploadCaseEvidence = createServerFn({ method: "POST" })
     // this column existed, a document dropped into a chat exchange was
     // indistinguishable from ordinary evidence the moment a full rerun
     // happened next.
-    await uploadFiles({ db: supabase, caseId, userId, uploads, evidenceScope: "revision_context" });
+    await uploadFiles({ db: supabase, caseId, userId, uploads, documentAnalysisMetadata, evidenceScope: "revision_context" });
 
     // Auto-run extraction so the AI can immediately read the new evidence.
     try {
@@ -4467,6 +4502,35 @@ export const uploadCaseEvidence = createServerFn({ method: "POST" })
     }
 
     return { ok: true, uploaded: files.length };
+  });
+
+export const updateDocumentAnalysisPurpose = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({
+    caseId: z.string().uuid(), documentId: z.string().uuid(),
+    analysis_purpose: z.enum(["legal_research", "client_matter_evidence"]).nullable(),
+    client_connection_note: z.string().max(4000).nullable(),
+  }).parse(d))
+  .handler(async ({data, context}) => {
+    const {supabase} = await getAuthedContext(context, "DocumentPurpose");
+    const {data: matter, error: matterError} = await supabase.from("cases").select("id,status,worker_lease_until,execution_id,updated_at").eq("id", data.caseId).maybeSingle();
+    if (matterError || !matter) throw new Error("Case not found");
+    if ((matter.worker_lease_until && new Date(matter.worker_lease_until).getTime() > Date.now()) || ["queued", "running", "extracting", "analyzing", "agents_running", "ocr", "scoring", "reporting", "generating_report", "intelligence_running", "extraction_running", "extraction_complete", "analyzers_running", "analyzers_complete"].includes(matter.status ?? "")) throw new Error("Stop the active analysis before changing document purpose.");
+    const {data: document, error: documentError} = await supabase.from("documents").select("id,metadata").eq("id", data.documentId).eq("case_id", data.caseId).maybeSingle();
+    if (documentError || !document) throw new Error("Document not found in this case");
+    const current = (document.metadata as Record<string, unknown> | null) ?? {};
+    const metadata = buildDocumentAnalysisMetadata(current, data.analysis_purpose, data.client_connection_note);
+    if (current.analysis_purpose === metadata.analysis_purpose && current.client_connection_note === metadata.client_connection_note) return {ok: true, changed: false};
+    // Invalidate first: a failure must never leave a report claiming the new scope was verified.
+    let claim = supabase.from("cases").update({...CASE_RESET_FIELDS, cancel_requested: true, queued_at: null}).eq("id", data.caseId).eq("updated_at", matter.updated_at);
+    claim = matter.status == null ? claim.is("status", null) : claim.eq("status", matter.status);
+    claim = matter.execution_id == null ? claim.is("execution_id", null) : claim.eq("execution_id", matter.execution_id);
+    const {data: claimed, error: claimError} = await claim.select("id").maybeSingle();
+    if (claimError || !claimed) throw new Error("Case changed while editing. Reload before changing document purpose.");
+    await clearCaseDerivedData(supabase, data.caseId);
+    const {error} = await supabase.from("documents").update({metadata: metadata as Database["public"]["Tables"]["documents"]["Update"]["metadata"]}).eq("id", data.documentId).eq("case_id", data.caseId);
+    if (error) throw new Error(error.message);
+    return {ok: true, changed: true};
   });
 
 export const listCaseDocuments = createServerFn({ method: "POST" })
@@ -4665,6 +4729,7 @@ export const addEvidenceAndRerun = createServerFn({ method: "POST" })
     const { supabase, userId } = await getAuthedContext(context, "AddEvidence");
     const caseId = String(data.get("caseId") ?? "");
     if (!/^[0-9a-f-]{36}$/i.test(caseId)) throw new Error("Invalid caseId");
+    const documentAnalysisMetadata = buildDocumentAnalysisMetadata({}, data.get("analysis_purpose"), data.get("client_connection_note"));
     const files = data.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
     if (files.length === 0) throw new Error("No files provided");
 
@@ -4748,7 +4813,7 @@ export const addEvidenceAndRerun = createServerFn({ method: "POST" })
       files.map(async (f) => ({ name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) })),
     );
     const { uploadFiles } = await import("@/lib/pipeline.server");
-    const uploadResult = await uploadFiles({ db: supabase, caseId, userId, uploads });
+    const uploadResult = await uploadFiles({ db: supabase, caseId, userId, uploads, documentAnalysisMetadata });
     const newDocIds = uploadResult.uploadedDocumentIds;
     if (uploadResult.uploaded === 0) {
       return {

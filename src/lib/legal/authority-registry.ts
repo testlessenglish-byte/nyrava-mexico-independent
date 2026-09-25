@@ -524,22 +524,10 @@ export const MATERIA_AUTHORITY_IDS: Record<string, readonly string[]> = {
   derechos_humanos: ["ley_amparo", "criterio_tcc"],
 };
 
-/** Materias whose competence is exclusively federal (state law never displaces). */
+/** Proceeding families with a federal route. This does not exclude underlying local law. */
 export const FEDERAL_ONLY_MATERIAS: readonly string[] = [
   "amparo",
-  "constitucional",
-  "fiscal",
-  "laboral",
   "agrario",
   "migratorio",
-  "maritimo",
-  "propiedad_intelectual",
-  "consumidor",
-  "mercantil",
   "mercantil_concursal",
-  "mercantil_corporativo",
-  "corporativo",
-  "cobranza",
-  "cobranza_judicial",
-  "derechos_humanos",
 ];

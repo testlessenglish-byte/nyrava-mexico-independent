@@ -1,3 +1,4 @@
+import { LegalScopeSummary } from "@/components/reports/LegalScopeSummary";
 import { releaseFinalReportPayload, type FinalReportPayload } from "@/lib/reporting/final-report-contract";
 import { fetchCurrentCaseExport } from "@/lib/reporting/case-json-export";
 import { CanonicalReportFindings } from "@/components/reports/CanonicalReportFindings";
@@ -425,6 +426,7 @@ function ReportsPage() {
 
                 {finalPayload && <CanonicalReportFindings payload={finalPayload} />}
 
+                <LegalScopeSummary fullReport={report.full_report} />
                 {report.executive_summary ? (
                   <div className="rounded-xl border border-border bg-card/60 p-4">
                     <p className="text-xs font-semibold uppercase text-muted-foreground">

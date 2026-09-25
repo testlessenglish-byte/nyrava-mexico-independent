@@ -1,6 +1,9 @@
+import { reportRenderTimestamp } from "./reporting/reviewed-sections";
 import { translateLegalTerm } from "./pdf/enum-translation";
 import { resolveReportIdentity } from "./pdf/identity-resolver";
 import { prepareCaseJsonExport } from "./reporting/case-json-export";
+import {documentPurposeSummary} from './reporting/document-purpose-summary';
+import {assertNarrativeExportReady} from './reporting/narrative-export-gate';
 
 // Client-side download helpers for case exports.
 //
@@ -10,7 +13,7 @@ import { prepareCaseJsonExport } from "./reporting/case-json-export";
 // trail, and source appendix. Raw JSON is never exposed to the user — every
 // internal structure is rendered as readable prose, tables, or callouts.
 import jsPDF from "jspdf";
-import { composeFinalReportPayload, releaseFinalReportPayload, releaseRenderedReportOutput, type FinalReportPayload } from "./reporting/final-report-contract";
+import { composeFinalReportPayload, releaseFinalReportPayload, releaseRenderedReportOutput, preflightFinalReportPayload, preflightRenderedReportOutput, type FinalReportPayload } from "./reporting/final-report-contract";
 import { canonicalSourceCount } from "./reporting/report-sources";
 import autoTable from "jspdf-autotable";
 import { assertPdfLayout, auditPdfLayout, type PdfLayoutIssue, type PdfLayoutPage } from "./pdf/layout-qa";
@@ -381,8 +384,10 @@ function saveBlob(blob: Blob, filename: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export function downloadJson(data: CaseExportData, name: string) {
-  const { payload, diagnostic } = prepareCaseJsonExport(data, releaseFinalReportPayload);
+export async function downloadJson(data: CaseExportData, name: string) {
+  const initial = prepareCaseJsonExport(data, releaseFinalReportPayload);
+  const { payload, diagnostic } = initial.diagnostic ? initial : prepareCaseJsonExport(await prepareFinalReportForRelease(initial.payload), releaseFinalReportPayload);
+  if(!diagnostic)await assertNarrativeExportReady(payload);
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
   const caseName = typeof data.case?.name === "string" ? data.case.name : name;
   saveBlob(blob, `${slug(caseName)}${diagnostic ? "-diagnostics" : ""}.json`);
@@ -2250,7 +2255,7 @@ export class PdfBuilder {
     this.doc.setFont("helvetica", "normal");
     this.doc.setFontSize(8.5);
     this.doc.setTextColor(...MUTED);
-    const generatedLabel = new Date(meta.generatedAt).toLocaleString();
+    const generatedLabel = meta.generatedAt.replace("T", " ").replace(".000Z", " UTC");
     this.doc.text(`Generado ${generatedLabel}  ·  Motor v${NYRAVA_REPORT_VERSION}`, cx, yy, {
       align: "center",
     });
@@ -2277,10 +2282,11 @@ export class PdfBuilder {
     }
   }
 
-  save(filename: string, meta: { parity: string; ess: string; generatedAt: string } | null = null, validateOnly = false) {
+  async save(filename: string, meta: { parity: string; ess: string; generatedAt: string } | null = null, validateOnly = false, internalPreflight = false) {
     this.finalizeLayout(meta);
     if (!this.finalPayload) throw new Error("REPORT_CONTRACT_UNAVAILABLE");
-    const released = releaseRenderedReportOutput(this.finalPayload, "pdf", this.renderedText.join("\n"));
+    const released = (internalPreflight ? preflightRenderedReportOutput : releaseRenderedReportOutput)(this.finalPayload, "pdf", this.renderedText.join("\n"));
+    if (!validateOnly) await assertNarrativeExportReady(released);
     if (!validateOnly) this.doc.save(filename);
     return released;
   }
@@ -2337,7 +2343,7 @@ function renderCover(
     matterId: asStr(c.id) || "No proporcionado",
     caseNumber: identity.caseNumber,
     classification: "CONFIDENCIAL",
-    date: new Date().toLocaleDateString("es-MX"),
+    date: reportRenderTimestamp(data).slice(0,10),
     engineVersion: translateLegalTerm(asStr(r.intelligence_version)),
     certification: deriveCertificationState(data),
   });
@@ -2642,6 +2648,17 @@ function renderExecutive(b: PdfBuilder, data: CaseExportData, mode: ReportMode) 
   const r = asObj(data.report);
   const execLocale = resolveReportLocale(data.report, data.case);
   b.h1(execLocale === "en" ? "Executive Summary" : "Resumen Ejecutivo");
+  const purposeLines=documentPurposeSummary(asObj(r.full_report).document_analysis,execLocale);
+  if(purposeLines.length){
+    b.h2(execLocale === 'en' ? 'Document purpose and review scope' : 'Finalidad documental y alcance');
+    for(const line of purposeLines)b.text(line,{size:9,color:MUTED,gap:3});
+  }
+  const lawScope = asObj(asObj(r.full_report).legal_context);
+  if (asStr(lawScope.summary)) {
+    b.h2(execLocale === "en" ? "Court jurisdiction and applicable law" : "Jurisdicción y legislación aplicable");
+    b.text(asStr(lawScope.summary), { size: 10, gap: 6 });
+    for (const note of asArr(lawScope.notes)) b.text(asStr(note), { size: 9, color: MUTED, gap: 3 });
+  }
   if (mode === "LIMITED") {
     const summary = asStr(r.executive_summary);
     if (summary) b.text(processProseCitations(summary), { size: 11, gap: 8 });
@@ -5358,16 +5375,21 @@ function deriveMatterId(data: CaseExportData): string {
   return id || "NYRAVA";
 }
 
-export async function downloadPdf(
+export async function downloadPdf(data: CaseExportData, name: string, opts?: { citationMode?: CitationMode; validateOnly?: boolean }) {
+  return renderPdf(data,name,opts,false);
+}
+async function renderPdf(
   data: CaseExportData,
   name: string,
   opts?: { citationMode?: CitationMode; validateOnly?: boolean },
+  internalPreflight = false,
 ) {
   const sourceIdentity = asObj(asObj(asObj(data.case).matter_metadata).source_identity_audit);
   if (sourceIdentity.status === "IDENTITY_CONFLICT") {
     throw new Error("IDENTITY_CONFLICT: Los expedientes no coinciden. Revise las páginas fuente antes de generar el informe.");
   }
-  data = (data as FinalReportPayload).report_presentation ? structuredClone(releaseFinalReportPayload(data)) : composeFinalReportPayload(data);
+  const validatePayload = internalPreflight ? preflightFinalReportPayload : releaseFinalReportPayload;
+  data = (data as FinalReportPayload).report_presentation ? structuredClone(validatePayload(data)) : composeFinalReportPayload(data);
   // Explicit, redundant release-gate check at the actual point of export —
   // do not rely solely on the upstream content-stripping in
   // cases.functions.ts::getCase() (sanitizeBlockedReport). That fix removes
@@ -5376,7 +5398,7 @@ export async function downloadPdf(
   // that exact path. "Do not rely on frontend controls for release
   // security" applies here too: this is backend/client-shared code, but
   // the check belongs at the point of action, not just upstream.
-  if (asObj(data.report).quality_blocked === true) {
+  if (!internalPreflight && asObj(data.report).quality_blocked === true) {
     throw new Error(
       "REPORT_BLOCKED: This report failed its release/quality gate and cannot be exported.",
     );
@@ -5426,7 +5448,7 @@ export async function downloadPdf(
   const parity = paritySignature(reportRow);
   const ess = getEssState(reportRow);
   const engines = getEnginesSummary(reportRow);
-  const generatedAt = new Date().toISOString();
+  const generatedAt = reportRenderTimestamp(data);
   let parityShort = 0;
   for (let i = 0; i < parity.length; i++)
     parityShort = ((parityShort << 5) - parityShort + parity.charCodeAt(i)) | 0;
@@ -5439,7 +5461,7 @@ export async function downloadPdf(
   (data as FinalReportPayload).report_presentation.render_sections = queue.map(section => ({
     id: section.id, title: section.title, strategic: section.gatedInLimited,
   }));
-  data = releaseFinalReportPayload(data);
+  data = validatePayload(data);
 
   const coverFooterSpilled = renderCover(b, data, mode, counters);
   // Cover stands alone; TOC starts on its own page. After this, sections
@@ -5488,11 +5510,12 @@ export async function downloadPdf(
   const footerEss =
     mode === "LIMITED" ? `${ess.level} · ${mode} · scores suppressed` : `${ess.level} · ${mode}`;
   b.finalPayload = data as FinalReportPayload;
+  if(!opts?.validateOnly)await assertNarrativeExportReady(data);
   return b.save(`${slug(name)}.pdf`, {
     parity: parityTag,
     ess: footerEss,
     generatedAt,
-  }, opts?.validateOnly);
+  }, opts?.validateOnly, internalPreflight);
 }
 
 /** Same real section renderers used by downloads; in-memory only, no publication.
@@ -5507,7 +5530,7 @@ export async function prepareFinalReportForRelease(data: CaseExportData): Promis
   await previous;
   try {
     const name = asStr(data.case?.name, "Report");
-    const pdf = await downloadPdf(data, name, {validateOnly:true});
+    const pdf = await renderPdf(composeFinalReportPayload(data), name, {validateOnly:true}, true);
     return pdf;
   } finally { done(); }
 }

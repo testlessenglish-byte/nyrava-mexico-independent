@@ -11,27 +11,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import type { IngestedDocument, LegalSourceConnector } from "./types";
-import { isStructuredAccessMethod } from "./types";
 import { deriveAuthorityLevel } from "./authority-level";
 import { sha256Hex } from "@/lib/intelligence/evidence-provenance.server";
 
 type Db = SupabaseClient<Database>;
-
-/**
- * A row is auto-verifiable on ingest only when BOTH hold: the connector
- * delivers structured text with no OCR/scrape step (isStructuredAccessMethod),
- * AND the document itself actually has the fields a citation needs. A
- * structured API can still return a thin/incomplete record — that still
- * goes to human review regardless of source trust.
- */
-function isAutoVerifiable(connector: LegalSourceConnector, doc: IngestedDocument): boolean {
-  return (
-    isStructuredAccessMethod(connector.accessMethod) &&
-    !!doc.title?.trim() &&
-    !!doc.citation?.trim() &&
-    (doc.rawText ?? "").trim().length > 50
-  );
-}
 
 /**
  * Upsert an ingested document into legal_authorities. If a row with this
@@ -46,14 +29,18 @@ export async function upsertAuthorityWithVersioning(
 ): Promise<{ authorityId: string; versioned: boolean }> {
   const connectorCode = connector.code;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: existing } = await (db as any)
+  const { data: existing, error: lookupError } = await (db as any)
     .from("legal_authorities")
-    .select("id,body,metadata,authority_level")
+    .select("id,body,metadata,authority_level,source_url,published_at,effective_at,verification_status,content_hash")
     .eq("metadata->>external_id", doc.externalId)
     .eq("metadata->>connector_code", connectorCode)
     .maybeSingle();
+  if (lookupError) throw new Error(`Authority lookup failed: ${lookupError.message}`);
 
-  const metadata = { ...(doc.metadata ?? {}), external_id: doc.externalId, connector_code: connectorCode };
+  const metadata: Record<string, unknown> = { ...(existing?.metadata ?? {}), ...(doc.metadata ?? {}), external_id: doc.externalId, connector_code: connectorCode };
+  // Connector payloads cannot manufacture or replace a review attestation.
+  delete metadata.review_attestation;
+  if (existing?.metadata?.review_attestation) metadata.review_attestation = existing.metadata.review_attestation;
 
   if (!existing) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -73,10 +60,8 @@ export async function upsertAuthorityWithVersioning(
         metadata,
         authority_level: deriveAuthorityLevel(doc.kind, doc.jurisdiction),
         content_hash: sha256Hex(doc.rawText),
-        // Auto-verify only a structured-source, structurally-complete record
-        // — see isAutoVerifiable above. Everything else keeps the column's
-        // 'pending' default and waits for the human review gate.
-        verification_status: isAutoVerifiable(connector, doc) ? "verified" : "pending",
+        // Transport format does not establish legal/source verification.
+        verification_status: "pending",
       })
       .select("id")
       .single();
@@ -85,21 +70,32 @@ export async function upsertAuthorityWithVersioning(
   }
 
   const textChanged = existing.body !== doc.rawText;
-  if (textChanged) {
+  const provenanceChanged = (existing.source_url ?? null) !== (doc.sourceUrl ?? null)
+    || (existing.published_at ?? null) !== (doc.publishedAt ?? null)
+    || (existing.effective_at ?? null) !== (doc.effectiveAt ?? null);
+  const reviewChanged = textChanged || provenanceChanged;
+  if (reviewChanged) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (db as any).from("legal_authority_versions").insert({
+    const { error: archiveError } = await (db as any).from("legal_authority_versions").insert({
       authority_id: existing.id,
       body: existing.body,
-      metadata: existing.metadata,
+      metadata: { ...(existing.metadata ?? {}), version_snapshot: {
+        source_url: existing.source_url, published_at: existing.published_at,
+        effective_at: existing.effective_at, verification_status: existing.verification_status,
+        authority_level: existing.authority_level,
+      } },
       archived_at: new Date().toISOString(),
       // Hash of the version being ARCHIVED (the outgoing text), not the
       // incoming one — this row is the historical snapshot.
       content_hash: sha256Hex(existing.body ?? ""),
     });
+    if (archiveError) throw new Error(`Authority archive failed: ${archiveError.message}`);
+    delete metadata.review_attestation;
+    metadata.review_invalidated = { reason: textChanged ? 'source_text_changed' : 'source_provenance_changed', previous_content_hash: sha256Hex(existing.body ?? ''), at: new Date().toISOString() };
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error: updateErr } = await (db as any)
+  let update = (db as any)
     .from("legal_authorities")
     .update({
       title: doc.title,
@@ -110,6 +106,8 @@ export async function upsertAuthorityWithVersioning(
       effective_at: doc.effectiveAt ?? null,
       body: doc.rawText,
       metadata,
+      source_url: doc.sourceUrl,
+      ...(reviewChanged ? { verification_status: 'pending' } : {}),
       updated_at: new Date().toISOString(),
       content_hash: sha256Hex(doc.rawText),
       // Never overwrite a level that's already set — either this same
@@ -118,7 +116,13 @@ export async function upsertAuthorityWithVersioning(
       authority_level: existing.authority_level ?? deriveAuthorityLevel(doc.kind, doc.jurisdiction),
     })
     .eq("id", existing.id);
+  // Compare-and-swap prevents an older ingestion from overwriting a concurrent
+  // body change. Archiving is fail-closed; a fully transactional RPC remains a
+  // separate migration so this patch requires no live schema change.
+  update = existing.content_hash == null ? update.is('content_hash', null) : update.eq('content_hash', existing.content_hash);
+  const { data: updated, error: updateErr } = await update.select('id');
   if (updateErr) throw new Error(`Update failed for ${doc.externalId}: ${updateErr.message}`);
+  if (!updated?.length) throw new Error(`Authority changed concurrently: ${doc.externalId}`);
 
-  return { authorityId: existing.id as string, versioned: textChanged };
+  return { authorityId: existing.id as string, versioned: reviewChanged };
 }

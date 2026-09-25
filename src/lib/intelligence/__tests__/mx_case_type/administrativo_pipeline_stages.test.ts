@@ -1,35 +1,17 @@
-// Pipeline-stage relevance for administrativo (juicio contencioso
-// administrativo / TFJA nullity actions), and the two other materias that
-// route through the same profile: electoral and ambiental
-// (PROFILE_BY_MATERIA in mx-pipeline.ts).
-//
-// This exists because a real bug was found by inspection, not by running
-// the pipeline: a TFJA nullity action is resolved on the written expediente
-// (demanda, contestación, documentary evidence, alegatos, sentencia) with
-// no live witness examination in the adversarial-trial sense — the same
-// reasoning already correctly applied to amparo and apelacion ("no hay
-// desahogo de testigos ni juicio oral"), just not previously extended to
-// administrativo.
-//
-// This proves the fix (isStageRelevantForCaseType / mxPipelineStages in
-// mx-pipeline.ts) actually excludes `witness`, rather than asserting it.
-//
-// 2026-08-02: trial_prep itself was removed from CANONICAL_STAGES entirely
-// (not materia-excluded — it no longer exists as a stage for any materia,
-// including penal). The trial_prep-specific assertions that used to live
-// in this file were removed for that reason, not because the underlying
-// administrativo/witness fix was reverted.
+// Administrative witness evidence is permitted by LFPCA article 44.
+// Official reform: https://sidof.segob.gob.mx/notas/docFuente/5790177
+// Eligibility does not establish that this case has witnesses or uses that law.
 import { describe, it, expect } from "vitest";
 import { isStageRelevantForCaseType, mxPipelineStageKeys } from "@/lib/execution/mx-pipeline";
 
-describe("administrativo (and electoral/ambiental, same profile) pipeline stage relevance", () => {
-  it("excludes witness for administrativo — same rationale already used for amparo/apelacion", () => {
-    expect(isStageRelevantForCaseType("administrativo", "witness")).toBe(false);
+describe("administrativo and separate electoral/ambiental pipeline stage relevance", () => {
+  it("allows witness analysis for administrativo when evidence is present", () => {
+    expect(isStageRelevantForCaseType("administrativo", "witness")).toBe(true);
     // constitutional was already correctly excluded before this fix.
     expect(isStageRelevantForCaseType("administrativo", "constitutional")).toBe(false);
   });
 
-  it("applies identically to electoral and ambiental, which route through the same administrativo profile", () => {
+  it("preserves the separate electoral and ambiental stage policies", () => {
     expect(isStageRelevantForCaseType("electoral", "witness")).toBe(false);
     expect(isStageRelevantForCaseType("ambiental", "witness")).toBe(false);
   });

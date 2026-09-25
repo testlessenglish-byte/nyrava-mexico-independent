@@ -79,14 +79,27 @@ type ProviderCall = {
 
 export function providerCallsForRun(run: Pick<EngineRun, "meta" | "provider" | "model" | "tokens_in" | "tokens_out" | "status">): ProviderCall[] {
   const telemetry = run.meta?.telemetry;
-  const raw = telemetry && typeof telemetry === "object"
-    ? (telemetry as Record<string, unknown>).provider_calls
-    : null;
+  const record = telemetry && typeof telemetry === "object" ? telemetry as Record<string, unknown> : {};
+  // Engine audit and engine persistence write different telemetry shapes.
+  const raw = Array.isArray(record.provider_calls) && record.provider_calls.length
+    ? record.provider_calls : record.calls;
   if (Array.isArray(raw) && raw.length > 0) {
-    return raw.filter((call): call is ProviderCall => {
-      if (!call || typeof call !== "object") return false;
+    return raw.flatMap((call): ProviderCall[] => {
+      if (!call || typeof call !== "object") return [];
       const value = call as Record<string, unknown>;
-      return typeof value.provider === "string" && typeof value.ok === "boolean";
+      if (typeof value.provider !== "string" || typeof value.ok !== "boolean") return [];
+      const keyIndex = value.key_index ?? value.keyIndex;
+      const number = (v: unknown) => typeof v === "number" && Number.isFinite(v) ? v : undefined;
+      return [{
+        provider: value.provider, ok: value.ok,
+        model: typeof value.model === "string" ? value.model : null,
+        input_tokens: number(value.input_tokens ?? value.inputTokens),
+        output_tokens: number(value.output_tokens ?? value.outputTokens),
+        latency_ms: number(value.latency_ms ?? value.latencyMs),
+        key_label: typeof keyIndex === "number" && Number.isInteger(keyIndex) && keyIndex >= 0
+          ? `key #${keyIndex + 1}`
+          : typeof value.key_label === "string" && /^key #\d+$/.test(value.key_label) ? value.key_label : null,
+      }];
     });
   }
   // Backward-compatible view for rows written before per-call telemetry.

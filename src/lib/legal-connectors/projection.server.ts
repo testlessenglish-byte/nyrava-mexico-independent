@@ -93,6 +93,23 @@ export async function projectDocument(
   try {
     const articles = await connector.extractArticles(doc);
     if (articles.length > 0) {
+      const {data:existingArticles,error:readError}=await anyDb.from('legal_articles')
+        .select('id,article_number,body,effective_at,source_url,verification_status')
+        .eq('authority_id',authorityId);
+      if(readError) throw new Error(`Article history unavailable: ${readError.message}`);
+      const existingByNumber=new Map<string,any>((existingArticles??[]).map((a:any)=>[a.article_number,a]));
+      const changed=articles.slice(0,500).filter(a=>{
+        const old=existingByNumber.get(a.articleNumber);return old && old.body!==a.text;
+      });
+      if(changed.length) {
+        const {error:archiveError}=await anyDb.from('legal_amendments').insert(changed.map(a=>({
+          article_id:existingByNumber.get(a.articleNumber).id,
+          previous_body:existingByNumber.get(a.articleNumber).body,new_body:a.text,
+          amendment_type:'reform',effective_at:doc.effectiveAt??null,source_url:doc.sourceUrl,
+          decree_reference:'Ingestion observed text change; amendment characterization requires review.',
+        })));
+        if(archiveError) throw new Error(`Article archive failed: ${archiveError.message}`);
+      }
       const rows = articles.slice(0, 500).map((a) => ({
         authority_id: authorityId,
         article_number: a.articleNumber,
@@ -100,6 +117,9 @@ export async function projectDocument(
         body: a.text,
         effective_at: doc.effectiveAt ?? null,
         source_url: doc.sourceUrl,
+        verification_status: (()=>{const old=existingByNumber.get(a.articleNumber);
+          return old && old.body===a.text && old.effective_at===(doc.effectiveAt??null) && old.source_url===doc.sourceUrl
+            ? old.verification_status : 'pending';})(),
       }));
       const { error } = await anyDb
         .from("legal_articles")

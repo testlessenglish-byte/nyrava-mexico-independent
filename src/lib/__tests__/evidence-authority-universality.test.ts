@@ -80,7 +80,7 @@ describe("jurisdiction resolution across all canonical materias", () => {
 
   it("falls back to the universal authority frame when jurisdiction is unknown", () => {
     const ctx = resolveLegalContext({});
-    expect(ctx.jurisdiction_level).toBe("federal");
+    expect(ctx.jurisdiction_level).toBe("unresolved");
     expect(ctx.applicable_authorities).toEqual([...UNIVERSAL_AUTHORITY_IDS]);
     expect(ctx.confidence).toBeLessThan(0.5);
   });
@@ -190,7 +190,7 @@ describe("evidence synthesis with the authority layer", () => {
   it("never fails when authority metadata is incomplete", () => {
     const s = synthesizeEvidence(DOCS(), { caseType: "materia_inexistente" });
     expect(s).toBeTruthy();
-    expect(s!.legal_context!.jurisdiction.jurisdiction_level).toBe("federal");
+    expect(s!.legal_context!.jurisdiction.jurisdiction_level).toBe("unresolved");
     expect(s!.legal_context!.validity_checked).toBe(false);
     expect(s!.narrative.length).toBeGreaterThan(0);
     expect(s!.lines.length).toBeGreaterThan(0);

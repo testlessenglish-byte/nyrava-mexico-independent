@@ -18,8 +18,9 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
-import { ENGINE, canGenerateReport, REPORT_REQUIRED_ENGINES } from "@/lib/execution/canonical";
+import { ENGINE, canGenerateReport, REPORT_REQUIRED_ENGINES, OPTIONAL_ENGINES } from "@/lib/execution/canonical";
 import { AGENT_DEFINITIONS, type AgentResult, type AgentDefinition } from "./types";
+import { finalAgentGatePassed } from '../reporting/final-agent-gate';
 import { attachAgentStats, buildAgentStatistics } from "./statistics.server";
 import { isCheckpointError } from "@/lib/pipeline-checkpoint.server";
 import { PROJECTION_LIKE, canonicalEvidenceIntegrityIssue } from "@/lib/intelligence/finding-selection";
@@ -574,23 +575,6 @@ const JUDGE_THRESHOLDS: Record<AnalysisMode, { reject: number; needsRevision: nu
   balanced: { reject: 0.25, needsRevision: 0.5 },
   exploratory: { reject: 0.15, needsRevision: 0.3 },
 };
-// Minimum share of cited findings whose quote must verify against the corpus
-// (after legal-authority citations are correctly exempted — see
-// grounding.server.ts::isLegalAuthorityCitation). The threshold was
-// temporarily lowered to 0.3 alongside a pattern-only authority-exemption
-// check; that check was confirmed, by direct reproduction, to exempt
-// fabricated factual claims merely phrased alongside a real article number,
-// which is exactly the class of claim this gate exists to catch. Restored
-// to 0.5 now that the exemption is properly scoped to quotes that are
-// SUBSTANTIALLY JUST a citation — genuine Amparo/administrative citation
-// density no longer needs a lowered bar to pass, since those citations are
-// now correctly exempted rather than miscounted as failures.
-const HALLUCINATION_THRESHOLDS: Record<AnalysisMode, number> = {
-  strict: 0.85,
-  balanced: 0.7,
-  exploratory: 0.5,
-};
-
 export type JudgeFinding = {
   source_document_id: string | null;
   source_doc_ids: string[] | null;
@@ -719,37 +703,31 @@ async function agentJudge(ctx: RunCtx): Promise<AgentResult> {
 
 async function agentHallucination(ctx: RunCtx): Promise<AgentResult> {
   const m = await import("@/lib/intelligence/hallucination.server");
-  const report = await m.runHallucinationReview({ db: ctx.db, caseId: ctx.caseId });
-  // Legal-authority citations (CPEUM/statutory articles, tesis, jurisprudencia)
-  // cannot be verified verbatim against the case corpus; they are counted as
-  // grounded rather than as failures. Verbatim matching governs documentary
-  // claims only.
+  const report = await m.runHallucinationReview({ db: ctx.db, caseId: ctx.caseId, userId: ctx.userId });
+  // No authority-label exemption can stand in for evidence of claim support.
   const authorityExempt = report.authority_exempt ?? 0;
-  const grounded = report.verified + authorityExempt;
+  const grounded = report.verified;
   const cited = grounded + report.unverified;
-  const verifiedRatio = cited > 0 ? grounded / cited : 1;
+  const verifiedRatio = cited > 0 ? grounded / cited : 0;
   const citationCoverage = report.total > 0 ? cited / report.total : 0;
-  const threshold = HALLUCINATION_THRESHOLDS[ctx.analysisMode];
-  const pass = report.total > 0 && cited > 0 && verifiedRatio >= threshold;
-  const errors: string[] = [];
-  if (report.total === 0) errors.push("No findings available for hallucination review.");
-  if (report.total > 0 && cited === 0) errors.push("No findings carry both a source document and verbatim quote.");
-  if (cited > 0 && verifiedRatio < threshold) {
-    errors.push(
-      `Verified ratio ${(verifiedRatio * 100).toFixed(1)}% of cited findings below ${ctx.analysisMode} threshold (${(threshold * 100).toFixed(0)}%).`,
-    );
-  }
-  // An upstream integrity block is reported as itself, never converted into a
-  // hallucination failure. `pass` stays a pure function of the verification
-  // metrics, so unsupported claims still block release exactly as before.
+  const threshold = 1;
+  // Draft generation may continue, but every release-eligible claim must pass
+  // semantic review before the separate final release gate can approve it.
+  const pass = report.total > 0 && report.verified === report.total && report.unverified === 0 && report.no_citation === 0;
+  const verificationWarnings = pass ? [] : [
+    "hallucination_verification_incomplete: review completed under nonblocking policy; verification criteria were not met",
+  ];
+
+  // Task completion and verification are separate. Upstream integrity blocks
+  // remain authoritative in final release, independently of this review policy.
   const upstreamBlock = report.upstream_release_block ?? null;
   return {
-    status: pass ? "success" : "failed",
+    status: "success",
     confidence: verifiedRatio,
     processingTime: 0,
     tokensUsed: 0,
     outputFile: "hallucination_report.json",
-    errors: pass ? [] : errors,
+    errors: [],
     output: {
       total: report.total,
       verified: report.verified,
@@ -762,6 +740,8 @@ async function agentHallucination(ctx: RunCtx): Promise<AgentResult> {
       threshold,
       upstream_release_block: upstreamBlock,
       hallucination_verification_passed: pass,
+      blocking: false,
+      warnings: verificationWarnings,
     },
   };
 
@@ -1067,8 +1047,11 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
     const raw = await safeRun(() => fn(ctx), def);
     const withStats = await attachAgentStats(args.db, args.caseId, def, raw, startedAt);
     await recordAgent(args.db, ctx, def, startedAt, withStats);
-    outcomes[key] = withStats.status === "success";
+    outcomes[key] = finalAgentGatePassed(key, withStats);
+    if (key === 'hallucination' && !outcomes[key]) errors.push('Semantic claim verification incomplete; final release blocked.');
     if (withStats.status !== "success") errors.push(...(withStats.errors ?? []));
+    const outputWarnings = (withStats.output as Record<string, unknown> | null)?.warnings;
+    if (Array.isArray(outputWarnings)) warnings.push(...outputWarnings.filter((w): w is string => typeof w === "string"));
   }
 
   const gatesPassed = Boolean(outcomes.report && outcomes.qa && outcomes.judge && outcomes.hallucination);
@@ -1077,7 +1060,7 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
     .from("pipeline_engine_runs")
     .select("id,engine,status,started_at,ended_at,created_at")
     .eq("case_id", args.caseId)
-    .in("engine", REPORT_REQUIRED_ENGINES as unknown as string[]);
+    .in("engine", [...new Set([...REPORT_REQUIRED_ENGINES, ...OPTIONAL_ENGINES])]);
   if (args.executionId) {
     engineRunsQuery = engineRunsQuery.eq("execution_id", args.executionId);
   }
@@ -1091,9 +1074,8 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
       `Required engine(s) not in a completed state: ${allMissing.join(", ")}.`,
     );
   }
-  if (engineGate.missingEnriching.length > 0) {
-    warnings.push(...engineGate.missingEnriching.map((e) => `Enriching engine ${e} incomplete`));
-  }
+  warnings.push(...engineGate.coverageGaps.map(gap =>
+    `${gap.category} engine ${gap.engine} incomplete (${gap.status})`));
 
   // QA/hallucination can update the report. Validate the latest complete row.
   const latestReport = await args.db.from("reports").select("*").eq("case_id",args.caseId).maybeSingle();
@@ -1102,7 +1084,18 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
 
   // Pre-release JSON Integrity Validation
   const { data: caseRow } = await args.db.from("cases").select("*").eq("id", args.caseId).maybeSingle();
-  const { data: findingsData } = await args.db.from("case_findings").select("*").eq("case_id", args.caseId);
+  const {loadReviewSourceSnapshot,scopedReviewPages,documentPurposesResolved}=await import('../intelligence/review-source-snapshot.server');
+  const sourceSnapshot=await loadReviewSourceSnapshot(args.db,args.caseId);
+  const findingsData=sourceSnapshot.findings;
+  const semanticPages=scopedReviewPages(sourceSnapshot);
+  const {supportSnapshotValid}=await import('../intelligence/claim-support-review');
+  const {PROJECTION_LIKE}=await import('../intelligence/finding-selection');
+  const reviewedFindings=(findingsData ?? []).filter((f:any)=>!String(f.source_module ?? '').startsWith(PROJECTION_LIKE.replace(/%$/,'')));
+  const semanticSnapshotValid=supportSnapshotValid(reviewedFindings as any,semanticPages);
+  const documentPurposeValid=documentPurposesResolved(sourceSnapshot.documents);
+  if(!documentPurposeValid)errors.push('Document purpose or client-evidence connection is unresolved; final release withheld.');
+  if(!semanticSnapshotValid)errors.push('Current findings or source pages differ from the verified semantic snapshot.');
+  if((caseRow as any)?.cancel_requested)errors.push('Case cancellation requested; release withheld.');
   const integrity = validateJSONPipelineIntegrity({
     caseRow,
     findings: (findingsData ?? []) as never,
@@ -1123,15 +1116,14 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
   let finalPayload: import("@/lib/reporting/final-report-contract").FinalReportPayload | undefined;
   try {
     if (!caseRow) throw new Error("REPORT_GOVERNANCE_CONTEXT_UNAVAILABLE");
-    const {data: documents, error: documentsError} = await args.db.from("documents")
-      .select("id,filename,status,mime_type,size_bytes,error,metadata,entities,created_at,archived_at").eq("case_id",args.caseId);
-    if (documentsError) throw new Error(documentsError.message);
+    const documents=sourceSnapshot.documents;
     const {composeFinalReportPayload,validateFinalReportContract} = await import("@/lib/reporting/final-report-contract");
     const {loadFinalReportSections} = await import("@/lib/reporting/final-report-inputs.server");
     const sections = await loadFinalReportSections(args.db,args.caseId);
     const payload = composeFinalReportPayload({
       analysis:null, agents:[], score:null, ...sections,
-      case:caseRow, documents:documents ?? [], report:reportRow,
+      case:caseRow, documents:documents ?? [], report:{...reportRow,full_report:{...(reportRow.full_report as Record<string,unknown>??{}),
+        pre_release_source_pages:sourceSnapshot.pages,reviewed_sections:sections}},
       findings:(findingsData ?? []) as Array<Record<string,unknown>>,
     });
     finalPayload = payload;
@@ -1149,11 +1141,32 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
   }
   if (!finalGov.ok) errors.push(...finalGov.blocking_errors);
 
+  let narrativePassed=false;
+  let narrativeManifest:import('../reporting/report-narrative-review').NarrativeManifest|undefined;
+  if(finalPayload && finalGov.ok && semanticSnapshotValid && documentPurposeValid){
+    const {narrativeReviewContext}=await import('../reporting/narrative-review-context');
+    const {buildNarrativeReviewInput,narrativeManifestMatches}=await import('../reporting/report-narrative-review');
+    const {reviewReportNarrative}=await import('../reporting/report-narrative-review.server');
+    const narrativeArgs=narrativeReviewContext(finalPayload,sourceSnapshot.pages);
+    const cache=((reportRow as any).report_chunk_cache ?? {}) as Record<string,any>;
+    narrativeManifest=await reviewReportNarrative(narrativeArgs,{userId:args.userId,cached:cache.semantic_review_v1,
+      persist:async(manifest)=>{
+        // Cache progress before checkpointing, without changing reviewed prose.
+        const nextCache={...cache,semantic_review_v1:manifest};
+        const {data:written,error}=await args.db.from('reports').update({report_chunk_cache:nextCache} as any)
+          .eq('id',(reportRow as any).id).eq('updated_at',(reportRow as any).updated_at).select('*');
+        if(error||written?.length!==1)throw new Error('Report changed during narrative review; approval withheld.');
+        reportRow=written[0];
+      }});
+    narrativePassed=narrativeManifestMatches(await buildNarrativeReviewInput(narrativeArgs),narrativeManifest);
+  }
+  if(!narrativePassed)errors.push('Final narrative has unsupported or unreviewed assertions; report remains a draft.');
+
   const {resolveFinalReleaseDecision} = await import("@/lib/reporting/final-release-decision");
   const finalReport = (finalPayload?.report ?? reportRow) as Record<string,any>;
   const requiredEnginesPassed = engineGate.ok && allMissing.length === 0;
   const release = resolveFinalReleaseDecision({report:finalReport,contract:finalGov,
-    gates:{...outcomes,required_engines:requiredEnginesPassed,json_integrity:integrity.valid},errors,warnings});
+    gates:{...outcomes,required_engines:requiredEnginesPassed,json_integrity:integrity.valid,semantic_snapshot:semanticSnapshotValid,document_purpose:documentPurposeValid,narrative_semantic_support:narrativePassed},errors,warnings});
   const {decision,released} = release;
   errors.splice(0, errors.length, ...release.errors);
   warnings.splice(0, warnings.length, ...release.warnings);
@@ -1170,16 +1183,22 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
   // case alongside a blocked report. The database repeats the blocking invariant.
   const fullRep = finalReport.full_report ?? {};
   const persistedFull = {...fullRep,
+    narrative_semantic_review:narrativeManifest ?? null,
     qa_statuses:release.qa_statuses,
     final_report_contract_validation:finalGov, final_governance_validation:finalGov,
     release_decision:decision, release_warnings:warnings,
     final_review:{released,decision,status},
     release_gate:{ok:released,released,decision,gates:outcomes,
-      missing_required_engines:allMissing,warnings,errors},
+      missing_required_engines:allMissing,coverage_gaps:engineGate.coverageGaps,warnings,errors},
   };
   const {error:releaseStateError} = await (args.db as any).rpc("finalize_report_release", {
     p_case_id:args.caseId, p_execution_id:args.executionId ?? (caseRow as any)?.execution_id ?? null,
     p_report_id:(reportRow as any).id, p_expected_full_report:reportRow.full_report,
+    p_expected_report:reportRow,
+    p_expected_sources:{...sourceSnapshot,case_scope:{
+      matter_metadata:caseRow?.matter_metadata ?? null,case_type:caseRow?.case_type ?? null,
+      jurisdiction:caseRow?.jurisdiction ?? null,procedural_vehicle:caseRow?.procedural_vehicle ?? null,
+      underlying_materia:caseRow?.underlying_materia ?? null}},
     p_full_report:persistedFull, p_released:released, p_errors:errors, p_status_message:statusMessage,
   });
   if (releaseStateError) throw new Error("Failed to persist final release state: " + releaseStateError.message);

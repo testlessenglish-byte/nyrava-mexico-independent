@@ -1,3 +1,4 @@
+import { withReviewedSections } from "./reviewed-sections";
 import type { CaseExportData } from "../export";
 import { validateMigratorioPreRelease } from './migratorio-pre-release';
 import {
@@ -74,6 +75,7 @@ const PROBABILITY_FIELDS = new Set(["probability", "success_probability", "likel
 /** Build the presentation once, before any PDF/DOCX/HTML renderer receives it.
  * This replaces renderer-side reconstruction. Raw DB records are not mutated. */
 export function composeFinalReportPayload(input: CaseExportData): FinalReportPayload {
+  input = withReviewedSections(input);
   const originalFull = obj(obj(input.report).full_report);
   const currentNumbers = arr(originalFull.proceeding_registry).filter(p => /sentencia analizada|current judgment/i.test(p.relationship ?? '')).map(p => String(p.number));
   const integrity = quarantineDispositionConflicts(input, originalFull.migratorio_disposition, currentNumbers);
@@ -462,7 +464,14 @@ function freeze<T>(value: T): T {
 }
 
 export function releaseFinalReportPayload(input: CaseExportData): FinalReportPayload {
-  if (input.report?.quality_blocked === true) throw new Error("REPORT_BLOCKED: report failed its release gate");
+  return validatePayload(input, false);
+}
+/** Internal review only: refresh a stale verdict, while current content and QA still block. */
+export function preflightFinalReportPayload(input: CaseExportData): FinalReportPayload {
+  return validatePayload(input, true);
+}
+function validatePayload(input: CaseExportData, preflight: boolean): FinalReportPayload {
+  if (!preflight && input.report?.quality_blocked === true) throw new Error("REPORT_BLOCKED: report failed its release gate");
   let payload = (input as FinalReportPayload).report_presentation ? input as FinalReportPayload : composeFinalReportPayload(input);
   let validation = validateFinalReportContract(payload);
   // REMEDIATE -> REVALIDATE before BLOCK. An uncited absolute absence sentence
@@ -475,7 +484,7 @@ export function releaseFinalReportPayload(input: CaseExportData): FinalReportPay
     validation = validateFinalReportContract(payload);
   }
   if (!validation.ok) throw new Error("REPORT_CONTRACT_BLOCKED: " + validation.blocking_errors.join(", "));
-  const decision = resolveFinalReleaseDecision({report:obj(payload.report),contract:validation});
+  const decision = resolveFinalReleaseDecision({report: preflight ? {...obj(payload.report),quality_blocked:false} : obj(payload.report),contract:validation,...(preflight ? {gates:{}} : {})});
   if (!decision.released) throw new Error("REPORT_BLOCKED: " + decision.errors.join(", "));
   return freeze(payload);
 }
@@ -483,9 +492,15 @@ export function releaseFinalReportPayload(input: CaseExportData): FinalReportPay
 /** All concrete export backends submit their fully transformed output here.
  * This calls the existing contract validator; it is not a second policy. */
 export function releaseRenderedReportOutput(payload: FinalReportPayload, format: string, text: string) {
+  return validateRenderedOutput(payload,format,text,false);
+}
+export function preflightRenderedReportOutput(payload: FinalReportPayload, format: string, text: string) {
+  return validateRenderedOutput(payload,format,text,true);
+}
+function validateRenderedOutput(payload: FinalReportPayload, format: string, text: string, preflight: boolean) {
   // Renderer output is assembled after the composition transforms, so an
   // uncited absence sentence is qualified here before the same validator runs.
   const remediated = remediateRenderedText(payload, text);
   const finalPayload = {...payload, report_presentation:{...payload.report_presentation,render_output:{format,text:remediated}}};
-  return releaseFinalReportPayload(finalPayload);
+  return preflight ? preflightFinalReportPayload(finalPayload) : releaseFinalReportPayload(finalPayload);
 }

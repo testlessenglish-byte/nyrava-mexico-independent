@@ -82,6 +82,7 @@ describe("jurisdiction intelligence", () => {
     const p = buildJurisdictionProfile({
       caseType: "penal",
       jurisdictionField: "Guadalajara, Jalisco",
+      applicableState: "JAL",
       corpusText: "Juez de control del Tribunal Superior de Justicia del Estado.",
     });
     expect(p.materia).toBe("penal");

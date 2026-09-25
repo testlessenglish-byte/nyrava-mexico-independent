@@ -24,6 +24,8 @@ import { resolveMxCaseType, type MxCaseType } from "@/lib/mx-case-classifier";
 import { buildJurisdictionProfile } from "./mx-jurisdiction";
 import { locateQuoteInText, pageForOffset } from "./evidence-provenance.server";
 
+import { selectClassificationDocuments, type ClassificationScope } from "./document-analysis-purpose";
+
 type Db = SupabaseClient<Database>;
 
 export const CLASSIFICATION_FIELDS = [
@@ -62,10 +64,11 @@ export type FieldClassification = {
 };
 
 export type CaseClassificationResult = {
+  analysis_scope?: ClassificationScope;
   fields: FieldClassification[];
 };
 
-export type DocInput = { id: string; filename: string; extracted_text: string | null; pages?: Array<{ page: number; text: string }> };
+export type DocInput = { id: string; filename: string; extracted_text: string | null; metadata?: unknown; pages?: Array<{ page: number; text: string }> };
 
 const PAGE_CHARS = 3000;
 
@@ -560,12 +563,30 @@ export async function runCaseClassification(
   caseId: string,
   userId: string,
 ): Promise<CaseClassificationResult> {
-  const { data: docsRaw } = await db
+  const { data: caseRow, error: caseReadError } = await db
+    .from("cases")
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .select("client_id,case_type,jurisdiction,case_type_source,procedural_vehicle,underlying_materia,matter_metadata" as any)
+    .eq("id", caseId)
+    .maybeSingle();
+  if (caseReadError) throw new Error(`Classification case unavailable: ${caseReadError.message}`);
+  const current = (caseRow ?? {}) as {
+    client_id?: string | null;
+    case_type?: string | null;
+    jurisdiction?: string | null;
+    case_type_source?: string | null;
+    procedural_vehicle?: string | null;
+    underlying_materia?: string | null;
+    matter_metadata?: Record<string, unknown> | null;
+  };
+  const { data: docsRaw, error: documentReadError } = await db
     .from("documents")
-    .select("id,filename,extracted_text")
+    .select("id,filename,extracted_text,metadata")
     .eq("case_id", caseId)
     .order("created_at", { ascending: true });
-  const docs = (docsRaw ?? []) as DocInput[];
+  if (documentReadError) throw new Error(`Classification documents unavailable: ${documentReadError.message}`);
+  const selection = selectClassificationDocuments((docsRaw ?? []) as DocInput[], current);
+  const docs = selection.documents;
   for (const doc of docs) {
     const { data: pages, error } = await db.from("document_pages").select("page,text")
       .eq("document_id", doc.id).eq("case_id", caseId).order("page");
@@ -573,7 +594,7 @@ export async function runCaseClassification(
     doc.pages = (pages ?? []).map(p => ({ page: p.page, text: p.text ?? "" }));
   }
 
-  const result = classifyCaseFromDocuments(docs);
+  const result = { ...classifyCaseFromDocuments(docs), analysis_scope: selection.scope };
 
   // Delete-then-insert per field, scoped to this case only — a fresh run
   // (new documents added) replaces prior evidence rather than accumulating
@@ -609,20 +630,6 @@ export async function runCaseClassification(
   const jurisdictionField = result.fields.find((f) => f.field === "jurisdiction");
   const proceduralVehicleField = result.fields.find((f) => f.field === "procedural_vehicle");
   const underlyingMateriaField = result.fields.find((f) => f.field === "underlying_materia");
-  const { data: caseRow } = await db
-    .from("cases")
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .select("case_type,jurisdiction,case_type_source,procedural_vehicle,underlying_materia,matter_metadata" as any)
-    .eq("id", caseId)
-    .maybeSingle();
-  const current = (caseRow ?? {}) as {
-    case_type?: string | null;
-    jurisdiction?: string | null;
-    case_type_source?: string | null;
-    procedural_vehicle?: string | null;
-    underlying_materia?: string | null;
-    matter_metadata?: Record<string, unknown> | null;
-  };
   const isManuallyLocked =
     current.case_type_source === "manual_override" ||
     current.case_type_source === "manual_override_conflicting";
@@ -630,22 +637,25 @@ export async function runCaseClassification(
   const { getCaseConfiguration, updateCaseConfigurationWithClassification } = await import("./case-configuration");
   const existingConfig = getCaseConfiguration(caseRow as any);
 
-  const updatedConfig = updateCaseConfigurationWithClassification(existingConfig, {
+  const updatedConfig = { ...updateCaseConfigurationWithClassification(existingConfig, {
     detected_case_type: caseTypeField?.value ?? null,
     detected_jurisdiction: jurisdictionField?.value === "Federal" ? "federal" : (jurisdictionField?.value ?? null),
     detected_procedural_vehicle: proceduralVehicleField?.value ?? null,
     detected_underlying_materia: underlyingMateriaField?.value ?? null,
     source_quote: caseTypeField?.source?.quote ?? null,
     document_filename: caseTypeField?.source?.filename ?? null,
-    allowAutoCorrection: !isManuallyLocked,
-  });
+    allowAutoCorrection: !isManuallyLocked && docs.length > 0,
+  }), analysis_scope: selection.scope, ...(docs.length ? {} : { detected_case_type: null, verified_case_type: null, detected_jurisdiction: null, detected_procedural_vehicle: null, detected_underlying_materia: null }) };
 
   const patch: Record<string, unknown> = {};
-  const currentMeta = (current.matter_metadata as Record<string, unknown> | null) ?? {};
+  const currentMeta: Record<string, unknown> = { ...((current.matter_metadata as Record<string, unknown> | null) ?? {}),
+    classification_scope: selection.scope,
+    classification_scope_label: selection.scope === "research_subject" ? "Research document subject; not client jurisdiction" : selection.scope === "client_matter" ? "Declared linked client evidence" : "Document purpose unresolved",
+  };
 
   // Immigration-specific auto-classification pass
   const effectiveCaseType = (current.case_type || caseTypeField?.value || "").toLowerCase();
-  if (effectiveCaseType === "migratorio") {
+  if (effectiveCaseType === "migratorio" && docs.length > 0) {
     try {
       const { classifyImmigrationFromDocuments } = await import("../jurisdiction/immigration-classifier");
       const userProvidedSubtype = (currentMeta.immigration_subtype as string | null) ?? null;
@@ -662,9 +672,8 @@ export async function runCaseClassification(
         immigration_subtype_quote: classification.subtype.source_quote,
         detected_authority: classification.authority.label,
         detected_procedural_posture: classification.procedural_posture.label,
-        client_name: currentMeta.client_name || classification.extracted_metadata.client_name,
-        nationality: currentMeta.nationality || classification.extracted_metadata.nationality,
-        passport_number: currentMeta.passport_number || classification.extracted_metadata.passport_number,
+        // Document parties are source subjects, not authenticated client data.
+        document_subject_metadata: classification.extracted_metadata,
       };
       patch.matter_metadata = updatedImmigrationMeta;
     } catch (e) {
@@ -707,7 +716,7 @@ export async function runCaseClassification(
   }
   if (underlyingMateriaField?.status === "CONFIRMED" && underlyingMateriaField.value) {
     patch.underlying_materia = underlyingMateriaField.value;
-  } else if (!isManuallyLocked) {
+  } else if (!isManuallyLocked && docs.length > 0) {
     patch.underlying_materia = null;
   }
   if (Object.keys(patch).length > 0) {
@@ -761,6 +770,7 @@ export async function runCaseClassification(
   invalidateCaseIdentity(db, caseId);
 
   try {
+    if (!docs.length) return result;
     const { applyAutomaticCaseIdentity } = await import("./case-identity-generator.server");
     const { detectProceduralPosture } = await import("./procedural-posture");
     const corpusText = docs.map((d) => d.extracted_text ?? "").join("\n");

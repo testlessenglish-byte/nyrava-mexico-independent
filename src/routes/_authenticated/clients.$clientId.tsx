@@ -44,7 +44,7 @@ function ClientDetailPage() {
     notes: "",
   });
 
-  const { data: clientData, isLoading } = useQuery({
+  const { data: clientData, isLoading, isError, refetch } = useQuery({
     queryKey: ["client", clientId],
     queryFn: () => fetchClient({ data: { clientId } }),
   });
@@ -131,13 +131,20 @@ function ClientDetailPage() {
     return <div className="p-8 text-center text-sm text-muted-foreground">{t("common.loading")}</div>;
   }
 
+  if (isError) {
+    return <div role="alert" className="p-8 text-center text-sm text-destructive">
+      <p>{locale === "es" ? "No se pudo cargar el cliente y sus casos. Inténtalo de nuevo." : "Unable to load this client and related cases. Please try again."}</p>
+      <Button variant="outline" className="mt-4" onClick={() => void refetch()}>{locale === "es" ? "Reintentar" : "Retry"}</Button>
+    </div>;
+  }
+
   if (!clientData) {
     return <div className="p-8 text-center text-sm text-destructive">{locale === "es" ? "Cliente no encontrado." : "Client not found."}</div>;
   }
 
   const client = clientData as Record<string, any>;
   const cases = (client.cases ?? []) as Array<{
-    id: string; title: string; case_number: string; status: string; matter_type: string; updated_at: string;
+    id: string; name: string; status: string; case_type: string; updated_at: string;
   }>;
   const deadlines = (client.upcoming_deadlines ?? []) as Array<{
     id: string; title: string; due_date: string; priority: string; completed: boolean; case_id: string;
@@ -338,10 +345,10 @@ function ClientDetailPage() {
                   >
                     <div className="min-w-0 pr-4">
                       <div className="font-medium text-foreground truncate">
-                        {c.case_number || c.title || (locale === "es" ? "Sin título" : "Untitled")}
+                        {c.name || (locale === "es" ? "Sin título" : "Untitled")}
                       </div>
                       <div className="text-xs text-muted-foreground mt-1">
-                        {c.matter_type || "General"} · {t("clientDetail.cases.updated")} {new Date(c.updated_at).toLocaleDateString()}
+                        {c.case_type || "General"} · {t("clientDetail.cases.updated")} {new Date(c.updated_at).toLocaleDateString()}
                       </div>
                     </div>
                     <span className="shrink-0 text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">

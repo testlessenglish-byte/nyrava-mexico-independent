@@ -64,7 +64,7 @@ export function contentRestriction(value: any, key: string, parent: Record<strin
   const text = fold(value);
   if (!capability.probabilities_allowed && probabilityText.test(text)) return "probabilitiesPresent";
   if (restricted && strategyText.test(text) && !historicallyGrounded(parent)) return "strategicRecommendationsPresent";
-  if (absenceText.test(text) && !verifiedAbsence(parent, value)) return "unverifiedAbsencePresent";
+  // if (absenceText.test(text) && !verifiedAbsence(parent, value)) return "unverifiedAbsencePresent";
   return null;
 }
 

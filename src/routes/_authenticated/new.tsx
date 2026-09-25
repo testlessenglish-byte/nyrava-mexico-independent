@@ -1,3 +1,7 @@
+import { DocumentAnalysisPurposeFields, MatterAnalysisFields } from "@/components/DocumentAnalysisPurposeFields";
+import { CivilFamilyProcedureFields } from "@/components/CivilFamilyProcedureFields";
+import { needsCivilFamilyProcedure } from "@/lib/legal/case-law-configuration";
+import { ApplicableLawStateField } from "@/components/ApplicableLawStateField";
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -56,6 +60,10 @@ function NewCasePage() {
   const fetchKeyStatus = useServerFn(listGroqKeys);
   const inputRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState("");
+  const [documentPurpose, setDocumentPurpose] = useState("");
+  const [connectionNote, setConnectionNote] = useState("");
+  const [legalQuestion, setLegalQuestion] = useState("");
+  const [testFixture, setTestFixture] = useState(false);
   const [desc, setDesc] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [caseAnalysisMode, setCaseAnalysisMode] = useState<CaseAnalysisMode>("ongoing");
@@ -71,6 +79,9 @@ function NewCasePage() {
   const [immigrationCondition, setImmigrationCondition] = useState("");
   const [immigrationBenefit, setImmigrationBenefit] = useState("");
   const [jurisdiction, setJurisdiction] = useState<string>("");
+  const [applicableLawState, setApplicableLawState] = useState("");
+  const [proceedingStartedOn, setProceedingStartedOn] = useState("");
+  const [civilFamilyProceeding, setCivilFamilyProceeding] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [drag, setDrag] = useState(false);
 
@@ -96,7 +107,7 @@ function NewCasePage() {
       return;
     }
 
-    if (clientSelectionType === "existing" && !selectedClientId) {
+    if (documentPurpose === "client_matter_evidence" && clientSelectionType === "existing" && !selectedClientId) {
       toast.error(locale === "es" ? "Selecciona un cliente." : "Select a client.");
       return;
     }
@@ -118,6 +129,10 @@ function NewCasePage() {
       fd.append("new_client_email", newClientEmail);
     }
 
+    fd.append("analysis_purpose", documentPurpose);
+    fd.append("client_connection_note", connectionNote);
+    fd.append("legal_question", legalQuestion);
+    fd.append("test_fixture", String(testFixture));
     fd.append("name", name);
     const selectedImmigrationSubtype = IMMIGRATION_SUBTYPES.find(
       ([key]) => key === immigrationSubtype,
@@ -146,6 +161,11 @@ function NewCasePage() {
       }
     }
     if (jurisdiction) fd.append("jurisdiction", jurisdiction);
+    if (applicableLawState) fd.append("applicable_law_state", applicableLawState);
+    if (needsCivilFamilyProcedure(caseType, caseType === "amparo" ? underlyingMateria : null)) {
+      fd.append("proceeding_started_on", proceedingStartedOn);
+      fd.append("civil_family_proceeding", civilFamilyProceeding);
+    }
     if (caseType === "migratorio") {
       fd.append(
         "matter_metadata",
@@ -200,6 +220,8 @@ function NewCasePage() {
       )}
 
       <form onSubmit={submit} className="mt-6 rounded-2xl border border-border bg-card p-6 sm:p-8">
+        <DocumentAnalysisPurposeFields purpose={documentPurpose} onPurposeChange={setDocumentPurpose} connectionNote={connectionNote} onConnectionNoteChange={setConnectionNote} locale={locale} disabled={submitting} />
+        <MatterAnalysisFields question={legalQuestion} onQuestionChange={setLegalQuestion} fixture={testFixture} onFixtureChange={setTestFixture} locale={locale} disabled={submitting} />
         <div className="space-y-4">
           <SectionLabel>{locale === "es" ? "Cliente" : "Client"}</SectionLabel>
           <div className="space-y-4">
@@ -493,6 +515,8 @@ function NewCasePage() {
         </div>
 
         <div className="mt-8 space-y-4 border-t border-border pt-6">
+          {needsCivilFamilyProcedure(caseType, caseType === "amparo" ? underlyingMateria : null) && <CivilFamilyProcedureFields startedOn={proceedingStartedOn} proceeding={civilFamilyProceeding} onStartedOnChange={setProceedingStartedOn} onProceedingChange={setCivilFamilyProceeding} locale={locale} />}
+          <ApplicableLawStateField value={applicableLawState} onChange={setApplicableLawState} locale={locale} />
           <SectionLabel>{t("new.section.analysis")}</SectionLabel>
 
           <div className="rounded-xl border border-primary/25 bg-primary/5 p-4">

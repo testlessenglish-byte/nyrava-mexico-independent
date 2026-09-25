@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { canGenerateReport, CANONICAL_STAGES } from '../canonical';
+import { canGenerateReport, CANONICAL_STAGES, getReportReadiness, missingRequiredEngines } from '../canonical';
 import type { ExecutionRow } from '../canonical';
 
 describe('Platform-Wide Release Gate & Pipeline State Orchestration Fix', () => {
-  it('Test B & D: Upstream engine running or failed -> report generation must be blocked', () => {
+  it('optional work in progress does not block draft assembly or disappear from coverage', () => {
     // Make sure we have ALL engines completed, except perspectives
     const rows: ExecutionRow[] = CANONICAL_STAGES.map(s => ({
       engine: s.engine,
@@ -15,8 +15,17 @@ describe('Platform-Wide Release Gate & Pipeline State Orchestration Fix', () => 
     } as any));
     
     const gate = canGenerateReport(rows);
-    expect(gate.ok).toBe(false);
+    expect(gate.ok).toBe(true);
     expect(gate.missingEnriching).toContain('perspectives');
+    expect(getReportReadiness(rows).state).toBe('READY');
+  });
+
+  it('draft availability does not certify required enriching stages for final release', () => {
+    const rows = CANONICAL_STAGES.map(s => ({ engine: s.engine,
+      status: s.engine === 'procedural_compliance' ? 'running' : 'completed', created_at: '1' } as ExecutionRow));
+    expect(canGenerateReport(rows).ok).toBe(true);
+    expect(canGenerateReport(rows).missingEnriching).toContain('procedural_compliance');
+    expect(missingRequiredEngines(rows)).toContain('procedural_compliance');
   });
 
   it('Test A: Legal QA pass + Hallucination pass + completed -> ok', () => {

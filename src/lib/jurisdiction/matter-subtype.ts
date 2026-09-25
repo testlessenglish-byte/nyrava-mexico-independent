@@ -1,3 +1,4 @@
+import { amparoVehicleKind } from './composed-matter-scope';
 // Matter-subtype lock — PURE MODULE (no I/O, no AI).
 //
 // WHY: a materia is not always a single legal domain. `familiar` in México
@@ -73,7 +74,7 @@ export const MATTER_SUBTYPE_RULES: Record<string, readonly SubtypeRule[]> = {
       signals:
         /\b(guarda y custodia|patria potestad|convivencia supervisada|regimen de convivencia|interes superior del menor|reconocimiento de paternidad)\b/,
       counterSignals:
-        /\b(sucesori[oa]|testamentari[oa]|intestamentari[oa]|herencia)\b/,
+        /\b(sucesori[oa]|testamentari[oa]|intestamentari[oa]|herencia|pension alimenticia|alimentos provisionales|obligacion alimentaria|incidente de alimentos|alimentos definitivos|garantia alimentaria)\b/,
       excludedEngines: [
         "agent:child_support_calculation",
       ],
@@ -164,37 +165,37 @@ export const MATTER_SUBTYPE_RULES: Record<string, readonly SubtypeRule[]> = {
  * (case name + description + corpus head). Returns null when no rule applies,
  * which leaves the materia-level policy untouched.
  */
-export function detectMatterSubtype(materia: string, text: string): MatterSubtype | null {
-  const rules = MATTER_SUBTYPE_RULES[fold(materia)];
+export function detectMatterSubtype(
+  materia: string,
+  text: string,
+  context?: { underlyingMateria?: string | null; proceduralVehicle?: string | null; activeMaterias?: readonly string[] },
+): MatterSubtype | null {
   const haystack = fold(text);
-  if (!haystack) return null;
-
-  // Check materia-specific rules first.
-  if (rules && rules.length > 0) {
-    for (const rule of rules) {
+  const matches: SubtypeRule[] = [];
+  const materias = new Set([fold(materia), fold(context?.underlyingMateria), ...(context?.activeMaterias ?? []).map(fold)]);
+  // Substantive scope and procedural vehicle are independent dimensions.
+  // Retain each subject's narrowing instead of letting the first match hide
+  // a second subject or the amparo-procedure exclusions.
+  for (const subject of materias) {
+    if (subject === "amparo") continue;
+    for (const rule of MATTER_SUBTYPE_RULES[subject] ?? []) {
       if (!rule.signals.test(haystack)) continue;
       if (rule.counterSignals?.test(haystack)) continue;
-      return { key: rule.key, label: rule.label, excludedEngines: rule.excludedEngines };
+      matches.push(rule);
+      break;
     }
   }
-
-  // Cross-materia procedural vehicle detection: if the text indicates an
-  // amparo proceeding (e.g. ADR), apply amparo exclusions even when the
-  // substantive materia is different (familiar, penal, etc.). The procedural
-  // vehicle determines which procedural agents are relevant, independent of
-  // the underlying materia.
-  if (fold(materia) !== "amparo") {
-    const amparoRules = MATTER_SUBTYPE_RULES["amparo"];
-    if (amparoRules) {
-      for (const rule of amparoRules) {
-        if (!rule.signals.test(haystack)) continue;
-        if (rule.counterSignals?.test(haystack)) continue;
-        return { key: rule.key, label: rule.label, excludedEngines: rule.excludedEngines };
-      }
-    }
+  const vehicle = fold(context?.proceduralVehicle).trim();
+  const revision = amparoVehicleKind(vehicle) === 'revision';
+  for (const rule of MATTER_SUBTYPE_RULES.amparo) {
+    if (revision || (!vehicle && rule.signals.test(haystack))) matches.push(rule);
   }
-
-  return null;
+  if (!matches.length) return null;
+  return {
+    key: matches.map((rule) => rule.key).join("+"),
+    label: matches.map((rule) => rule.label).join(" / "),
+    excludedEngines: [...new Set(matches.flatMap((rule) => [...rule.excludedEngines]))],
+  };
 }
 
 /** False when the subtype lock forbids this engine. */

@@ -108,18 +108,19 @@ export const getClient = createServerFn({ method: "GET" })
     if (!client) throw new Error("Client not found or access denied.");
 
     // Cases for this client
-    const { data: cases } = await (ctx.supabase as any)
+    const { data: cases, error: casesError } = await (ctx.supabase as any)
       .from("cases")
-      .select("id, name, case_number, status, matter_type, updated_at")
+      .select("id, name, status, case_type, updated_at")
       .eq("client_id", data.clientId)
       .order("updated_at", { ascending: false });
+    if (casesError) throw new Error("No se pudieron cargar los casos del cliente.");
 
     const allCases = (cases ?? []) as Array<Record<string, unknown>>;
     const activeCases = allCases.filter(
-      (c) => !["complete", "cancelled", "failed"].includes(c.status as string),
+      (c) => !["complete", "released", "cancelled", "failed"].includes(c.status as string),
     );
     const closedCases = allCases.filter(
-      (c) => ["complete", "cancelled"].includes(c.status as string),
+      (c) => ["complete", "released", "cancelled"].includes(c.status as string),
     );
 
     // Upcoming deadlines across this client's cases
@@ -312,15 +313,22 @@ export const deleteClientFn = createServerFn({ method: "POST" })
     if (clientErr || !client) {
       throw new Error("Cliente no encontrado o no tiene permisos para eliminarlo.");
     }
+    // The cleanup below uses a service-role client. Verify ownership before
+    // making any privileged changes, even when SELECT policy grants access to
+    // a case worker or an assignee.
+    if (client.user_id !== context.userId && client.created_by !== context.userId) {
+      throw new Error("Solo el propietario o creador puede eliminar este cliente.");
+    }
 
     // Check active cases
     const CLOSED_STATUSES = ["complete", "released", "cancelled", "failed"];
     const admin = getAdminClient();
 
-    const { data: allCases } = await (admin as any)
+    const { data: allCases, error: casesError } = await (admin as any)
       .from("cases")
       .select("id, status")
       .eq("client_id", data.clientId);
+    if (casesError) throw new Error("No se pudieron comprobar los casos del cliente.");
 
     const activeCases = (allCases ?? []).filter(
       (c: { status?: string }) => !CLOSED_STATUSES.includes(c.status ?? ""),
@@ -331,33 +339,26 @@ export const deleteClientFn = createServerFn({ method: "POST" })
     }
 
     // Unlink non-active cases using admin client to bypass cases RLS during foreign key cleanup
-    await (admin as any)
+    const { error: unlinkError } = await (admin as any)
       .from("cases")
       .update({ client_id: null })
       .eq("client_id", data.clientId);
+    if (unlinkError) throw new Error("No se pudieron desvincular los casos del cliente.");
 
     // Remove client assignments
-    await (admin as any)
+    const { error: assignmentsError } = await (admin as any)
       .from("client_assignments")
       .delete()
       .eq("client_id", data.clientId);
+    if (assignmentsError) throw new Error("No se pudieron eliminar las asignaciones del cliente.");
 
-    // Delete client record using authed supabase client, fallback to admin client if verified owner
-    const { error } = await clientsTable(supabase)
+    // The user-scoped delete must be authorized by RLS. Never retry an
+    // authorization failure with the service-role client.
+    const { data: deleted, error } = await clientsTable(supabase)
       .delete()
-      .eq("id", data.clientId);
-
-    if (error) {
-      console.warn("Authed client delete failed, trying admin client for verified owner:", error.message);
-      const { error: adminErr } = await clientsTable(admin)
-        .delete()
-        .eq("id", data.clientId);
-
-      if (adminErr) {
-        console.error("Delete client error:", adminErr);
-        throw new Error("No se pudo eliminar el cliente: " + adminErr.message);
-      }
-    }
+      .eq("id", data.clientId)
+      .select("id");
+    if (error || !deleted?.length) throw new Error("No se pudo eliminar el cliente: acceso denegado o error de base de datos.");
 
     return { success: true };
   });

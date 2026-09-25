@@ -8,6 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import type { ProceduralPosture } from "./procedural-posture";
 import type { CaseClassificationResult } from "./case-classification.server";
+import { resolveDocumentAnalysisScope } from './document-analysis-purpose';
 
 type Db = SupabaseClient<Database>;
 
@@ -429,20 +430,21 @@ export function generateAutomaticCaseDescription(
 }
 
 /**
- * Extracts and updates case identity, name, and description after document extraction.
+ * Extracts document identity. Uploads do not authenticate the client's identity.
  */
 export async function applyAutomaticCaseIdentity(
   db: Db,
   caseId: string,
-  docs: Array<{ id: string; filename: string; extracted_text: string | null }>,
+  docs: Array<{ id: string; filename: string; extracted_text: string | null; metadata?: unknown }>,
   classificationResult?: CaseClassificationResult | null,
   posture?: ProceduralPosture | null,
 ): Promise<CaseIdentityMetadata> {
-  const { data: caseRow } = await db
+  const { data: caseRow, error: caseError } = await db
     .from("cases")
     .select("name,description,case_type,jurisdiction,procedural_vehicle,underlying_materia,matter_metadata")
     .eq("id", caseId)
     .maybeSingle();
+  if (caseError || !caseRow) throw new Error('Case record unavailable for document identity.');
 
   const mm = ((caseRow as any)?.matter_metadata as Record<string, unknown> | null) ?? {};
   const existingIdentity = (mm.case_identity as CaseIdentityMetadata | undefined) ?? null;
@@ -517,7 +519,7 @@ export async function applyAutomaticCaseIdentity(
     case_display_name_source: nameGen.source,
     case_display_name_confidence: nameGen.confidence,
     case_display_name_locked: nameGen.locked,
-    case_identity_verified: Boolean(primaryNumber || partyExtraction.primary),
+    case_identity_verified: false,
 
     case_description: descGen.description,
     case_description_source: descGen.source,
@@ -529,19 +531,21 @@ export async function applyAutomaticCaseIdentity(
   const patch: Record<string, unknown> = {
     matter_metadata: {
       ...mm,
-      case_identity: updatedIdentity,
+      document_analysis_identity: {
+        ...updatedIdentity,
+        document_scopes: docs.map(document => ({ document_id: document.id, ...resolveDocumentAnalysisScope(document) })),
+        attribution: 'uploaded_documents_only',
+      },
+      ...(existingIdentity?.case_display_name_source === 'generated' ? {
+        case_identity: { ...existingIdentity, case_identity_verified: false },
+      } : {}),
     },
   };
 
-  if (!isNameLocked && nameGen.name) {
-    patch.name = nameGen.name;
-  }
-
-  if (!isDescLocked && descGen.description) {
-    patch.description = descGen.description;
-  }
-
-  await db.from("cases").update(patch as any).eq("id", caseId);
+  // Attorney-entered case names, descriptions and client identities remain case
+  // record data. Even a declared evidence connection is not identity verification.
+  const { error } = await db.from("cases").update(patch as any).eq("id", caseId);
+  if (error) throw new Error(`Document identity could not be saved: ${error.message}`);
 
   return updatedIdentity;
 }

@@ -1,0 +1,3664 @@
+[
+  {
+    "id": "8417beab-6bfa-4110-98c9-7d37aa941966",
+    "case_id": "acc8a803-d332-4de5-8fae-5ff9d4fe4427",
+    "user_id": "37f23039-a1f5-4e04-b2ad-1de95a75977f",
+    "source_module": "agent:domestic_violence_assessment",
+    "category": "Derechos de la Víctima",
+    "title": "Violencia psicológica (psicoemocional y emocional) contra la quejosa",
+    "description": "La quejosa manifestó haber sido víctima de violencia psicoemocional y emocional por parte de su excónyuge, lo que constituye una vulneración de sus derechos humanos y justifica la reparación del daño.",
+    "severity": "high",
+    "confidence": 0.95,
+    "legal_significance": "Fundamenta la aplicación del derecho a una vida libre de violencia y la obligación de reparar el daño bajo la Ley General de Acceso de las Mujeres a una Vida Libre de Violencia.",
+    "potential_impact": "Influye en la determinación de la pensión alimenticia compensatoria y la indemnización por daños morales.",
+    "affected_party": null,
+    "source_doc_ids": [
+      "f5cb730e-b7d7-42de-b4ce-e3574ec61916"
+    ],
+    "evidence_refs": [
+      {
+        "page": 12,
+        "doc_n": 1,
+        "quote": "violencia psicoemocional por su contraparte, con lo cual se violó lo\nestablecido en el artículo primero constitucional.",
+        "filename": "230919-ADR-6433-2022.pdf",
+        "verified": true,
+        "chunk_hash": "09638634270fa229e1692253c5a2b2498b8df08f47699f2ce34b2f6a76c67313",
+        "end_offset": 20003,
+        "chunk_index": 6,
+        "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+        "page_located": 12,
+        "start_offset": 19884,
+        "citation_hash": "7720a6d23980710b8ff30da23591edef9658ccef535242f781bf5b3a341d166c",
+        "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+        "source_reattributed": false
+      },
+      {
+        "page": 16,
+        "doc_n": 1,
+        "quote": "se advierte\nque existió violencia emocional contra la quejosa por parte de su excónyuge",
+        "filename": "230919-ADR-6433-2022.pdf",
+        "verified": true,
+        "chunk_hash": "fea9e0a05dfadd5cb26add2d5fcb59ecb63d600c8bb2657e1d42c139250ddc4a",
+        "end_offset": 30076,
+        "chunk_index": 9,
+        "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+        "page_located": 16,
+        "start_offset": 29989,
+        "citation_hash": "5359f846525d4d8a275272dfaa74f073137d82bd916b163babf23b02398b9d65",
+        "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+        "source_reattributed": false
+      }
+    ],
+    "related_finding_ids": [],
+    "tags": [],
+    "metadata": {
+      "raw": {
+        "title": "Violencia psicológica (psicoemocional y emocional) contra la quejosa",
+        "severity": "high",
+        "confidence": 0.95,
+        "provenance": {
+          "sources": [
+            {
+              "page": 12,
+              "doc_n": 1,
+              "quote": "violencia psicoemocional por su contraparte, con lo cual se violó lo\nestablecido en el artículo primero constitucional.",
+              "filename": "230919-ADR-6433-2022.pdf",
+              "chunk_hash": "09638634270fa229e1692253c5a2b2498b8df08f47699f2ce34b2f6a76c67313",
+              "end_offset": 20003,
+              "chunk_index": 6,
+              "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+              "page_located": 12,
+              "start_offset": 19884,
+              "citation_hash": "7720a6d23980710b8ff30da23591edef9658ccef535242f781bf5b3a341d166c",
+              "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+              "source_reattributed": false
+            },
+            {
+              "page": 16,
+              "doc_n": 1,
+              "quote": "se advierte\nque existió violencia emocional contra la quejosa por parte de su excónyuge",
+              "filename": "230919-ADR-6433-2022.pdf",
+              "chunk_hash": "fea9e0a05dfadd5cb26add2d5fcb59ecb63d600c8bb2657e1d42c139250ddc4a",
+              "end_offset": 30076,
+              "chunk_index": 9,
+              "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+              "page_located": 16,
+              "start_offset": 29989,
+              "citation_hash": "5359f846525d4d8a275272dfaa74f073137d82bd916b163babf23b02398b9d65",
+              "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+              "source_reattributed": false
+            }
+          ],
+          "verified_count": 2,
+          "confidence_adjusted": 0.95
+        },
+        "description": "La quejosa manifestó haber sido víctima de violencia psicoemocional y emocional por parte de su excónyuge, lo que constituye una vulneración de sus derechos humanos y justifica la reparación del daño.",
+        "evidence_refs": [
+          {
+            "page": 12,
+            "doc_n": 1,
+            "quote": "violencia psicoemocional por su contraparte, con lo cual se violó lo\nestablecido en el artículo primero constitucional.",
+            "filename": "230919-ADR-6433-2022.pdf",
+            "verified": true,
+            "chunk_hash": "09638634270fa229e1692253c5a2b2498b8df08f47699f2ce34b2f6a76c67313",
+            "end_offset": 20003,
+            "chunk_index": 6,
+            "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+            "page_located": 12,
+            "start_offset": 19884,
+            "citation_hash": "7720a6d23980710b8ff30da23591edef9658ccef535242f781bf5b3a341d166c",
+            "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+            "source_reattributed": false
+          },
+          {
+            "page": 16,
+            "doc_n": 1,
+            "quote": "se advierte\nque existió violencia emocional contra la quejosa por parte de su excónyuge",
+            "filename": "230919-ADR-6433-2022.pdf",
+            "verified": true,
+            "chunk_hash": "fea9e0a05dfadd5cb26add2d5fcb59ecb63d600c8bb2657e1d42c139250ddc4a",
+            "end_offset": 30076,
+            "chunk_index": 9,
+            "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+            "page_located": 16,
+            "start_offset": 29989,
+            "citation_hash": "5359f846525d4d8a275272dfaa74f073137d82bd916b163babf23b02398b9d65",
+            "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+            "source_reattributed": false
+          }
+        ],
+        "violence_type": "psicologica",
+        "affected_party": "parte_actora",
+        "potential_impact": "Influye en la determinación de la pensión alimenticia compensatoria y la indemnización por daños morales.",
+        "legal_significance": "Fundamenta la aplicación del derecho a una vida libre de violencia y la obligación de reparar el daño bajo la Ley General de Acceso de las Mujeres a una Vida Libre de Violencia."
+      },
+      "final": true,
+      "claim_type": "uncategorized_finding",
+      "provisional": false,
+      "exact_match_id": "em_968c71718628acee",
+      "is_authority_exempt": false,
+      "canonical_finding_id": "cf_8d3ec2f076757bf9",
+      "semantic_support_review": {
+        "hash": "285f8ac43e28bcdb7110364ef6b5303802c65799c84836cfe07d46adec9de251",
+        "reason": "Semantic verification provider unavailable; claim not certified.",
+        "verdict": "insufficient",
+        "version": 1,
+        "supporting_quote": ""
+      }
+    },
+    "created_at": "2026-09-24T13:04:24.808182-06:00",
+    "updated_at": "2026-09-24T13:42:25.81926-06:00",
+    "finding_type": "DIRECT_EVIDENCE",
+    "source_document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+    "source_page": 12,
+    "source_quote": "violencia psicoemocional por su contraparte, con lo cual se violó lo\nestablecido en el artículo primero constitucional.",
+    "canonical_finding_id": "cf_8d3ec2f076757bf9",
+    "derived_from_finding_ids": [],
+    "evidence_type": "neutral",
+    "impact_direction": "neutral",
+    "strategic_significance": null,
+    "priority": 3,
+    "verification_status": "unverified",
+    "verification_notes": "insufficient: Semantic verification provider unavailable; claim not certified.",
+    "verified_at": "2026-09-24T13:32:13.989-06:00",
+    "finding_status": "verified",
+    "supporting_engines": [],
+    "evidence_strength": 0.85,
+    "citation_quality": null,
+    "authority_level": 1,
+    "projected_from_table": null,
+    "projected_from_row_id": null,
+    "confidence_dimensions": {
+      "legal": {
+        "level": "high",
+        "reason": "Legal significance was articulated by the engine; verify the cited rule is current and applicable."
+      },
+      "factual": {
+        "level": "high",
+        "reason": "Derived from the engine's overall confidence score for this finding."
+      },
+      "extraction": {
+        "level": "indeterminate",
+        "reason": "No source document attached to this finding — extraction quality can't be assessed."
+      },
+      "procedural": {
+        "level": "moderate",
+        "reason": "Procedural-stage certainty derived from pipeline consensus."
+      },
+      "classification": {
+        "level": "moderate",
+        "reason": "Category/materia classification not independently re-verified for this finding — inherited from the source engine's own classification."
+      },
+      "evidence_quality": {
+        "level": "high",
+        "reason": "2 independent evidence references cited."
+      },
+      "corpus_completeness": {
+        "level": "low",
+        "reason": "Only a single document in the corpus touches this finding — the official expediente may contain more."
+      }
+    },
+    "rationale": {
+      "assumptions": [],
+      "contrary_evidence": [],
+      "supporting_evidence": [],
+      "applicable_authority": [],
+      "unresolved_questions": [],
+      "attorney_review_required": false,
+      "unsupported_language_flagged": false
+    },
+    "speaker_role": null,
+    "proposition_type": null,
+    "adoption_status": null,
+    "audit_classification": null,
+    "superseded_at": null,
+    "superseded_reason": null,
+    "lifecycle_status": null,
+    "evidence_relationship": null,
+    "reconciliation_state": null,
+    "benefited_party": null,
+    "score_dimension": null,
+    "reason_for_score_effect": null,
+    "canonical_fingerprint": null,
+    "category_key": null
+  },
+  {
+    "id": "c4775910-9174-4b23-b631-031c4ae9c414",
+    "case_id": "acc8a803-d332-4de5-8fae-5ff9d4fe4427",
+    "user_id": "37f23039-a1f5-4e04-b2ad-1de95a75977f",
+    "source_module": "agent:witness_credibility",
+    "category": "Hallazgo General",
+    "title": "Pronunciamiento sobre la constitucionalidad de los artículos 281 y 282 del CPCDF por el Tribunal Colegiado",
+    "description": "El Tribunal Colegiado determinó que los artículos 281 y 282 del Código de Procedimientos Civiles para la Ciudad de México no son inconstitucionales, al señalar que forman parte de un sistema que admite excepciones y la aplicación de perspectiva de género o presunciones humanas ante situaciones de vulnerabilidad.",
+    "severity": "medium",
+    "confidence": 0.95,
+    "legal_significance": "Interpreta las reglas de la carga de la prueba frente al principio de igualdad procesal y la perspectiva de género.",
+    "potential_impact": "Mantiene formalmente la regla probatoria pero permite excepciones basadas en arbitrio y perspectiva de género.",
+    "affected_party": null,
+    "source_doc_ids": [
+      "f5cb730e-b7d7-42de-b4ce-e3574ec61916"
+    ],
+    "evidence_refs": [
+      {
+        "page": 14,
+        "doc_n": 1,
+        "quote": "determinó que los artículos\n281 y 282 del código procesal de la Ciudad de México no contienen el vicio\nde inconstitucionalidad que le atribuye la quejosa.",
+        "filename": "230919-ADR-6433-2022.pdf",
+        "verified": true,
+        "chunk_hash": "bce89b29f04bbee543fd78cd5dd82422837c5cd6ab6b63c75f03451be416ce7a",
+        "end_offset": 24963,
+        "chunk_index": 8,
+        "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+        "page_located": 14,
+        "start_offset": 24809,
+        "citation_hash": "58045df995e3fda4d147c01df54221df946e54e21526a1c209fbd608b253c07d",
+        "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+        "source_reattributed": false
+      }
+    ],
+    "related_finding_ids": [],
+    "tags": [],
+    "metadata": {
+      "raw": {
+        "title": "Pronunciamiento sobre la constitucionalidad de los artículos 281 y 282 del CPCDF por el Tribunal Colegiado",
+        "subject": "Constitucionalidad de las reglas de carga de la prueba",
+        "severity": "medium",
+        "confidence": 0.95,
+        "provenance": {
+          "sources": [
+            {
+              "page": 14,
+              "doc_n": 1,
+              "quote": "determinó que los artículos\n281 y 282 del código procesal de la Ciudad de México no contienen el vicio\nde inconstitucionalidad que le atribuye la quejosa.",
+              "filename": "230919-ADR-6433-2022.pdf",
+              "chunk_hash": "bce89b29f04bbee543fd78cd5dd82422837c5cd6ab6b63c75f03451be416ce7a",
+              "end_offset": 24963,
+              "chunk_index": 8,
+              "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+              "page_located": 14,
+              "start_offset": 24809,
+              "citation_hash": "58045df995e3fda4d147c01df54221df946e54e21526a1c209fbd608b253c07d",
+              "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+              "source_reattributed": false
+            }
+          ],
+          "verified_count": 1,
+          "confidence_adjusted": 0.95
+        },
+        "description": "El Tribunal Colegiado determinó que los artículos 281 y 282 del Código de Procedimientos Civiles para la Ciudad de México no son inconstitucionales, al señalar que forman parte de un sistema que admite excepciones y la aplicación de perspectiva de género o presunciones humanas ante situaciones de vulnerabilidad.",
+        "speaker_role": "tribunal_colegiado",
+        "evidence_refs": [
+          {
+            "page": 14,
+            "doc_n": 1,
+            "quote": "determinó que los artículos\n281 y 282 del código procesal de la Ciudad de México no contienen el vicio\nde inconstitucionalidad que le atribuye la quejosa.",
+            "filename": "230919-ADR-6433-2022.pdf",
+            "verified": true,
+            "chunk_hash": "bce89b29f04bbee543fd78cd5dd82422837c5cd6ab6b63c75f03451be416ce7a",
+            "end_offset": 24963,
+            "chunk_index": 8,
+            "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+            "page_located": 14,
+            "start_offset": 24809,
+            "citation_hash": "58045df995e3fda4d147c01df54221df946e54e21526a1c209fbd608b253c07d",
+            "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+            "source_reattributed": false
+          }
+        ],
+        "affected_party": "ambas",
+        "adoption_status": "historical",
+        "potential_impact": "Mantiene formalmente la regla probatoria pero permite excepciones basadas en arbitrio y perspectiva de género.",
+        "proposition_type": "court_holding",
+        "legal_significance": "Interpreta las reglas de la carga de la prueba frente al principio de igualdad procesal y la perspectiva de género.",
+        "audit_classification": "VERIFIED_COURT_HOLDING"
+      },
+      "final": true,
+      "claim_type": "uncategorized_finding",
+      "provisional": false,
+      "exact_match_id": "em_be2c20b8367e6952",
+      "is_authority_exempt": false,
+      "canonical_finding_id": "cf_be64e84cfe7f93d4",
+      "semantic_support_review": {
+        "hash": "ee24b7369777fc42e00e25be9bb6102ebc3286aba6ae778b2eff0796e8ee9588",
+        "reason": "Semantic verification provider unavailable; claim not certified.",
+        "verdict": "insufficient",
+        "version": 1,
+        "supporting_quote": ""
+      }
+    },
+    "created_at": "2026-09-24T13:04:04.477027-06:00",
+    "updated_at": "2026-09-24T13:42:25.81926-06:00",
+    "finding_type": "DIRECT_EVIDENCE",
+    "source_document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+    "source_page": 14,
+    "source_quote": "determinó que los artículos\n281 y 282 del código procesal de la Ciudad de México no contienen el vicio\nde inconstitucionalidad que le atribuye la quejosa.",
+    "canonical_finding_id": "cf_be64e84cfe7f93d4",
+    "derived_from_finding_ids": [],
+    "evidence_type": "neutral",
+    "impact_direction": "neutral",
+    "strategic_significance": null,
+    "priority": 4,
+    "verification_status": "unverified",
+    "verification_notes": "insufficient: Semantic verification provider unavailable; claim not certified.",
+    "verified_at": "2026-09-24T13:32:14.843-06:00",
+    "finding_status": "verified",
+    "supporting_engines": [],
+    "evidence_strength": 0.85,
+    "citation_quality": null,
+    "authority_level": 1,
+    "projected_from_table": null,
+    "projected_from_row_id": null,
+    "confidence_dimensions": {
+      "legal": {
+        "level": "high",
+        "reason": "Constitutional/statutory rule established directly by the deciding court."
+      },
+      "factual": {
+        "level": "high",
+        "reason": "Derived from the engine's overall confidence score for this finding."
+      },
+      "extraction": {
+        "level": "high",
+        "reason": "Authoritative judicial holding extracted from verified court resolution."
+      },
+      "procedural": {
+        "level": "high",
+        "reason": "Procedural posture grounded in authoritative court resolution."
+      },
+      "classification": {
+        "level": "high",
+        "reason": "Finding is classified as a verified, adopted court holding."
+      },
+      "evidence_quality": {
+        "level": "high",
+        "reason": "Verified quotation from the judicial resolution is authoritative evidence of what the court held; independent corroboration is not required merely to establish the holding itself."
+      },
+      "corpus_completeness": {
+        "level": "low",
+        "reason": "Only a single document in the corpus touches this finding — the official expediente may contain more."
+      }
+    },
+    "rationale": {
+      "assumptions": [],
+      "contrary_evidence": [],
+      "supporting_evidence": [],
+      "applicable_authority": [],
+      "unresolved_questions": [],
+      "attorney_review_required": false,
+      "unsupported_language_flagged": false
+    },
+    "speaker_role": null,
+    "proposition_type": null,
+    "adoption_status": null,
+    "audit_classification": null,
+    "superseded_at": null,
+    "superseded_reason": null,
+    "lifecycle_status": null,
+    "evidence_relationship": null,
+    "reconciliation_state": null,
+    "benefited_party": null,
+    "score_dimension": null,
+    "reason_for_score_effect": null,
+    "canonical_fingerprint": null,
+    "category_key": null
+  },
+  {
+    "id": "1169cf33-885f-474f-9052-ad79e96fc3a0",
+    "case_id": "acc8a803-d332-4de5-8fae-5ff9d4fe4427",
+    "user_id": "37f23039-a1f5-4e04-b2ad-1de95a75977f",
+    "source_module": "agent:witness_credibility",
+    "category": "Pensión Alimenticia",
+    "title": "Fijación del tema de procedencia constitucional por la Primera Sala de la SCJN",
+    "description": "La Primera Sala de la SCJN determinó que el recurso de revisión reúne los requisitos de procedencia al subsistir un planteamiento constitucional sobre cómo debe distribuirse la carga probatoria en juicios donde una mujer demanda pensión alimenticia compensatoria y compensación económica.",
+    "severity": "high",
+    "confidence": 0.95,
+    "legal_significance": "Establece la competencia y procedencia del recurso extraordinario de revisión ante la SCJN para fijar doctrina constitucional en materia de género y cargas procesales.",
+    "potential_impact": "Habilita a la SCJN para revisar de fondo la interpretación constitucional de las cargas probatorias en juicios familiares.",
+    "affected_party": null,
+    "source_doc_ids": [
+      "f5cb730e-b7d7-42de-b4ce-e3574ec61916"
+    ],
+    "evidence_refs": [
+      {
+        "page": 19,
+        "doc_n": 1,
+        "quote": "Esta Suprema Corte considera que el asunto reúne los requisitos necesarios de\nprocedencia y, por lo tanto, amerita un estudio de fondo.",
+        "filename": "230919-ADR-6433-2022.pdf",
+        "verified": true,
+        "chunk_hash": "841d48bc5b893c561d2b6417bb7122b76fb7932f50a23cc4688710244e4f5756",
+        "end_offset": 35269,
+        "chunk_index": 11,
+        "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+        "page_located": 19,
+        "start_offset": 35134,
+        "citation_hash": "cfa351a1e753380e5d79ff4b461a449332ad4fd3c6eef07c388aec720d1ca4af",
+        "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+        "source_reattributed": false
+      }
+    ],
+    "related_finding_ids": [],
+    "tags": [],
+    "metadata": {
+      "raw": {
+        "title": "Fijación del tema de procedencia constitucional por la Primera Sala de la SCJN",
+        "subject": "Procedencia del recurso de revisión en amparo directo",
+        "severity": "high",
+        "confidence": 0.95,
+        "provenance": {
+          "sources": [
+            {
+              "page": 19,
+              "doc_n": 1,
+              "quote": "Esta Suprema Corte considera que el asunto reúne los requisitos necesarios de\nprocedencia y, por lo tanto, amerita un estudio de fondo.",
+              "filename": "230919-ADR-6433-2022.pdf",
+              "chunk_hash": "841d48bc5b893c561d2b6417bb7122b76fb7932f50a23cc4688710244e4f5756",
+              "end_offset": 35269,
+              "chunk_index": 11,
+              "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+              "page_located": 19,
+              "start_offset": 35134,
+              "citation_hash": "cfa351a1e753380e5d79ff4b461a449332ad4fd3c6eef07c388aec720d1ca4af",
+              "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+              "source_reattributed": false
+            }
+          ],
+          "verified_count": 1,
+          "confidence_adjusted": 0.95
+        },
+        "description": "La Primera Sala de la SCJN determinó que el recurso de revisión reúne los requisitos de procedencia al subsistir un planteamiento constitucional sobre cómo debe distribuirse la carga probatoria en juicios donde una mujer demanda pensión alimenticia compensatoria y compensación económica.",
+        "speaker_role": "scjn",
+        "evidence_refs": [
+          {
+            "page": 19,
+            "doc_n": 1,
+            "quote": "Esta Suprema Corte considera que el asunto reúne los requisitos necesarios de\nprocedencia y, por lo tanto, amerita un estudio de fondo.",
+            "filename": "230919-ADR-6433-2022.pdf",
+            "verified": true,
+            "chunk_hash": "841d48bc5b893c561d2b6417bb7122b76fb7932f50a23cc4688710244e4f5756",
+            "end_offset": 35269,
+            "chunk_index": 11,
+            "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+            "page_located": 19,
+            "start_offset": 35134,
+            "citation_hash": "cfa351a1e753380e5d79ff4b461a449332ad4fd3c6eef07c388aec720d1ca4af",
+            "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+            "source_reattributed": false
+          }
+        ],
+        "affected_party": "ambas",
+        "adoption_status": "adopted",
+        "potential_impact": "Habilita a la SCJN para revisar de fondo la interpretación constitucional de las cargas probatorias en juicios familiares.",
+        "proposition_type": "court_holding",
+        "legal_significance": "Establece la competencia y procedencia del recurso extraordinario de revisión ante la SCJN para fijar doctrina constitucional en materia de género y cargas procesales.",
+        "audit_classification": "VERIFIED_COURT_HOLDING"
+      },
+      "final": true,
+      "claim_type": "vehicle_description_conflict",
+      "provisional": false,
+      "exact_match_id": "em_3cf892bcd1bdc112",
+      "is_authority_exempt": false,
+      "canonical_finding_id": "cf_d5e862ab3e833b8b",
+      "semantic_support_review": {
+        "hash": "669882ab5939ff21c67b084480ece8dadddc4e82f45cfb7aa4854c00306f1892",
+        "reason": "Semantic verification provider unavailable; claim not certified.",
+        "verdict": "insufficient",
+        "version": 1,
+        "supporting_quote": ""
+      }
+    },
+    "created_at": "2026-09-24T13:04:04.477027-06:00",
+    "updated_at": "2026-09-24T13:42:25.81926-06:00",
+    "finding_type": "DIRECT_EVIDENCE",
+    "source_document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+    "source_page": 19,
+    "source_quote": "Esta Suprema Corte considera que el asunto reúne los requisitos necesarios de\nprocedencia y, por lo tanto, amerita un estudio de fondo.",
+    "canonical_finding_id": "cf_d5e862ab3e833b8b",
+    "derived_from_finding_ids": [],
+    "evidence_type": "neutral",
+    "impact_direction": "neutral",
+    "strategic_significance": null,
+    "priority": 3,
+    "verification_status": "unverified",
+    "verification_notes": "insufficient: Semantic verification provider unavailable; claim not certified.",
+    "verified_at": "2026-09-24T13:32:13.609-06:00",
+    "finding_status": "verified",
+    "supporting_engines": [],
+    "evidence_strength": 0.85,
+    "citation_quality": null,
+    "authority_level": 1,
+    "projected_from_table": null,
+    "projected_from_row_id": null,
+    "confidence_dimensions": {
+      "legal": {
+        "level": "high",
+        "reason": "Constitutional/statutory rule established directly by the deciding court."
+      },
+      "factual": {
+        "level": "high",
+        "reason": "Derived from the engine's overall confidence score for this finding."
+      },
+      "extraction": {
+        "level": "high",
+        "reason": "Authoritative judicial holding extracted from verified court resolution."
+      },
+      "procedural": {
+        "level": "high",
+        "reason": "Procedural posture grounded in authoritative court resolution."
+      },
+      "classification": {
+        "level": "high",
+        "reason": "Finding is classified as a verified, adopted court holding."
+      },
+      "evidence_quality": {
+        "level": "high",
+        "reason": "Verified quotation from the judicial resolution is authoritative evidence of what the court held; independent corroboration is not required merely to establish the holding itself."
+      },
+      "corpus_completeness": {
+        "level": "low",
+        "reason": "Only a single document in the corpus touches this finding — the official expediente may contain more."
+      }
+    },
+    "rationale": {
+      "assumptions": [],
+      "contrary_evidence": [],
+      "supporting_evidence": [],
+      "applicable_authority": [],
+      "unresolved_questions": [],
+      "attorney_review_required": false,
+      "unsupported_language_flagged": false
+    },
+    "speaker_role": null,
+    "proposition_type": null,
+    "adoption_status": null,
+    "audit_classification": null,
+    "superseded_at": null,
+    "superseded_reason": null,
+    "lifecycle_status": null,
+    "evidence_relationship": null,
+    "reconciliation_state": null,
+    "benefited_party": null,
+    "score_dimension": null,
+    "reason_for_score_effect": null,
+    "canonical_fingerprint": null,
+    "category_key": null
+  },
+  {
+    "id": "9b4d9647-f1ec-4cac-ade8-aafc9349901b",
+    "case_id": "acc8a803-d332-4de5-8fae-5ff9d4fe4427",
+    "user_id": "37f23039-a1f5-4e04-b2ad-1de95a75977f",
+    "source_module": "agent:domestic_violence_assessment",
+    "category": "Hallazgo General",
+    "title": "Violencia económica contra la quejosa",
+    "description": "Se acreditó que la quejosa adquirió una deuda como consecuencia de la violencia económica ejercida por su excónyuge, generando un desequilibrio económico que justifica la compensación económica solicitada.",
+    "severity": "high",
+    "confidence": 0.94,
+    "legal_significance": "Respaldada por la jurisprudencia que reconoce la reparación del daño por violencia económica en el ámbito familiar.",
+    "potential_impact": "Justifica el porcentaje de compensación económica del 25% de los bienes y el reconocimiento de daños y perjuicios.",
+    "affected_party": null,
+    "source_doc_ids": [
+      "f5cb730e-b7d7-42de-b4ce-e3574ec61916"
+    ],
+    "evidence_refs": [
+      {
+        "page": 12,
+        "doc_n": 1,
+        "quote": "violencia económica\nde la que fue víctima por su contraparte.",
+        "filename": "230919-ADR-6433-2022.pdf",
+        "verified": true,
+        "chunk_hash": "34aa3f5d44116def147390c7290a99f02c567524b5715b61402b8713915a1197",
+        "end_offset": 21531,
+        "chunk_index": 7,
+        "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+        "page_located": 12,
+        "start_offset": 21470,
+        "citation_hash": "a434f6c0bddf2d7220a3ef96464e125ffc4695667e8b677c123a01f1e761c283",
+        "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+        "source_reattributed": false
+      }
+    ],
+    "related_finding_ids": [],
+    "tags": [],
+    "metadata": {
+      "raw": {
+        "title": "Violencia económica contra la quejosa",
+        "severity": "high",
+        "confidence": 0.94,
+        "provenance": {
+          "sources": [
+            {
+              "page": 12,
+              "doc_n": 1,
+              "quote": "violencia económica\nde la que fue víctima por su contraparte.",
+              "filename": "230919-ADR-6433-2022.pdf",
+              "chunk_hash": "34aa3f5d44116def147390c7290a99f02c567524b5715b61402b8713915a1197",
+              "end_offset": 21531,
+              "chunk_index": 7,
+              "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+              "page_located": 12,
+              "start_offset": 21470,
+              "citation_hash": "a434f6c0bddf2d7220a3ef96464e125ffc4695667e8b677c123a01f1e761c283",
+              "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+              "source_reattributed": false
+            }
+          ],
+          "verified_count": 1,
+          "confidence_adjusted": 0.94
+        },
+        "description": "Se acreditó que la quejosa adquirió una deuda como consecuencia de la violencia económica ejercida por su excónyuge, generando un desequilibrio económico que justifica la compensación económica solicitada.",
+        "evidence_refs": [
+          {
+            "page": 12,
+            "doc_n": 1,
+            "quote": "violencia económica\nde la que fue víctima por su contraparte.",
+            "filename": "230919-ADR-6433-2022.pdf",
+            "verified": true,
+            "chunk_hash": "34aa3f5d44116def147390c7290a99f02c567524b5715b61402b8713915a1197",
+            "end_offset": 21531,
+            "chunk_index": 7,
+            "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+            "page_located": 12,
+            "start_offset": 21470,
+            "citation_hash": "a434f6c0bddf2d7220a3ef96464e125ffc4695667e8b677c123a01f1e761c283",
+            "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+            "source_reattributed": false
+          }
+        ],
+        "violence_type": "economica",
+        "affected_party": "parte_actora",
+        "potential_impact": "Justifica el porcentaje de compensación económica del 25% de los bienes y el reconocimiento de daños y perjuicios.",
+        "legal_significance": "Respaldada por la jurisprudencia que reconoce la reparación del daño por violencia económica en el ámbito familiar."
+      },
+      "final": true,
+      "claim_type": "uncategorized_finding",
+      "provisional": false,
+      "exact_match_id": "em_bff8cc9149cf739a",
+      "is_authority_exempt": false,
+      "canonical_finding_id": "cf_2368d6b801526eb4",
+      "semantic_support_review": {
+        "hash": "4534b48a6d22c579a922dbeec6378e80ebb52eb33b1d87e3b7e222a8c5b0aa0d",
+        "reason": "Semantic verification provider unavailable; claim not certified.",
+        "verdict": "insufficient",
+        "version": 1,
+        "supporting_quote": ""
+      }
+    },
+    "created_at": "2026-09-24T13:04:24.808182-06:00",
+    "updated_at": "2026-09-24T13:42:25.81926-06:00",
+    "finding_type": "DIRECT_EVIDENCE",
+    "source_document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+    "source_page": 12,
+    "source_quote": "violencia económica\nde la que fue víctima por su contraparte.",
+    "canonical_finding_id": "cf_2368d6b801526eb4",
+    "derived_from_finding_ids": [],
+    "evidence_type": "neutral",
+    "impact_direction": "neutral",
+    "strategic_significance": null,
+    "priority": 3,
+    "verification_status": "unverified",
+    "verification_notes": "insufficient: Semantic verification provider unavailable; claim not certified.",
+    "verified_at": "2026-09-24T13:32:14.432-06:00",
+    "finding_status": "verified",
+    "supporting_engines": [],
+    "evidence_strength": 0.55,
+    "citation_quality": null,
+    "authority_level": 1,
+    "projected_from_table": null,
+    "projected_from_row_id": null,
+    "confidence_dimensions": {
+      "legal": {
+        "level": "high",
+        "reason": "Legal significance was articulated by the engine; verify the cited rule is current and applicable."
+      },
+      "factual": {
+        "level": "high",
+        "reason": "Derived from the engine's overall confidence score for this finding."
+      },
+      "extraction": {
+        "level": "indeterminate",
+        "reason": "No source document attached to this finding — extraction quality can't be assessed."
+      },
+      "procedural": {
+        "level": "moderate",
+        "reason": "Procedural-stage certainty derived from pipeline consensus."
+      },
+      "classification": {
+        "level": "moderate",
+        "reason": "Category/materia classification not independently re-verified for this finding — inherited from the source engine's own classification."
+      },
+      "evidence_quality": {
+        "level": "moderate",
+        "reason": "One evidence reference cited; additional corroboration may be needed for disputed facts or inferences."
+      },
+      "corpus_completeness": {
+        "level": "low",
+        "reason": "Only a single document in the corpus touches this finding — the official expediente may contain more."
+      }
+    },
+    "rationale": {
+      "assumptions": [],
+      "contrary_evidence": [],
+      "supporting_evidence": [],
+      "applicable_authority": [],
+      "unresolved_questions": [],
+      "attorney_review_required": false,
+      "unsupported_language_flagged": false
+    },
+    "speaker_role": null,
+    "proposition_type": null,
+    "adoption_status": null,
+    "audit_classification": null,
+    "superseded_at": null,
+    "superseded_reason": null,
+    "lifecycle_status": null,
+    "evidence_relationship": null,
+    "reconciliation_state": null,
+    "benefited_party": null,
+    "score_dimension": null,
+    "reason_for_score_effect": null,
+    "canonical_fingerprint": null,
+    "category_key": null
+  },
+  {
+    "id": "e390badb-8fbe-451f-95a7-8d4bf1feb537",
+    "case_id": "acc8a803-d332-4de5-8fae-5ff9d4fe4427",
+    "user_id": "37f23039-a1f5-4e04-b2ad-1de95a75977f",
+    "source_module": "agent:domestic_violence_assessment",
+    "category": "Hallazgo General",
+    "title": "Solicitud de abstención de actos de violencia",
+    "description": "En la demanda, la parte solicitó que se incluya un apercibimiento al cónyuge para que se abstenga de realizar cualquier acto de violencia.",
+    "severity": "low",
+    "confidence": 0.88,
+    "legal_significance": "Corresponde a la normativa que permite solicitar órdenes de protección y medidas cautelares contra la violencia familiar.",
+    "potential_impact": "Podría derivar en la emisión de una orden de protección o en la imposición de sanciones en caso de incumplimiento.",
+    "affected_party": null,
+    "source_doc_ids": [
+      "f5cb730e-b7d7-42de-b4ce-e3574ec61916"
+    ],
+    "evidence_refs": [
+      {
+        "page": 5,
+        "doc_n": 1,
+        "quote": "el apercibimiento a la contraparte\nde abstenerse a realizar cualquier acto de violencia;",
+        "filename": "230919-ADR-6433-2022.pdf",
+        "verified": true,
+        "chunk_hash": "8812aa89954ca484560af2b36a69d7e9fcb7841023d6d406981f9efd47612f8b",
+        "end_offset": 6832,
+        "chunk_index": 2,
+        "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+        "page_located": 5,
+        "start_offset": 6744,
+        "citation_hash": "6f75194d873e1267a966230357a4ac5367936af707615b7ac5c1e346ca9814dd",
+        "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+        "source_reattributed": false
+      }
+    ],
+    "related_finding_ids": [],
+    "tags": [],
+    "metadata": {
+      "raw": {
+        "title": "Solicitud de abstención de actos de violencia",
+        "severity": "low",
+        "confidence": 0.88,
+        "provenance": {
+          "sources": [
+            {
+              "page": 5,
+              "doc_n": 1,
+              "quote": "el apercibimiento a la contraparte\nde abstenerse a realizar cualquier acto de violencia;",
+              "filename": "230919-ADR-6433-2022.pdf",
+              "chunk_hash": "8812aa89954ca484560af2b36a69d7e9fcb7841023d6d406981f9efd47612f8b",
+              "end_offset": 6832,
+              "chunk_index": 2,
+              "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+              "page_located": 5,
+              "start_offset": 6744,
+              "citation_hash": "6f75194d873e1267a966230357a4ac5367936af707615b7ac5c1e346ca9814dd",
+              "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+              "source_reattributed": false
+            }
+          ],
+          "verified_count": 1,
+          "confidence_adjusted": 0.88
+        },
+        "description": "En la demanda, la parte solicitó que se incluya un apercibimiento al cónyuge para que se abstenga de realizar cualquier acto de violencia.",
+        "evidence_refs": [
+          {
+            "page": 5,
+            "doc_n": 1,
+            "quote": "el apercibimiento a la contraparte\nde abstenerse a realizar cualquier acto de violencia;",
+            "filename": "230919-ADR-6433-2022.pdf",
+            "verified": true,
+            "chunk_hash": "8812aa89954ca484560af2b36a69d7e9fcb7841023d6d406981f9efd47612f8b",
+            "end_offset": 6832,
+            "chunk_index": 2,
+            "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+            "page_located": 5,
+            "start_offset": 6744,
+            "citation_hash": "6f75194d873e1267a966230357a4ac5367936af707615b7ac5c1e346ca9814dd",
+            "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+            "source_reattributed": false
+          }
+        ],
+        "violence_type": "psicologica",
+        "affected_party": "parte_actora",
+        "potential_impact": "Podría derivar en la emisión de una orden de protección o en la imposición de sanciones en caso de incumplimiento.",
+        "legal_significance": "Corresponde a la normativa que permite solicitar órdenes de protección y medidas cautelares contra la violencia familiar."
+      },
+      "final": true,
+      "claim_type": "uncategorized_finding",
+      "provisional": false,
+      "exact_match_id": "em_92498eda13446c83",
+      "is_authority_exempt": false,
+      "canonical_finding_id": "cf_63726674fcbeba67",
+      "semantic_support_review": {
+        "hash": "ffe5eeb636adc71c1bc72453c102cc9b36a53971aeea11c1878ba1978eae5ae8",
+        "reason": "Semantic verification provider unavailable; claim not certified.",
+        "verdict": "insufficient",
+        "version": 1,
+        "supporting_quote": ""
+      }
+    },
+    "created_at": "2026-09-24T13:04:24.808182-06:00",
+    "updated_at": "2026-09-24T13:42:25.81926-06:00",
+    "finding_type": "DIRECT_EVIDENCE",
+    "source_document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+    "source_page": 5,
+    "source_quote": "el apercibimiento a la contraparte\nde abstenerse a realizar cualquier acto de violencia;",
+    "canonical_finding_id": "cf_63726674fcbeba67",
+    "derived_from_finding_ids": [],
+    "evidence_type": "neutral",
+    "impact_direction": "neutral",
+    "strategic_significance": null,
+    "priority": 4,
+    "verification_status": "unverified",
+    "verification_notes": "insufficient: Semantic verification provider unavailable; claim not certified.",
+    "verified_at": "2026-09-24T13:32:15.327-06:00",
+    "finding_status": "verified",
+    "supporting_engines": [],
+    "evidence_strength": 0.55,
+    "citation_quality": null,
+    "authority_level": 1,
+    "projected_from_table": null,
+    "projected_from_row_id": null,
+    "confidence_dimensions": {
+      "legal": {
+        "level": "high",
+        "reason": "Legal significance was articulated by the engine; verify the cited rule is current and applicable."
+      },
+      "factual": {
+        "level": "high",
+        "reason": "Derived from the engine's overall confidence score for this finding."
+      },
+      "extraction": {
+        "level": "indeterminate",
+        "reason": "No source document attached to this finding — extraction quality can't be assessed."
+      },
+      "procedural": {
+        "level": "moderate",
+        "reason": "Procedural-stage certainty derived from pipeline consensus."
+      },
+      "classification": {
+        "level": "moderate",
+        "reason": "Category/materia classification not independently re-verified for this finding — inherited from the source engine's own classification."
+      },
+      "evidence_quality": {
+        "level": "moderate",
+        "reason": "One evidence reference cited; additional corroboration may be needed for disputed facts or inferences."
+      },
+      "corpus_completeness": {
+        "level": "low",
+        "reason": "Only a single document in the corpus touches this finding — the official expediente may contain more."
+      }
+    },
+    "rationale": {
+      "assumptions": [],
+      "contrary_evidence": [],
+      "supporting_evidence": [],
+      "applicable_authority": [],
+      "unresolved_questions": [],
+      "attorney_review_required": false,
+      "unsupported_language_flagged": false
+    },
+    "speaker_role": null,
+    "proposition_type": null,
+    "adoption_status": null,
+    "audit_classification": null,
+    "superseded_at": null,
+    "superseded_reason": null,
+    "lifecycle_status": null,
+    "evidence_relationship": null,
+    "reconciliation_state": null,
+    "benefited_party": null,
+    "score_dimension": null,
+    "reason_for_score_effect": null,
+    "canonical_fingerprint": null,
+    "category_key": null
+  },
+  {
+    "id": "d1e5e515-1dca-4727-8159-2d0590b184c0",
+    "case_id": "acc8a803-d332-4de5-8fae-5ff9d4fe4427",
+    "user_id": "37f23039-a1f5-4e04-b2ad-1de95a75977f",
+    "source_module": "agent:ways_out_analysis",
+    "category": "Hallazgo General",
+    "title": "Posible incidente de modificación de la compensación económica",
+    "description": "La parte quejosa solicitó que la compensación económica aumente del 25% al 40% o 50% de los bienes del cónyuge, alegando que la cifra actual no repara el desequilibrio económico generado durante el matrimonio.",
+    "severity": "medium",
+    "confidence": 0.84,
+    "legal_significance": "Una mayor compensación económica podría equilibrar la distribución de bienes y reconocer el aporte del trabajo doméstico no remunerado.",
+    "potential_impact": "Aumento del patrimonio neto de la quejosa, mayor capacidad de independencia económica.",
+    "affected_party": "quejoso",
+    "source_doc_ids": [
+      "f5cb730e-b7d7-42de-b4ce-e3574ec61916"
+    ],
+    "evidence_refs": [
+      {
+        "page": 17,
+        "doc_n": 1,
+        "quote": "la compensación debía ser del 40% o 50%\nde los bienes adquiridos por su excónyuge durante el matrimonio",
+        "filename": "230919-ADR-6433-2022.pdf",
+        "verified": true,
+        "chunk_hash": "4f93cc9cce40486b6f223ebc2424a76897296ae6fc028d4e17d8d9cba2eefde8",
+        "end_offset": 31868,
+        "chunk_index": 10,
+        "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+        "page_located": 17,
+        "start_offset": 31765,
+        "citation_hash": "7cd81db278f4129cae1b5bf71605d96619bebc74f92c828e7e0a3c9231dd3930",
+        "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+        "source_reattributed": false
+      },
+      {
+        "page": 14,
+        "doc_n": 1,
+        "quote": "modificó el porcentaje de la\ncompensación económica derivada de la terminación del vínculo matrimonial por\nseparación de bienes a un 25% de los bienes del tercero interesado",
+        "filename": "230919-ADR-6433-2022.pdf",
+        "verified": true,
+        "chunk_hash": "bce89b29f04bbee543fd78cd5dd82422837c5cd6ab6b63c75f03451be416ce7a",
+        "end_offset": 24378,
+        "chunk_index": 8,
+        "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+        "page_located": 14,
+        "start_offset": 24205,
+        "citation_hash": "2026a07e3ce1f3607e6ad85954dee941daa3eb0b5e3cb80b999d93fd34a53365",
+        "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+        "source_reattributed": false
+      }
+    ],
+    "related_finding_ids": [],
+    "tags": [],
+    "metadata": {
+      "raw": {
+        "title": "Posible incidente de modificación de la compensación económica",
+        "severity": "medium",
+        "confidence": 0.84,
+        "provenance": {
+          "sources": [
+            {
+              "page": 17,
+              "doc_n": 1,
+              "quote": "la compensación debía ser del 40% o 50%\nde los bienes adquiridos por su excónyuge durante el matrimonio",
+              "filename": "230919-ADR-6433-2022.pdf",
+              "chunk_hash": "4f93cc9cce40486b6f223ebc2424a76897296ae6fc028d4e17d8d9cba2eefde8",
+              "end_offset": 31868,
+              "chunk_index": 10,
+              "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+              "page_located": 17,
+              "start_offset": 31765,
+              "citation_hash": "7cd81db278f4129cae1b5bf71605d96619bebc74f92c828e7e0a3c9231dd3930",
+              "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+              "source_reattributed": false
+            },
+            {
+              "page": 14,
+              "doc_n": 1,
+              "quote": "modificó el porcentaje de la\ncompensación económica derivada de la terminación del vínculo matrimonial por\nseparación de bienes a un 25% de los bienes del tercero interesado",
+              "filename": "230919-ADR-6433-2022.pdf",
+              "chunk_hash": "bce89b29f04bbee543fd78cd5dd82422837c5cd6ab6b63c75f03451be416ce7a",
+              "end_offset": 24378,
+              "chunk_index": 8,
+              "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+              "page_located": 14,
+              "start_offset": 24205,
+              "citation_hash": "2026a07e3ce1f3607e6ad85954dee941daa3eb0b5e3cb80b999d93fd34a53365",
+              "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+              "source_reattributed": false
+            }
+          ],
+          "verified_count": 2,
+          "confidence_adjusted": 0.84
+        },
+        "description": "La parte quejosa solicitó que la compensación económica aumente del 25% al 40% o 50% de los bienes del cónyuge, alegando que la cifra actual no repara el desequilibrio económico generado durante el matrimonio.",
+        "evidence_refs": [
+          {
+            "page": 17,
+            "doc_n": 1,
+            "quote": "la compensación debía ser del 40% o 50%\nde los bienes adquiridos por su excónyuge durante el matrimonio",
+            "filename": "230919-ADR-6433-2022.pdf",
+            "verified": true,
+            "chunk_hash": "4f93cc9cce40486b6f223ebc2424a76897296ae6fc028d4e17d8d9cba2eefde8",
+            "end_offset": 31868,
+            "chunk_index": 10,
+            "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+            "page_located": 17,
+            "start_offset": 31765,
+            "citation_hash": "7cd81db278f4129cae1b5bf71605d96619bebc74f92c828e7e0a3c9231dd3930",
+            "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+            "source_reattributed": false
+          },
+          {
+            "page": 14,
+            "doc_n": 1,
+            "quote": "modificó el porcentaje de la\ncompensación económica derivada de la terminación del vínculo matrimonial por\nseparación de bienes a un 25% de los bienes del tercero interesado",
+            "filename": "230919-ADR-6433-2022.pdf",
+            "verified": true,
+            "chunk_hash": "bce89b29f04bbee543fd78cd5dd82422837c5cd6ab6b63c75f03451be416ce7a",
+            "end_offset": 24378,
+            "chunk_index": 8,
+            "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+            "page_located": 14,
+            "start_offset": 24205,
+            "citation_hash": "2026a07e3ce1f3607e6ad85954dee941daa3eb0b5e3cb80b999d93fd34a53365",
+            "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+            "source_reattributed": false
+          }
+        ],
+        "affected_party": "quejoso",
+        "legal_authority": "Código Civil de la Ciudad de México, artículo 267, fracción VI (compensación económica) y criterios de la SCJN sobre igualdad y perspectiva de género.",
+        "what_is_missing": "No se localiza en el expediente ningún incidente presentado para modificar la compensación económica.",
+        "potential_avenue": "incidente_de_modificacion_de_pension",
+        "potential_impact": "Aumento del patrimonio neto de la quejosa, mayor capacidad de independencia económica.",
+        "why_it_may_apply": "Aunque la normativa específica para la compensación económica no está contemplada como incidente de pensión, la jurisprudencia permite que, mediante un incidente de modificación de pensión, se revisen prestaciones económicas derivadas de la disolución matrimonial cuando exista vulnerabilidad.",
+        "legal_significance": "Una mayor compensación económica podría equilibrar la distribución de bienes y reconocer el aporte del trabajo doméstico no remunerado.",
+        "potential_obstacle": "Necesidad de fundamentar que la compensación económica forma parte de la pensión alimenticia o que el tribunal competente acepte su revisión mediante el incidente de modificación de pensión.",
+        "audit_classification": "POTENTIAL_ISSUE",
+        "attorney_verification_required": true
+      },
+      "final": true,
+      "claim_type": "uncategorized_finding",
+      "provisional": false,
+      "exact_match_id": "em_96dd675926023579",
+      "is_authority_exempt": false,
+      "canonical_finding_id": "cf_74d9d58c47ccceab",
+      "semantic_support_review": {
+        "hash": "06a027af4e34174923c2d07a81bedc01e724c5939b91920ce88ae6e23096990f",
+        "reason": "Semantic verification provider unavailable; claim not certified.",
+        "verdict": "insufficient",
+        "version": 1,
+        "supporting_quote": ""
+      }
+    },
+    "created_at": "2026-09-24T13:04:29.393072-06:00",
+    "updated_at": "2026-09-24T13:42:25.81926-06:00",
+    "finding_type": "DIRECT_EVIDENCE",
+    "source_document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+    "source_page": 17,
+    "source_quote": "la compensación debía ser del 40% o 50%\nde los bienes adquiridos por su excónyuge durante el matrimonio",
+    "canonical_finding_id": "cf_74d9d58c47ccceab",
+    "derived_from_finding_ids": [],
+    "evidence_type": "neutral",
+    "impact_direction": "neutral",
+    "strategic_significance": null,
+    "priority": 4,
+    "verification_status": "unverified",
+    "verification_notes": "insufficient: Semantic verification provider unavailable; claim not certified.",
+    "verified_at": "2026-09-24T13:32:14.982-06:00",
+    "finding_status": "verified",
+    "supporting_engines": [],
+    "evidence_strength": 0.85,
+    "citation_quality": null,
+    "authority_level": 1,
+    "projected_from_table": null,
+    "projected_from_row_id": null,
+    "confidence_dimensions": {
+      "legal": {
+        "level": "high",
+        "reason": "Legal significance was articulated by the engine; verify the cited rule is current and applicable."
+      },
+      "factual": {
+        "level": "high",
+        "reason": "Derived from the engine's overall confidence score for this finding."
+      },
+      "extraction": {
+        "level": "indeterminate",
+        "reason": "No source document attached to this finding — extraction quality can't be assessed."
+      },
+      "procedural": {
+        "level": "moderate",
+        "reason": "Procedural-stage certainty derived from pipeline consensus."
+      },
+      "classification": {
+        "level": "moderate",
+        "reason": "Category/materia classification not independently re-verified for this finding — inherited from the source engine's own classification."
+      },
+      "evidence_quality": {
+        "level": "high",
+        "reason": "2 independent evidence references cited."
+      },
+      "corpus_completeness": {
+        "level": "low",
+        "reason": "Only a single document in the corpus touches this finding — the official expediente may contain more."
+      }
+    },
+    "rationale": {
+      "assumptions": [],
+      "contrary_evidence": [],
+      "supporting_evidence": [],
+      "applicable_authority": [],
+      "unresolved_questions": [],
+      "attorney_review_required": false,
+      "unsupported_language_flagged": false
+    },
+    "speaker_role": null,
+    "proposition_type": null,
+    "adoption_status": null,
+    "audit_classification": null,
+    "superseded_at": null,
+    "superseded_reason": null,
+    "lifecycle_status": null,
+    "evidence_relationship": null,
+    "reconciliation_state": null,
+    "benefited_party": null,
+    "score_dimension": null,
+    "reason_for_score_effect": null,
+    "canonical_fingerprint": null,
+    "category_key": null
+  },
+  {
+    "id": "22b64b60-30ee-4fd9-8e4f-d77eb19ca4a8",
+    "case_id": "acc8a803-d332-4de5-8fae-5ff9d4fe4427",
+    "user_id": "37f23039-a1f5-4e04-b2ad-1de95a75977f",
+    "source_module": "agent:child_support_calculation",
+    "category": "Hallazgo General",
+    "title": "Propuesta de aumento al 20% de ingresos y 40‑50% de bienes",
+    "description": "La parte recurrente solicitó que la pensión aumente al 20% de los ingresos y que la compensación sea del 40% al 50% de los bienes del excónyuge.",
+    "severity": "high",
+    "confidence": 0.92,
+    "legal_significance": "Muestra la posición de la parte actora respecto a la cuantía que considera justa.",
+    "potential_impact": "Si se adoptara, implicaría un aumento sustancial de la obligación del demandado.",
+    "affected_party": null,
+    "source_doc_ids": [
+      "f5cb730e-b7d7-42de-b4ce-e3574ec61916"
+    ],
+    "evidence_refs": [
+      {
+        "page": 17,
+        "doc_n": 1,
+        "quote": "el monto de la pensión resarcitoria debía de aumentar del 10% al 20% de los\ningresos ordinarios del demandado, y la compensación debía ser del 40% o 50%\nde los bienes adquiridos por su excónyuge durante el matrimonio.",
+        "filename": "230919-ADR-6433-2022.pdf",
+        "verified": true,
+        "chunk_hash": "4f93cc9cce40486b6f223ebc2424a76897296ae6fc028d4e17d8d9cba2eefde8",
+        "end_offset": 31869,
+        "chunk_index": 10,
+        "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+        "page_located": 17,
+        "start_offset": 31652,
+        "citation_hash": "905d4b169551d64e5d51073eb7c212be6e1b6f30128ae229823288d20498e5ed",
+        "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+        "source_reattributed": false
+      }
+    ],
+    "related_finding_ids": [],
+    "tags": [],
+    "metadata": {
+      "raw": {
+        "title": "Propuesta de aumento al 20% de ingresos y 40‑50% de bienes",
+        "severity": "high",
+        "confidence": 0.92,
+        "issue_type": "formula_o_porcentaje_propuesto",
+        "provenance": {
+          "sources": [
+            {
+              "page": 17,
+              "doc_n": 1,
+              "quote": "el monto de la pensión resarcitoria debía de aumentar del 10% al 20% de los\ningresos ordinarios del demandado, y la compensación debía ser del 40% o 50%\nde los bienes adquiridos por su excónyuge durante el matrimonio.",
+              "filename": "230919-ADR-6433-2022.pdf",
+              "chunk_hash": "4f93cc9cce40486b6f223ebc2424a76897296ae6fc028d4e17d8d9cba2eefde8",
+              "end_offset": 31869,
+              "chunk_index": 10,
+              "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+              "page_located": 17,
+              "start_offset": 31652,
+              "citation_hash": "905d4b169551d64e5d51073eb7c212be6e1b6f30128ae229823288d20498e5ed",
+              "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+              "source_reattributed": false
+            }
+          ],
+          "verified_count": 1,
+          "confidence_adjusted": 0.92
+        },
+        "description": "La parte recurrente solicitó que la pensión aumente al 20% de los ingresos y que la compensación sea del 40% al 50% de los bienes del excónyuge.",
+        "evidence_refs": [
+          {
+            "page": 17,
+            "doc_n": 1,
+            "quote": "el monto de la pensión resarcitoria debía de aumentar del 10% al 20% de los\ningresos ordinarios del demandado, y la compensación debía ser del 40% o 50%\nde los bienes adquiridos por su excónyuge durante el matrimonio.",
+            "filename": "230919-ADR-6433-2022.pdf",
+            "verified": true,
+            "chunk_hash": "4f93cc9cce40486b6f223ebc2424a76897296ae6fc028d4e17d8d9cba2eefde8",
+            "end_offset": 31869,
+            "chunk_index": 10,
+            "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+            "page_located": 17,
+            "start_offset": 31652,
+            "citation_hash": "905d4b169551d64e5d51073eb7c212be6e1b6f30128ae229823288d20498e5ed",
+            "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+            "source_reattributed": false
+          }
+        ],
+        "affected_party": "ambas",
+        "potential_impact": "Si se adoptara, implicaría un aumento sustancial de la obligación del demandado.",
+        "legal_significance": "Muestra la posición de la parte actora respecto a la cuantía que considera justa."
+      },
+      "final": true,
+      "claim_type": "uncategorized_finding",
+      "provisional": false,
+      "exact_match_id": "em_a19b12643b128552",
+      "is_authority_exempt": false,
+      "canonical_finding_id": "cf_fdbcb379ef33ebf0",
+      "semantic_support_review": {
+        "hash": "23bd9f68f59972265444cc4e0e677ea1adfdcd9d61f0f32ba33a47018aeefd25",
+        "reason": "The claim says the appellant requested the pension to increase to 20% of income and compensation to be 40‑50% of the ex‑spouse's assets. The context explicitly mentions that the amount should increase from 10% to 20% of the defendant's ordinary income and that compensation should be 40% or 50% of the assets acquired by the ex‑spouse.",
+        "verdict": "supported",
+        "version": 1,
+        "supporting_quote": "el monto de la pensión resarcitoria debía de aumentar del 10% al 20% de los ingresos ordinarios del demandado, y la compensación debía ser del 40% o 50% de los bienes adquiridos por su excónyuge durante el matrimonio."
+      }
+    },
+    "created_at": "2026-09-24T13:04:16.043437-06:00",
+    "updated_at": "2026-09-24T13:42:25.81926-06:00",
+    "finding_type": "DIRECT_EVIDENCE",
+    "source_document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+    "source_page": 17,
+    "source_quote": "el monto de la pensión resarcitoria debía de aumentar del 10% al 20% de los\ningresos ordinarios del demandado, y la compensación debía ser del 40% o 50%\nde los bienes adquiridos por su excónyuge durante el matrimonio.",
+    "canonical_finding_id": "cf_fdbcb379ef33ebf0",
+    "derived_from_finding_ids": [],
+    "evidence_type": "neutral",
+    "impact_direction": "neutral",
+    "strategic_significance": null,
+    "priority": 3,
+    "verification_status": "verified",
+    "verification_notes": "supported: The claim says the appellant requested the pension to increase to 20% of income and compensation to be 40‑50% of the ex‑spouse's assets. The context explicitly mentions that the amount should increase from 10% to 20% of the defendant's ordinary income and that compensation should be 40% or 50% of the assets acquired by the ex‑spouse.",
+    "verified_at": "2026-09-24T13:37:40.963-06:00",
+    "finding_status": "verified",
+    "supporting_engines": [],
+    "evidence_strength": 0.55,
+    "citation_quality": null,
+    "authority_level": 1,
+    "projected_from_table": null,
+    "projected_from_row_id": null,
+    "confidence_dimensions": {
+      "legal": {
+        "level": "high",
+        "reason": "Legal significance was articulated by the engine; verify the cited rule is current and applicable."
+      },
+      "factual": {
+        "level": "high",
+        "reason": "Derived from the engine's overall confidence score for this finding."
+      },
+      "extraction": {
+        "level": "indeterminate",
+        "reason": "No source document attached to this finding — extraction quality can't be assessed."
+      },
+      "procedural": {
+        "level": "moderate",
+        "reason": "Procedural-stage certainty derived from pipeline consensus."
+      },
+      "classification": {
+        "level": "moderate",
+        "reason": "Category/materia classification not independently re-verified for this finding — inherited from the source engine's own classification."
+      },
+      "evidence_quality": {
+        "level": "moderate",
+        "reason": "One evidence reference cited; additional corroboration may be needed for disputed facts or inferences."
+      },
+      "corpus_completeness": {
+        "level": "low",
+        "reason": "Only a single document in the corpus touches this finding — the official expediente may contain more."
+      }
+    },
+    "rationale": {
+      "assumptions": [],
+      "contrary_evidence": [],
+      "supporting_evidence": [],
+      "applicable_authority": [],
+      "unresolved_questions": [],
+      "attorney_review_required": false,
+      "unsupported_language_flagged": false
+    },
+    "speaker_role": null,
+    "proposition_type": null,
+    "adoption_status": null,
+    "audit_classification": null,
+    "superseded_at": null,
+    "superseded_reason": null,
+    "lifecycle_status": null,
+    "evidence_relationship": null,
+    "reconciliation_state": null,
+    "benefited_party": null,
+    "score_dimension": null,
+    "reason_for_score_effect": null,
+    "canonical_fingerprint": null,
+    "category_key": null
+  },
+  {
+    "id": "b7fb2386-3313-4540-8872-65e5fb7e2fcd",
+    "case_id": "acc8a803-d332-4de5-8fae-5ff9d4fe4427",
+    "user_id": "37f23039-a1f5-4e04-b2ad-1de95a75977f",
+    "source_module": "agent:child_support_calculation",
+    "category": "Hallazgo General",
+    "title": "Propuesta de 5% de los bienes como compensación económica",
+    "description": "En el amparo adhesivo se propuso un porcentaje del 5% de los bienes adquiridos durante el matrimonio como compensación económica.",
+    "severity": "low",
+    "confidence": 0.94,
+    "legal_significance": "Indica la cuantía inicial sugerida por la parte recurrente.",
+    "potential_impact": "Podría servir de referencia para la determinación final del porcentaje de compensación.",
+    "affected_party": null,
+    "source_doc_ids": [
+      "f5cb730e-b7d7-42de-b4ce-e3574ec61916"
+    ],
+    "evidence_refs": [
+      {
+        "page": 13,
+        "doc_n": 1,
+        "quote": "estableció como porcentaje de la compensación\neconómica el 5% de los bienes adquiridos durante el matrimonio.",
+        "filename": "230919-ADR-6433-2022.pdf",
+        "verified": true,
+        "chunk_hash": "34aa3f5d44116def147390c7290a99f02c567524b5715b61402b8713915a1197",
+        "end_offset": 22712,
+        "chunk_index": 7,
+        "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+        "page_located": 13,
+        "start_offset": 22603,
+        "citation_hash": "f6be4be2815fa33dd9a24be8481a88c869103e9ee638deb56dee5c45ed80395f",
+        "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+        "source_reattributed": false
+      }
+    ],
+    "related_finding_ids": [],
+    "tags": [],
+    "metadata": {
+      "raw": {
+        "title": "Propuesta de 5% de los bienes como compensación económica",
+        "severity": "low",
+        "confidence": 0.94,
+        "issue_type": "formula_o_porcentaje_propuesto",
+        "provenance": {
+          "sources": [
+            {
+              "page": 13,
+              "doc_n": 1,
+              "quote": "estableció como porcentaje de la compensación\neconómica el 5% de los bienes adquiridos durante el matrimonio.",
+              "filename": "230919-ADR-6433-2022.pdf",
+              "chunk_hash": "34aa3f5d44116def147390c7290a99f02c567524b5715b61402b8713915a1197",
+              "end_offset": 22712,
+              "chunk_index": 7,
+              "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+              "page_located": 13,
+              "start_offset": 22603,
+              "citation_hash": "f6be4be2815fa33dd9a24be8481a88c869103e9ee638deb56dee5c45ed80395f",
+              "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+              "source_reattributed": false
+            }
+          ],
+          "verified_count": 1,
+          "confidence_adjusted": 0.94
+        },
+        "description": "En el amparo adhesivo se propuso un porcentaje del 5% de los bienes adquiridos durante el matrimonio como compensación económica.",
+        "evidence_refs": [
+          {
+            "page": 13,
+            "doc_n": 1,
+            "quote": "estableció como porcentaje de la compensación\neconómica el 5% de los bienes adquiridos durante el matrimonio.",
+            "filename": "230919-ADR-6433-2022.pdf",
+            "verified": true,
+            "chunk_hash": "34aa3f5d44116def147390c7290a99f02c567524b5715b61402b8713915a1197",
+            "end_offset": 22712,
+            "chunk_index": 7,
+            "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+            "page_located": 13,
+            "start_offset": 22603,
+            "citation_hash": "f6be4be2815fa33dd9a24be8481a88c869103e9ee638deb56dee5c45ed80395f",
+            "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+            "source_reattributed": false
+          }
+        ],
+        "affected_party": "ambas",
+        "potential_impact": "Podría servir de referencia para la determinación final del porcentaje de compensación.",
+        "legal_significance": "Indica la cuantía inicial sugerida por la parte recurrente."
+      },
+      "final": true,
+      "claim_type": "uncategorized_finding",
+      "provisional": false,
+      "exact_match_id": "em_6966658e579540f6",
+      "is_authority_exempt": false,
+      "canonical_finding_id": "cf_b08a300f60b47d99",
+      "semantic_support_review": {
+        "hash": "5784a04d9d4bc66c984a8c4627c26c89d9ff82ba4c05ed7dc812308f3b519526",
+        "reason": "Semantic verification provider unavailable; claim not certified.",
+        "verdict": "insufficient",
+        "version": 1,
+        "supporting_quote": ""
+      }
+    },
+    "created_at": "2026-09-24T13:04:16.043437-06:00",
+    "updated_at": "2026-09-24T13:42:25.81926-06:00",
+    "finding_type": "DIRECT_EVIDENCE",
+    "source_document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+    "source_page": 13,
+    "source_quote": "estableció como porcentaje de la compensación\neconómica el 5% de los bienes adquiridos durante el matrimonio.",
+    "canonical_finding_id": "cf_b08a300f60b47d99",
+    "derived_from_finding_ids": [],
+    "evidence_type": "neutral",
+    "impact_direction": "neutral",
+    "strategic_significance": null,
+    "priority": 4,
+    "verification_status": "unverified",
+    "verification_notes": "insufficient: Semantic verification provider unavailable; claim not certified.",
+    "verified_at": "2026-09-24T13:32:14.563-06:00",
+    "finding_status": "verified",
+    "supporting_engines": [],
+    "evidence_strength": 0.55,
+    "citation_quality": null,
+    "authority_level": 1,
+    "projected_from_table": null,
+    "projected_from_row_id": null,
+    "confidence_dimensions": {
+      "legal": {
+        "level": "high",
+        "reason": "Legal significance was articulated by the engine; verify the cited rule is current and applicable."
+      },
+      "factual": {
+        "level": "high",
+        "reason": "Derived from the engine's overall confidence score for this finding."
+      },
+      "extraction": {
+        "level": "indeterminate",
+        "reason": "No source document attached to this finding — extraction quality can't be assessed."
+      },
+      "procedural": {
+        "level": "moderate",
+        "reason": "Procedural-stage certainty derived from pipeline consensus."
+      },
+      "classification": {
+        "level": "moderate",
+        "reason": "Category/materia classification not independently re-verified for this finding — inherited from the source engine's own classification."
+      },
+      "evidence_quality": {
+        "level": "moderate",
+        "reason": "One evidence reference cited; additional corroboration may be needed for disputed facts or inferences."
+      },
+      "corpus_completeness": {
+        "level": "low",
+        "reason": "Only a single document in the corpus touches this finding — the official expediente may contain more."
+      }
+    },
+    "rationale": {
+      "assumptions": [],
+      "contrary_evidence": [],
+      "supporting_evidence": [],
+      "applicable_authority": [],
+      "unresolved_questions": [],
+      "attorney_review_required": false,
+      "unsupported_language_flagged": false
+    },
+    "speaker_role": null,
+    "proposition_type": null,
+    "adoption_status": null,
+    "audit_classification": null,
+    "superseded_at": null,
+    "superseded_reason": null,
+    "lifecycle_status": null,
+    "evidence_relationship": null,
+    "reconciliation_state": null,
+    "benefited_party": null,
+    "score_dimension": null,
+    "reason_for_score_effect": null,
+    "canonical_fingerprint": null,
+    "category_key": null
+  },
+  {
+    "id": "94d7078c-2116-482a-af42-db3da12a2790",
+    "case_id": "acc8a803-d332-4de5-8fae-5ff9d4fe4427",
+    "user_id": "37f23039-a1f5-4e04-b2ad-1de95a75977f",
+    "source_module": "agent:custody_best_interest_analysis",
+    "category": "Hallazgo General",
+    "title": "Dedicación al hogar y cuidado durante el matrimonio",
+    "description": "Durante catorce años la quejosa se dedicó exclusivamente al cuidado de sus hijos y al trabajo en el hogar, reincorporándose parcialmente al mercado laboral convencional los últimos dos años.",
+    "severity": "medium",
+    "confidence": 0.95,
+    "legal_significance": "Establece los antecedentes fácticos para la procedencia de la pensión alimenticia compensatoria y la compensación económica.",
+    "potential_impact": "Fundamenta la exigencia de juzgar con perspectiva de género y equilibrar las cargas probatorias.",
+    "affected_party": null,
+    "source_doc_ids": [
+      "f5cb730e-b7d7-42de-b4ce-e3574ec61916"
+    ],
+    "evidence_refs": [
+      {
+        "page": 4,
+        "doc_n": 1,
+        "quote": "Durante catorce años *** ***** se dedicó exclusivamente al cuidado de sus hijos y\nal trabajo en el hogar y se reincorporó parcialmente al mercado laboral",
+        "filename": "230919-ADR-6433-2022.pdf",
+        "verified": true,
+        "chunk_hash": "68d59ab6e9274ae37313b01104ad104f2b3731c7b5f22386874d14b1ce92bd48",
+        "end_offset": 3592,
+        "chunk_index": 1,
+        "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+        "page_located": 4,
+        "start_offset": 3439,
+        "citation_hash": "1e910a29f8f867d1bbf43057e1caf4a90732b33b06a913d49b9a896e58caf338",
+        "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+        "source_reattributed": false
+      }
+    ],
+    "related_finding_ids": [],
+    "tags": [],
+    "metadata": {
+      "raw": {
+        "title": "Dedicación al hogar y cuidado durante el matrimonio",
+        "severity": "medium",
+        "confidence": 0.95,
+        "provenance": {
+          "sources": [
+            {
+              "page": 4,
+              "doc_n": 1,
+              "quote": "Durante catorce años *** ***** se dedicó exclusivamente al cuidado de sus hijos y\nal trabajo en el hogar y se reincorporó parcialmente al mercado laboral",
+              "filename": "230919-ADR-6433-2022.pdf",
+              "chunk_hash": "68d59ab6e9274ae37313b01104ad104f2b3731c7b5f22386874d14b1ce92bd48",
+              "end_offset": 3592,
+              "chunk_index": 1,
+              "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+              "page_located": 4,
+              "start_offset": 3439,
+              "citation_hash": "1e910a29f8f867d1bbf43057e1caf4a90732b33b06a913d49b9a896e58caf338",
+              "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+              "source_reattributed": false
+            }
+          ],
+          "verified_count": 1,
+          "confidence_adjusted": 0.95
+        },
+        "description": "Durante catorce años la quejosa se dedicó exclusivamente al cuidado de sus hijos y al trabajo en el hogar, reincorporándose parcialmente al mercado laboral convencional los últimos dos años.",
+        "factor_type": "capacidad_de_cuidado",
+        "evidence_refs": [
+          {
+            "page": 4,
+            "doc_n": 1,
+            "quote": "Durante catorce años *** ***** se dedicó exclusivamente al cuidado de sus hijos y\nal trabajo en el hogar y se reincorporó parcialmente al mercado laboral",
+            "filename": "230919-ADR-6433-2022.pdf",
+            "verified": true,
+            "chunk_hash": "68d59ab6e9274ae37313b01104ad104f2b3731c7b5f22386874d14b1ce92bd48",
+            "end_offset": 3592,
+            "chunk_index": 1,
+            "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+            "page_located": 4,
+            "start_offset": 3439,
+            "citation_hash": "1e910a29f8f867d1bbf43057e1caf4a90732b33b06a913d49b9a896e58caf338",
+            "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+            "source_reattributed": false
+          }
+        ],
+        "affected_party": "parte_actora",
+        "potential_impact": "Fundamenta la exigencia de juzgar con perspectiva de género y equilibrar las cargas probatorias.",
+        "legal_significance": "Establece los antecedentes fácticos para la procedencia de la pensión alimenticia compensatoria y la compensación económica."
+      },
+      "final": true,
+      "claim_type": "uncategorized_finding",
+      "provisional": false,
+      "exact_match_id": "em_3fadfcdb2e2c5e6d",
+      "is_authority_exempt": false,
+      "canonical_finding_id": "cf_faa1f7f8af4b9f13",
+      "semantic_support_review": {
+        "hash": "10492d208ef517f7ffe557910e067f95044a4403d7f507b53c63a6f41fd892f0",
+        "reason": "Semantic verification provider unavailable; claim not certified.",
+        "verdict": "insufficient",
+        "version": 1,
+        "supporting_quote": ""
+      }
+    },
+    "created_at": "2026-09-24T13:04:17.047139-06:00",
+    "updated_at": "2026-09-24T13:42:25.81926-06:00",
+    "finding_type": "DIRECT_EVIDENCE",
+    "source_document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+    "source_page": 4,
+    "source_quote": "Durante catorce años *** ***** se dedicó exclusivamente al cuidado de sus hijos y\nal trabajo en el hogar y se reincorporó parcialmente al mercado laboral",
+    "canonical_finding_id": "cf_faa1f7f8af4b9f13",
+    "derived_from_finding_ids": [],
+    "evidence_type": "neutral",
+    "impact_direction": "neutral",
+    "strategic_significance": null,
+    "priority": 4,
+    "verification_status": "unverified",
+    "verification_notes": "insufficient: Semantic verification provider unavailable; claim not certified.",
+    "verified_at": "2026-09-24T13:32:14.327-06:00",
+    "finding_status": "verified",
+    "supporting_engines": [],
+    "evidence_strength": 0.55,
+    "citation_quality": null,
+    "authority_level": 1,
+    "projected_from_table": null,
+    "projected_from_row_id": null,
+    "confidence_dimensions": {
+      "legal": {
+        "level": "high",
+        "reason": "Legal significance was articulated by the engine; verify the cited rule is current and applicable."
+      },
+      "factual": {
+        "level": "high",
+        "reason": "Derived from the engine's overall confidence score for this finding."
+      },
+      "extraction": {
+        "level": "indeterminate",
+        "reason": "No source document attached to this finding — extraction quality can't be assessed."
+      },
+      "procedural": {
+        "level": "moderate",
+        "reason": "Procedural-stage certainty derived from pipeline consensus."
+      },
+      "classification": {
+        "level": "moderate",
+        "reason": "Category/materia classification not independently re-verified for this finding — inherited from the source engine's own classification."
+      },
+      "evidence_quality": {
+        "level": "moderate",
+        "reason": "One evidence reference cited; additional corroboration may be needed for disputed facts or inferences."
+      },
+      "corpus_completeness": {
+        "level": "low",
+        "reason": "Only a single document in the corpus touches this finding — the official expediente may contain more."
+      }
+    },
+    "rationale": {
+      "assumptions": [],
+      "contrary_evidence": [],
+      "supporting_evidence": [],
+      "applicable_authority": [],
+      "unresolved_questions": [],
+      "attorney_review_required": false,
+      "unsupported_language_flagged": false
+    },
+    "speaker_role": null,
+    "proposition_type": null,
+    "adoption_status": null,
+    "audit_classification": null,
+    "superseded_at": null,
+    "superseded_reason": null,
+    "lifecycle_status": null,
+    "evidence_relationship": null,
+    "reconciliation_state": null,
+    "benefited_party": null,
+    "score_dimension": null,
+    "reason_for_score_effect": null,
+    "canonical_fingerprint": null,
+    "category_key": null
+  },
+  {
+    "id": "6d0174e5-f307-4ef0-8121-f50a2556fd77",
+    "case_id": "acc8a803-d332-4de5-8fae-5ff9d4fe4427",
+    "user_id": "37f23039-a1f5-4e04-b2ad-1de95a75977f",
+    "source_module": "agent:child_support_calculation",
+    "category": "Pensión Alimenticia",
+    "title": "Necesidad de la parte actora para la pensión alimenticia",
+    "description": "La parte actora se dedicó exclusivamente al cuidado de los hijos y al trabajo doméstico durante catorce años, lo que evidencia su necesidad de recibir alimentos compensatorios.",
+    "severity": "medium",
+    "confidence": 0.95,
+    "legal_significance": "Fundamenta la existencia de necesidad, requisito esencial para la pensión alimenticia bajo el Código Civil.",
+    "potential_impact": "Puede sustentar la obligación de pago de alimentos a favor de la parte actora.",
+    "affected_party": null,
+    "source_doc_ids": [
+      "f5cb730e-b7d7-42de-b4ce-e3574ec61916"
+    ],
+    "evidence_refs": [
+      {
+        "page": 4,
+        "doc_n": 1,
+        "quote": "Durante catorce años *** ***** se dedicó exclusivamente al cuidado de sus hijos y\nal trabajo en el hogar y se reincorporó parcialmente al mercado laboral\nconvencional los últimos dos años de su matrimonio, a la edad de cuarenta y cinco\naños, sin dejar de hacerse cargo de las labores del hogar que venía ejerciendo.",
+        "filename": "230919-ADR-6433-2022.pdf",
+        "verified": true,
+        "chunk_hash": "68d59ab6e9274ae37313b01104ad104f2b3731c7b5f22386874d14b1ce92bd48",
+        "end_offset": 3754,
+        "chunk_index": 1,
+        "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+        "page_located": 4,
+        "start_offset": 3439,
+        "citation_hash": "6385cd73e425a8f063441199685b73f8ea0148cf4d8ec546892299b41c5eeede",
+        "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+        "source_reattributed": false
+      }
+    ],
+    "related_finding_ids": [],
+    "tags": [],
+    "metadata": {
+      "raw": {
+        "title": "Necesidad de la parte actora para la pensión alimenticia",
+        "severity": "medium",
+        "confidence": 0.95,
+        "issue_type": "necesidad_del_acreedor",
+        "provenance": {
+          "sources": [
+            {
+              "page": 4,
+              "doc_n": 1,
+              "quote": "Durante catorce años *** ***** se dedicó exclusivamente al cuidado de sus hijos y\nal trabajo en el hogar y se reincorporó parcialmente al mercado laboral\nconvencional los últimos dos años de su matrimonio, a la edad de cuarenta y cinco\naños, sin dejar de hacerse cargo de las labores del hogar que venía ejerciendo.",
+              "filename": "230919-ADR-6433-2022.pdf",
+              "chunk_hash": "68d59ab6e9274ae37313b01104ad104f2b3731c7b5f22386874d14b1ce92bd48",
+              "end_offset": 3754,
+              "chunk_index": 1,
+              "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+              "page_located": 4,
+              "start_offset": 3439,
+              "citation_hash": "6385cd73e425a8f063441199685b73f8ea0148cf4d8ec546892299b41c5eeede",
+              "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+              "source_reattributed": false
+            }
+          ],
+          "verified_count": 1,
+          "confidence_adjusted": 0.95
+        },
+        "description": "La parte actora se dedicó exclusivamente al cuidado de los hijos y al trabajo doméstico durante catorce años, lo que evidencia su necesidad de recibir alimentos compensatorios.",
+        "evidence_refs": [
+          {
+            "page": 4,
+            "doc_n": 1,
+            "quote": "Durante catorce años *** ***** se dedicó exclusivamente al cuidado de sus hijos y\nal trabajo en el hogar y se reincorporó parcialmente al mercado laboral\nconvencional los últimos dos años de su matrimonio, a la edad de cuarenta y cinco\naños, sin dejar de hacerse cargo de las labores del hogar que venía ejerciendo.",
+            "filename": "230919-ADR-6433-2022.pdf",
+            "verified": true,
+            "chunk_hash": "68d59ab6e9274ae37313b01104ad104f2b3731c7b5f22386874d14b1ce92bd48",
+            "end_offset": 3754,
+            "chunk_index": 1,
+            "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+            "page_located": 4,
+            "start_offset": 3439,
+            "citation_hash": "6385cd73e425a8f063441199685b73f8ea0148cf4d8ec546892299b41c5eeede",
+            "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+            "source_reattributed": false
+          }
+        ],
+        "affected_party": "parte_actora",
+        "potential_impact": "Puede sustentar la obligación de pago de alimentos a favor de la parte actora.",
+        "legal_significance": "Fundamenta la existencia de necesidad, requisito esencial para la pensión alimenticia bajo el Código Civil."
+      },
+      "final": true,
+      "claim_type": "uncategorized_finding",
+      "provisional": false,
+      "exact_match_id": "em_5be8b61b66fdb12a",
+      "is_authority_exempt": false,
+      "canonical_finding_id": "cf_ae85611e6e5f74d4",
+      "semantic_support_review": {
+        "hash": "bdf15361774edc9974fd151c6a5cb0a2179ed87fb3fc19f00e2fbfba987a6f64",
+        "reason": "Semantic verification provider unavailable; claim not certified.",
+        "verdict": "insufficient",
+        "version": 1,
+        "supporting_quote": ""
+      }
+    },
+    "created_at": "2026-09-24T13:04:16.043437-06:00",
+    "updated_at": "2026-09-24T13:42:25.81926-06:00",
+    "finding_type": "DIRECT_EVIDENCE",
+    "source_document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+    "source_page": 4,
+    "source_quote": "Durante catorce años *** ***** se dedicó exclusivamente al cuidado de sus hijos y\nal trabajo en el hogar y se reincorporó parcialmente al mercado laboral\nconvencional los últimos dos años de su matrimonio, a la edad de cuarenta y cinco\naños, sin dejar de hacerse cargo de las labores del hogar que venía ejerciendo.",
+    "canonical_finding_id": "cf_ae85611e6e5f74d4",
+    "derived_from_finding_ids": [],
+    "evidence_type": "neutral",
+    "impact_direction": "neutral",
+    "strategic_significance": null,
+    "priority": 4,
+    "verification_status": "unverified",
+    "verification_notes": "insufficient: Semantic verification provider unavailable; claim not certified.",
+    "verified_at": "2026-09-24T13:32:13.872-06:00",
+    "finding_status": "verified",
+    "supporting_engines": [],
+    "evidence_strength": 0.55,
+    "citation_quality": null,
+    "authority_level": 1,
+    "projected_from_table": null,
+    "projected_from_row_id": null,
+    "confidence_dimensions": {
+      "legal": {
+        "level": "high",
+        "reason": "Legal significance was articulated by the engine; verify the cited rule is current and applicable."
+      },
+      "factual": {
+        "level": "high",
+        "reason": "Derived from the engine's overall confidence score for this finding."
+      },
+      "extraction": {
+        "level": "indeterminate",
+        "reason": "No source document attached to this finding — extraction quality can't be assessed."
+      },
+      "procedural": {
+        "level": "moderate",
+        "reason": "Procedural-stage certainty derived from pipeline consensus."
+      },
+      "classification": {
+        "level": "moderate",
+        "reason": "Category/materia classification not independently re-verified for this finding — inherited from the source engine's own classification."
+      },
+      "evidence_quality": {
+        "level": "moderate",
+        "reason": "One evidence reference cited; additional corroboration may be needed for disputed facts or inferences."
+      },
+      "corpus_completeness": {
+        "level": "low",
+        "reason": "Only a single document in the corpus touches this finding — the official expediente may contain more."
+      }
+    },
+    "rationale": {
+      "assumptions": [],
+      "contrary_evidence": [],
+      "supporting_evidence": [],
+      "applicable_authority": [],
+      "unresolved_questions": [],
+      "attorney_review_required": false,
+      "unsupported_language_flagged": false
+    },
+    "speaker_role": null,
+    "proposition_type": null,
+    "adoption_status": null,
+    "audit_classification": null,
+    "superseded_at": null,
+    "superseded_reason": null,
+    "lifecycle_status": null,
+    "evidence_relationship": null,
+    "reconciliation_state": null,
+    "benefited_party": null,
+    "score_dimension": null,
+    "reason_for_score_effect": null,
+    "canonical_fingerprint": null,
+    "category_key": null
+  },
+  {
+    "id": "8f6c0b6e-da84-4e7f-b65d-8f4e683d90ad",
+    "case_id": "acc8a803-d332-4de5-8fae-5ff9d4fe4427",
+    "user_id": "37f23039-a1f5-4e04-b2ad-1de95a75977f",
+    "source_module": "agent:ways_out_analysis",
+    "category": "Pensión Alimenticia",
+    "title": "Posible incidente de modificación de pensión alimenticia compensatoria",
+    "description": "La quejosa solicitó que el porcentaje de la pensión alimenticia resarcitoria aumente del 10% al 20% de los ingresos del demandado, argumentando que la cuantía actual no cubre su situación de desventaja económica.",
+    "severity": "medium",
+    "confidence": 0.88,
+    "legal_significance": "Ajustar la pensión podría restablecer la igualdad material entre cónyuges y cumplir con la obligación constitucional de protección a la mujer.",
+    "potential_impact": "Incremento del ingreso mensual de la quejosa, mayor garantía de subsistencia y reconocimiento del trabajo doméstico no remunerado.",
+    "affected_party": "quejoso",
+    "source_doc_ids": [
+      "f5cb730e-b7d7-42de-b4ce-e3574ec61916"
+    ],
+    "evidence_refs": [
+      {
+        "page": 17,
+        "doc_n": 1,
+        "quote": "el monto de la pensión resarcitoria debía de aumentar del 10% al 20% de los\ningresos ordinarios del demandado",
+        "filename": "230919-ADR-6433-2022.pdf",
+        "verified": true,
+        "chunk_hash": "4f93cc9cce40486b6f223ebc2424a76897296ae6fc028d4e17d8d9cba2eefde8",
+        "end_offset": 31761,
+        "chunk_index": 10,
+        "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+        "page_located": 17,
+        "start_offset": 31652,
+        "citation_hash": "dbe4249e33950d46a55c191d89e39e5e6b8eb90ffd2aa7bb4ad71b971422b222",
+        "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+        "source_reattributed": false
+      }
+    ],
+    "related_finding_ids": [],
+    "tags": [],
+    "metadata": {
+      "raw": {
+        "title": "Posible incidente de modificación de pensión alimenticia compensatoria",
+        "severity": "medium",
+        "confidence": 0.88,
+        "provenance": {
+          "sources": [
+            {
+              "page": 17,
+              "doc_n": 1,
+              "quote": "el monto de la pensión resarcitoria debía de aumentar del 10% al 20% de los\ningresos ordinarios del demandado",
+              "filename": "230919-ADR-6433-2022.pdf",
+              "chunk_hash": "4f93cc9cce40486b6f223ebc2424a76897296ae6fc028d4e17d8d9cba2eefde8",
+              "end_offset": 31761,
+              "chunk_index": 10,
+              "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+              "page_located": 17,
+              "start_offset": 31652,
+              "citation_hash": "dbe4249e33950d46a55c191d89e39e5e6b8eb90ffd2aa7bb4ad71b971422b222",
+              "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+              "source_reattributed": false
+            }
+          ],
+          "verified_count": 1,
+          "confidence_adjusted": 0.44
+        },
+        "description": "La quejosa solicitó que el porcentaje de la pensión alimenticia resarcitoria aumente del 10% al 20% de los ingresos del demandado, argumentando que la cuantía actual no cubre su situación de desventaja económica.",
+        "evidence_refs": [
+          {
+            "page": 17,
+            "doc_n": 1,
+            "quote": "el monto de la pensión resarcitoria debía de aumentar del 10% al 20% de los\ningresos ordinarios del demandado",
+            "filename": "230919-ADR-6433-2022.pdf",
+            "verified": true,
+            "chunk_hash": "4f93cc9cce40486b6f223ebc2424a76897296ae6fc028d4e17d8d9cba2eefde8",
+            "end_offset": 31761,
+            "chunk_index": 10,
+            "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+            "page_located": 17,
+            "start_offset": 31652,
+            "citation_hash": "dbe4249e33950d46a55c191d89e39e5e6b8eb90ffd2aa7bb4ad71b971422b222",
+            "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+            "source_reattributed": false
+          }
+        ],
+        "affected_party": "quejoso",
+        "legal_authority": "Código de Procedimientos Civiles de la Ciudad de México, artículos 281 y 282 (carga probatoria) y jurisprudencia de la SCJN sobre perspectiva de género y carga probatoria en materia familiar.",
+        "what_is_missing": "No se encontró constancia de que la quejosa haya presentado formalmente un incidente de modificación de pensión ante el tribunal competente.",
+        "potential_avenue": "incidente_de_modificacion_de_pension",
+        "potential_impact": "Incremento del ingreso mensual de la quejosa, mayor garantía de subsistencia y reconocimiento del trabajo doméstico no remunerado.",
+        "why_it_may_apply": "El expediente muestra que la parte interesada ha planteado expresamente la necesidad de elevar el porcentaje de la pensión, lo que constituye un fundamento para interponer un incidente de modificación de pensión bajo la normativa familiar.",
+        "legal_significance": "Ajustar la pensión podría restablecer la igualdad material entre cónyuges y cumplir con la obligación constitucional de protección a la mujer.",
+        "potential_obstacle": "Requerirá demostrar que la sentencia original no consideró adecuadamente la vulnerabilidad económica y la perspectiva de género, y que la carga probatoria no fue equilibrada.",
+        "audit_classification": "POTENTIAL_ISSUE",
+        "attorney_verification_required": true
+      },
+      "final": true,
+      "claim_type": "uncategorized_finding",
+      "provisional": false,
+      "exact_match_id": "em_bc9a47d7ce8aa4ff",
+      "is_authority_exempt": false,
+      "canonical_finding_id": "cf_c2caac6196153ff8",
+      "semantic_support_review": {
+        "hash": "9a8c39f71cf0372565d73e81294554e7e1f3b79cc71a22f693975e93a78e2181",
+        "reason": "Semantic verification provider unavailable; claim not certified.",
+        "verdict": "insufficient",
+        "version": 1,
+        "supporting_quote": ""
+      }
+    },
+    "created_at": "2026-09-24T13:04:29.393072-06:00",
+    "updated_at": "2026-09-24T13:42:25.81926-06:00",
+    "finding_type": "DIRECT_EVIDENCE",
+    "source_document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+    "source_page": 17,
+    "source_quote": "el monto de la pensión resarcitoria debía de aumentar del 10% al 20% de los\ningresos ordinarios del demandado",
+    "canonical_finding_id": "cf_c2caac6196153ff8",
+    "derived_from_finding_ids": [],
+    "evidence_type": "neutral",
+    "impact_direction": "neutral",
+    "strategic_significance": null,
+    "priority": 4,
+    "verification_status": "unverified",
+    "verification_notes": "insufficient: Semantic verification provider unavailable; claim not certified.",
+    "verified_at": "2026-09-24T13:32:14.176-06:00",
+    "finding_status": "verified",
+    "supporting_engines": [],
+    "evidence_strength": 0.55,
+    "citation_quality": null,
+    "authority_level": 1,
+    "projected_from_table": null,
+    "projected_from_row_id": null,
+    "confidence_dimensions": {
+      "legal": {
+        "level": "high",
+        "reason": "Legal significance was articulated by the engine; verify the cited rule is current and applicable."
+      },
+      "factual": {
+        "level": "high",
+        "reason": "Derived from the engine's overall confidence score for this finding."
+      },
+      "extraction": {
+        "level": "indeterminate",
+        "reason": "No source document attached to this finding — extraction quality can't be assessed."
+      },
+      "procedural": {
+        "level": "moderate",
+        "reason": "Procedural-stage certainty derived from pipeline consensus."
+      },
+      "classification": {
+        "level": "moderate",
+        "reason": "Category/materia classification not independently re-verified for this finding — inherited from the source engine's own classification."
+      },
+      "evidence_quality": {
+        "level": "moderate",
+        "reason": "One evidence reference cited; additional corroboration may be needed for disputed facts or inferences."
+      },
+      "corpus_completeness": {
+        "level": "low",
+        "reason": "Only a single document in the corpus touches this finding — the official expediente may contain more."
+      }
+    },
+    "rationale": {
+      "assumptions": [],
+      "contrary_evidence": [],
+      "supporting_evidence": [],
+      "applicable_authority": [],
+      "unresolved_questions": [],
+      "attorney_review_required": false,
+      "unsupported_language_flagged": false
+    },
+    "speaker_role": null,
+    "proposition_type": null,
+    "adoption_status": null,
+    "audit_classification": null,
+    "superseded_at": null,
+    "superseded_reason": null,
+    "lifecycle_status": null,
+    "evidence_relationship": null,
+    "reconciliation_state": null,
+    "benefited_party": null,
+    "score_dimension": null,
+    "reason_for_score_effect": null,
+    "canonical_fingerprint": null,
+    "category_key": null
+  },
+  {
+    "id": "b8bbb4ad-5ef0-4308-a7c2-98c2d6ef0d50",
+    "case_id": "acc8a803-d332-4de5-8fae-5ff9d4fe4427",
+    "user_id": "37f23039-a1f5-4e04-b2ad-1de95a75977f",
+    "source_module": "agent:child_support_calculation",
+    "category": "Hallazgo General",
+    "title": "Ausencia de pruebas de ingresos por parte del demandado",
+    "description": "El expediente indica que el demandado no aportó pruebas de sus ingresos, lo que genera una laguna probatoria sobre su capacidad económica real.",
+    "severity": "low",
+    "confidence": 0.9,
+    "legal_significance": "La falta de prueba de ingresos puede afectar la valoración de la capacidad económica y la determinación de la pensión.",
+    "potential_impact": "Podría motivar una revisión de la carga probatoria o la solicitud de pruebas complementarias.",
+    "affected_party": null,
+    "source_doc_ids": [
+      "f5cb730e-b7d7-42de-b4ce-e3574ec61916"
+    ],
+    "evidence_refs": [
+      {
+        "page": 11,
+        "doc_n": 1,
+        "quote": "no aportó ninguna prueba, con lo\ncual se benefició del régimen probatorio contenido en los artículos 281\ny 282 del Código de Procedimientos Civiles de la Ciudad de México.",
+        "filename": "230919-ADR-6433-2022.pdf",
+        "verified": true,
+        "chunk_hash": "09638634270fa229e1692253c5a2b2498b8df08f47699f2ce34b2f6a76c67313",
+        "end_offset": 18685,
+        "chunk_index": 6,
+        "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+        "page_located": 11,
+        "start_offset": 18514,
+        "citation_hash": "da8afdb4a8e7f9f47c6d7a76f697d7f9110c36a9f4e6c17d5d5a6e97d21fa4f2",
+        "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+        "source_reattributed": false
+      }
+    ],
+    "related_finding_ids": [],
+    "tags": [],
+    "metadata": {
+      "raw": {
+        "title": "Ausencia de pruebas de ingresos por parte del demandado",
+        "severity": "low",
+        "confidence": 0.9,
+        "issue_type": "ingresos_no_declarados",
+        "provenance": {
+          "sources": [
+            {
+              "page": 11,
+              "doc_n": 1,
+              "quote": "no aportó ninguna prueba, con lo\ncual se benefició del régimen probatorio contenido en los artículos 281\ny 282 del Código de Procedimientos Civiles de la Ciudad de México.",
+              "filename": "230919-ADR-6433-2022.pdf",
+              "chunk_hash": "09638634270fa229e1692253c5a2b2498b8df08f47699f2ce34b2f6a76c67313",
+              "end_offset": 18685,
+              "chunk_index": 6,
+              "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+              "page_located": 11,
+              "start_offset": 18514,
+              "citation_hash": "da8afdb4a8e7f9f47c6d7a76f697d7f9110c36a9f4e6c17d5d5a6e97d21fa4f2",
+              "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+              "source_reattributed": false
+            }
+          ],
+          "verified_count": 1,
+          "confidence_adjusted": 0.9
+        },
+        "description": "El expediente indica que el demandado no aportó pruebas de sus ingresos, lo que genera una laguna probatoria sobre su capacidad económica real.",
+        "evidence_refs": [
+          {
+            "page": 11,
+            "doc_n": 1,
+            "quote": "no aportó ninguna prueba, con lo\ncual se benefició del régimen probatorio contenido en los artículos 281\ny 282 del Código de Procedimientos Civiles de la Ciudad de México.",
+            "filename": "230919-ADR-6433-2022.pdf",
+            "verified": true,
+            "chunk_hash": "09638634270fa229e1692253c5a2b2498b8df08f47699f2ce34b2f6a76c67313",
+            "end_offset": 18685,
+            "chunk_index": 6,
+            "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+            "page_located": 11,
+            "start_offset": 18514,
+            "citation_hash": "da8afdb4a8e7f9f47c6d7a76f697d7f9110c36a9f4e6c17d5d5a6e97d21fa4f2",
+            "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+            "source_reattributed": false
+          }
+        ],
+        "affected_party": "parte_demandada",
+        "potential_impact": "Podría motivar una revisión de la carga probatoria o la solicitud de pruebas complementarias.",
+        "legal_significance": "La falta de prueba de ingresos puede afectar la valoración de la capacidad económica y la determinación de la pensión."
+      },
+      "final": true,
+      "claim_type": "uncategorized_finding",
+      "provisional": false,
+      "exact_match_id": "em_79d8df51acc2b507",
+      "is_authority_exempt": false,
+      "canonical_finding_id": "cf_9927fd1de3c0e8b1",
+      "semantic_support_review": {
+        "hash": "25ff9cf773235e83bc0638f7a952d05afdb86fb0d8cc7c6e4141773a11fb43e5",
+        "reason": "Semantic verification provider unavailable; claim not certified.",
+        "verdict": "insufficient",
+        "version": 1,
+        "supporting_quote": ""
+      }
+    },
+    "created_at": "2026-09-24T13:04:16.043437-06:00",
+    "updated_at": "2026-09-24T13:42:25.81926-06:00",
+    "finding_type": "DIRECT_EVIDENCE",
+    "source_document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+    "source_page": 11,
+    "source_quote": "no aportó ninguna prueba, con lo\ncual se benefició del régimen probatorio contenido en los artículos 281\ny 282 del Código de Procedimientos Civiles de la Ciudad de México.",
+    "canonical_finding_id": "cf_9927fd1de3c0e8b1",
+    "derived_from_finding_ids": [],
+    "evidence_type": "neutral",
+    "impact_direction": "neutral",
+    "strategic_significance": null,
+    "priority": 4,
+    "verification_status": "unverified",
+    "verification_notes": "insufficient: Semantic verification provider unavailable; claim not certified.",
+    "verified_at": "2026-09-24T13:32:14.699-06:00",
+    "finding_status": "verified",
+    "supporting_engines": [],
+    "evidence_strength": 0.55,
+    "citation_quality": null,
+    "authority_level": 1,
+    "projected_from_table": null,
+    "projected_from_row_id": null,
+    "confidence_dimensions": {
+      "legal": {
+        "level": "high",
+        "reason": "Legal significance was articulated by the engine; verify the cited rule is current and applicable."
+      },
+      "factual": {
+        "level": "high",
+        "reason": "Derived from the engine's overall confidence score for this finding."
+      },
+      "extraction": {
+        "level": "indeterminate",
+        "reason": "No source document attached to this finding — extraction quality can't be assessed."
+      },
+      "procedural": {
+        "level": "moderate",
+        "reason": "Procedural-stage certainty derived from pipeline consensus."
+      },
+      "classification": {
+        "level": "moderate",
+        "reason": "Category/materia classification not independently re-verified for this finding — inherited from the source engine's own classification."
+      },
+      "evidence_quality": {
+        "level": "moderate",
+        "reason": "One evidence reference cited; additional corroboration may be needed for disputed facts or inferences."
+      },
+      "corpus_completeness": {
+        "level": "low",
+        "reason": "Only a single document in the corpus touches this finding — the official expediente may contain more."
+      }
+    },
+    "rationale": {
+      "assumptions": [],
+      "contrary_evidence": [],
+      "supporting_evidence": [],
+      "applicable_authority": [],
+      "unresolved_questions": [],
+      "attorney_review_required": false,
+      "unsupported_language_flagged": false
+    },
+    "speaker_role": null,
+    "proposition_type": null,
+    "adoption_status": null,
+    "audit_classification": null,
+    "superseded_at": null,
+    "superseded_reason": null,
+    "lifecycle_status": null,
+    "evidence_relationship": null,
+    "reconciliation_state": null,
+    "benefited_party": null,
+    "score_dimension": null,
+    "reason_for_score_effect": null,
+    "canonical_fingerprint": null,
+    "category_key": null
+  },
+  {
+    "id": "193c56f0-e068-4750-8a89-2622514dc0b1",
+    "case_id": "acc8a803-d332-4de5-8fae-5ff9d4fe4427",
+    "user_id": "37f23039-a1f5-4e04-b2ad-1de95a75977f",
+    "source_module": "agent:domestic_violence_assessment",
+    "category": "Hallazgo General",
+    "title": "Alegación de violencia ejercida por el cónyuge",
+    "description": "La parte quejosa indica que la Sala Familiar no consideró la violencia ejercida por su contraparte, señalando falta de perspectiva de género.",
+    "severity": "medium",
+    "confidence": 0.9,
+    "legal_significance": "Relevante para la aplicación de la Ley General de Acceso de las Mujeres a una Vida Libre de Violencia y la valoración de pruebas bajo perspectiva de género.",
+    "potential_impact": "Podría motivar la adopción de medidas de protección y la reconsideración de la carga probatoria en casos de violencia doméstica.",
+    "affected_party": null,
+    "source_doc_ids": [
+      "f5cb730e-b7d7-42de-b4ce-e3574ec61916"
+    ],
+    "evidence_refs": [
+      {
+        "page": 11,
+        "doc_n": 1,
+        "quote": "Asimismo, expresó que no se juzgó con perspectiva de género ya que\nla sala familiar fue indiferente ante la violencia ejercida por su\ncontraparte.",
+        "filename": "230919-ADR-6433-2022.pdf",
+        "verified": true,
+        "chunk_hash": "09638634270fa229e1692253c5a2b2498b8df08f47699f2ce34b2f6a76c67313",
+        "end_offset": 18832,
+        "chunk_index": 6,
+        "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+        "page_located": 11,
+        "start_offset": 18686,
+        "citation_hash": "f261c6de005cd057ad7933f4ef622cbfd5fd75b0649770ef5adbc65a782c4fe8",
+        "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+        "source_reattributed": false
+      }
+    ],
+    "related_finding_ids": [],
+    "tags": [],
+    "metadata": {
+      "raw": {
+        "title": "Alegación de violencia ejercida por el cónyuge",
+        "severity": "medium",
+        "confidence": 0.9,
+        "provenance": {
+          "sources": [
+            {
+              "page": 11,
+              "doc_n": 1,
+              "quote": "Asimismo, expresó que no se juzgó con perspectiva de género ya que\nla sala familiar fue indiferente ante la violencia ejercida por su\ncontraparte.",
+              "filename": "230919-ADR-6433-2022.pdf",
+              "chunk_hash": "09638634270fa229e1692253c5a2b2498b8df08f47699f2ce34b2f6a76c67313",
+              "end_offset": 18832,
+              "chunk_index": 6,
+              "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+              "page_located": 11,
+              "start_offset": 18686,
+              "citation_hash": "f261c6de005cd057ad7933f4ef622cbfd5fd75b0649770ef5adbc65a782c4fe8",
+              "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+              "source_reattributed": false
+            }
+          ],
+          "verified_count": 1,
+          "confidence_adjusted": 0.9
+        },
+        "description": "La parte quejosa indica que la Sala Familiar no consideró la violencia ejercida por su contraparte, señalando falta de perspectiva de género.",
+        "evidence_refs": [
+          {
+            "page": 11,
+            "doc_n": 1,
+            "quote": "Asimismo, expresó que no se juzgó con perspectiva de género ya que\nla sala familiar fue indiferente ante la violencia ejercida por su\ncontraparte.",
+            "filename": "230919-ADR-6433-2022.pdf",
+            "verified": true,
+            "chunk_hash": "09638634270fa229e1692253c5a2b2498b8df08f47699f2ce34b2f6a76c67313",
+            "end_offset": 18832,
+            "chunk_index": 6,
+            "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+            "page_located": 11,
+            "start_offset": 18686,
+            "citation_hash": "f261c6de005cd057ad7933f4ef622cbfd5fd75b0649770ef5adbc65a782c4fe8",
+            "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+            "source_reattributed": false
+          }
+        ],
+        "violence_type": "psicologica",
+        "affected_party": "parte_actora",
+        "potential_impact": "Podría motivar la adopción de medidas de protección y la reconsideración de la carga probatoria en casos de violencia doméstica.",
+        "legal_significance": "Relevante para la aplicación de la Ley General de Acceso de las Mujeres a una Vida Libre de Violencia y la valoración de pruebas bajo perspectiva de género."
+      },
+      "final": true,
+      "claim_type": "uncategorized_finding",
+      "provisional": false,
+      "exact_match_id": "em_5f776647cf5b2c77",
+      "is_authority_exempt": false,
+      "canonical_finding_id": "cf_c5377e8ed3a1d887",
+      "semantic_support_review": {
+        "hash": "4607106fb8a1f45ba560f0986a9598f0b73219b68a02f6c385c45cca921efe16",
+        "reason": "Semantic verification provider unavailable; claim not certified.",
+        "verdict": "insufficient",
+        "version": 1,
+        "supporting_quote": ""
+      }
+    },
+    "created_at": "2026-09-24T13:04:24.808182-06:00",
+    "updated_at": "2026-09-24T13:42:25.81926-06:00",
+    "finding_type": "DIRECT_EVIDENCE",
+    "source_document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+    "source_page": 11,
+    "source_quote": "Asimismo, expresó que no se juzgó con perspectiva de género ya que\nla sala familiar fue indiferente ante la violencia ejercida por su\ncontraparte.",
+    "canonical_finding_id": "cf_c5377e8ed3a1d887",
+    "derived_from_finding_ids": [],
+    "evidence_type": "neutral",
+    "impact_direction": "neutral",
+    "strategic_significance": null,
+    "priority": 4,
+    "verification_status": "unverified",
+    "verification_notes": "insufficient: Semantic verification provider unavailable; claim not certified.",
+    "verified_at": "2026-09-24T13:32:13.74-06:00",
+    "finding_status": "verified",
+    "supporting_engines": [],
+    "evidence_strength": 0.55,
+    "citation_quality": null,
+    "authority_level": 1,
+    "projected_from_table": null,
+    "projected_from_row_id": null,
+    "confidence_dimensions": {
+      "legal": {
+        "level": "high",
+        "reason": "Legal significance was articulated by the engine; verify the cited rule is current and applicable."
+      },
+      "factual": {
+        "level": "high",
+        "reason": "Derived from the engine's overall confidence score for this finding."
+      },
+      "extraction": {
+        "level": "indeterminate",
+        "reason": "No source document attached to this finding — extraction quality can't be assessed."
+      },
+      "procedural": {
+        "level": "moderate",
+        "reason": "Procedural-stage certainty derived from pipeline consensus."
+      },
+      "classification": {
+        "level": "moderate",
+        "reason": "Category/materia classification not independently re-verified for this finding — inherited from the source engine's own classification."
+      },
+      "evidence_quality": {
+        "level": "moderate",
+        "reason": "One evidence reference cited; additional corroboration may be needed for disputed facts or inferences."
+      },
+      "corpus_completeness": {
+        "level": "low",
+        "reason": "Only a single document in the corpus touches this finding — the official expediente may contain more."
+      }
+    },
+    "rationale": {
+      "assumptions": [],
+      "contrary_evidence": [],
+      "supporting_evidence": [],
+      "applicable_authority": [],
+      "unresolved_questions": [],
+      "attorney_review_required": false,
+      "unsupported_language_flagged": false
+    },
+    "speaker_role": null,
+    "proposition_type": null,
+    "adoption_status": null,
+    "audit_classification": null,
+    "superseded_at": null,
+    "superseded_reason": null,
+    "lifecycle_status": null,
+    "evidence_relationship": null,
+    "reconciliation_state": null,
+    "benefited_party": null,
+    "score_dimension": null,
+    "reason_for_score_effect": null,
+    "canonical_fingerprint": null,
+    "category_key": null
+  },
+  {
+    "id": "ed755aa2-e328-448d-a347-c5d293c81a34",
+    "case_id": "acc8a803-d332-4de5-8fae-5ff9d4fe4427",
+    "user_id": "37f23039-a1f5-4e04-b2ad-1de95a75977f",
+    "source_module": "agent:witness_credibility",
+    "category": "Pensión Alimenticia",
+    "title": "Concesión de amparo por el Tribunal Colegiado y determinación de prestaciones familiares",
+    "description": "El Tercer Tribunal Colegiado en Materia Civil del Primer Circuito concedió el amparo a la quejosa para dejar insubsistente la resolución reclamada, reconoció una pensión alimenticia resarcitoria del 10%, modificó la compensación económica al 25% y condenó al tercero interesado al pago de daños y perjuicios por violencia acreditada.",
+    "severity": "medium",
+    "confidence": 0.95,
+    "legal_significance": "Fija las determinaciones jurídicas y porcentajes resarcitorios a favor de la quejosa en sede de amparo directo.",
+    "potential_impact": "Modificó las condiciones económicas decretadas por la Sala responsable a favor de la quejosa.",
+    "affected_party": null,
+    "source_doc_ids": [
+      "f5cb730e-b7d7-42de-b4ce-e3574ec61916"
+    ],
+    "evidence_refs": [
+      {
+        "page": 13,
+        "doc_n": 1,
+        "quote": "Por sentencia dictada el veintiséis de octubre de dos mil veintidós el Tercer\nTribunal Colegiado determinó conceder el amparo y protección de la justicia\nfederal",
+        "filename": "230919-ADR-6433-2022.pdf",
+        "verified": true,
+        "chunk_hash": "34aa3f5d44116def147390c7290a99f02c567524b5715b61402b8713915a1197",
+        "end_offset": 23657,
+        "chunk_index": 7,
+        "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+        "page_located": 13,
+        "start_offset": 23496,
+        "citation_hash": "2b047aa7abe9158aff040cffb3a9f41ccc6c6e8eaed545cd3f0aa24f5b480cbe",
+        "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+        "source_reattributed": false
+      }
+    ],
+    "related_finding_ids": [],
+    "tags": [],
+    "metadata": {
+      "raw": {
+        "title": "Concesión de amparo por el Tribunal Colegiado y determinación de prestaciones familiares",
+        "subject": "Resolución del Tribunal Colegiado de Circuito",
+        "severity": "medium",
+        "confidence": 0.95,
+        "provenance": {
+          "sources": [
+            {
+              "page": 13,
+              "doc_n": 1,
+              "quote": "Por sentencia dictada el veintiséis de octubre de dos mil veintidós el Tercer\nTribunal Colegiado determinó conceder el amparo y protección de la justicia\nfederal",
+              "filename": "230919-ADR-6433-2022.pdf",
+              "chunk_hash": "34aa3f5d44116def147390c7290a99f02c567524b5715b61402b8713915a1197",
+              "end_offset": 23657,
+              "chunk_index": 7,
+              "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+              "page_located": 13,
+              "start_offset": 23496,
+              "citation_hash": "2b047aa7abe9158aff040cffb3a9f41ccc6c6e8eaed545cd3f0aa24f5b480cbe",
+              "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+              "source_reattributed": false
+            }
+          ],
+          "verified_count": 1,
+          "confidence_adjusted": 0.95
+        },
+        "description": "El Tercer Tribunal Colegiado en Materia Civil del Primer Circuito concedió el amparo a la quejosa para dejar insubsistente la resolución reclamada, reconoció una pensión alimenticia resarcitoria del 10%, modificó la compensación económica al 25% y condenó al tercero interesado al pago de daños y perjuicios por violencia acreditada.",
+        "speaker_role": "tribunal_colegiado",
+        "evidence_refs": [
+          {
+            "page": 13,
+            "doc_n": 1,
+            "quote": "Por sentencia dictada el veintiséis de octubre de dos mil veintidós el Tercer\nTribunal Colegiado determinó conceder el amparo y protección de la justicia\nfederal",
+            "filename": "230919-ADR-6433-2022.pdf",
+            "verified": true,
+            "chunk_hash": "34aa3f5d44116def147390c7290a99f02c567524b5715b61402b8713915a1197",
+            "end_offset": 23657,
+            "chunk_index": 7,
+            "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+            "page_located": 13,
+            "start_offset": 23496,
+            "citation_hash": "2b047aa7abe9158aff040cffb3a9f41ccc6c6e8eaed545cd3f0aa24f5b480cbe",
+            "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+            "source_reattributed": false
+          }
+        ],
+        "affected_party": "parte_actora",
+        "adoption_status": "historical",
+        "potential_impact": "Modificó las condiciones económicas decretadas por la Sala responsable a favor de la quejosa.",
+        "proposition_type": "court_holding",
+        "legal_significance": "Fija las determinaciones jurídicas y porcentajes resarcitorios a favor de la quejosa en sede de amparo directo.",
+        "audit_classification": "VERIFIED_COURT_HOLDING"
+      },
+      "final": true,
+      "claim_type": "uncategorized_finding",
+      "provisional": false,
+      "exact_match_id": "em_27d593cb20c897a4",
+      "is_authority_exempt": false,
+      "canonical_finding_id": "cf_d0f1bb2c25d05ec7",
+      "semantic_support_review": {
+        "hash": "e4b8005597e6b68462a010c28bfb3c0809658123bd6233e3be1d75ed9e781e5a",
+        "reason": "Semantic verification provider unavailable; claim not certified.",
+        "verdict": "insufficient",
+        "version": 1,
+        "supporting_quote": ""
+      }
+    },
+    "created_at": "2026-09-24T13:04:04.477027-06:00",
+    "updated_at": "2026-09-24T13:42:25.81926-06:00",
+    "finding_type": "DIRECT_EVIDENCE",
+    "source_document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+    "source_page": 13,
+    "source_quote": "Por sentencia dictada el veintiséis de octubre de dos mil veintidós el Tercer\nTribunal Colegiado determinó conceder el amparo y protección de la justicia\nfederal",
+    "canonical_finding_id": "cf_d0f1bb2c25d05ec7",
+    "derived_from_finding_ids": [],
+    "evidence_type": "neutral",
+    "impact_direction": "neutral",
+    "strategic_significance": null,
+    "priority": 4,
+    "verification_status": "unverified",
+    "verification_notes": "insufficient: Semantic verification provider unavailable; claim not certified.",
+    "verified_at": "2026-09-24T13:32:15.452-06:00",
+    "finding_status": "verified",
+    "supporting_engines": [],
+    "evidence_strength": 0.85,
+    "citation_quality": null,
+    "authority_level": 1,
+    "projected_from_table": null,
+    "projected_from_row_id": null,
+    "confidence_dimensions": {
+      "legal": {
+        "level": "high",
+        "reason": "Constitutional/statutory rule established directly by the deciding court."
+      },
+      "factual": {
+        "level": "high",
+        "reason": "Derived from the engine's overall confidence score for this finding."
+      },
+      "extraction": {
+        "level": "high",
+        "reason": "Authoritative judicial holding extracted from verified court resolution."
+      },
+      "procedural": {
+        "level": "high",
+        "reason": "Procedural posture grounded in authoritative court resolution."
+      },
+      "classification": {
+        "level": "high",
+        "reason": "Finding is classified as a verified, adopted court holding."
+      },
+      "evidence_quality": {
+        "level": "high",
+        "reason": "Verified quotation from the judicial resolution is authoritative evidence of what the court held; independent corroboration is not required merely to establish the holding itself."
+      },
+      "corpus_completeness": {
+        "level": "low",
+        "reason": "Only a single document in the corpus touches this finding — the official expediente may contain more."
+      }
+    },
+    "rationale": {
+      "assumptions": [],
+      "contrary_evidence": [],
+      "supporting_evidence": [],
+      "applicable_authority": [],
+      "unresolved_questions": [],
+      "attorney_review_required": false,
+      "unsupported_language_flagged": false
+    },
+    "speaker_role": null,
+    "proposition_type": null,
+    "adoption_status": null,
+    "audit_classification": null,
+    "superseded_at": null,
+    "superseded_reason": null,
+    "lifecycle_status": null,
+    "evidence_relationship": null,
+    "reconciliation_state": null,
+    "benefited_party": null,
+    "score_dimension": null,
+    "reason_for_score_effect": null,
+    "canonical_fingerprint": null,
+    "category_key": null
+  },
+  {
+    "id": "74e79530-8f1d-4a7c-8f33-b98d38958406",
+    "case_id": "acc8a803-d332-4de5-8fae-5ff9d4fe4427",
+    "user_id": "37f23039-a1f5-4e04-b2ad-1de95a75977f",
+    "source_module": "agent:witness_credibility",
+    "category": "Hallazgo General",
+    "title": "Texto del artículo 281 del CPC de la Ciudad de México",
+    "description": "El artículo 281 establece que las partes asumirán la carga de la prueba de los hechos constitutivos de sus pretensiones.",
+    "severity": "low",
+    "confidence": 0.99,
+    "legal_significance": "Regla probatoria aplicable en procesos civiles y familiares.",
+    "potential_impact": "Determina quién debe probar los hechos que sustentan sus pretensiones.",
+    "affected_party": null,
+    "source_doc_ids": [
+      "f5cb730e-b7d7-42de-b4ce-e3574ec61916"
+    ],
+    "evidence_refs": [
+      {
+        "page": 9,
+        "doc_n": 1,
+        "quote": "Artículo 281.- Las partes asumirán la carga de la prueba de los hechos constitutivos de sus\npretensiones.",
+        "filename": "230919-ADR-6433-2022.pdf",
+        "verified": true,
+        "chunk_hash": "49864de372b083d94032f8df89d7419a183b6187b910a3dde0c5735e3a382ebd",
+        "end_offset": 15539,
+        "chunk_index": 5,
+        "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+        "page_located": 9,
+        "start_offset": 15434,
+        "citation_hash": "b56106273db5731ff9788c7b44dda565d6f0796bd9a71a5d42ab27230b46f10a",
+        "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+        "source_reattributed": false
+      }
+    ],
+    "related_finding_ids": [],
+    "tags": [],
+    "metadata": {
+      "raw": {
+        "title": "Texto del artículo 281 del CPC de la Ciudad de México",
+        "subject": "carga probatoria general",
+        "severity": "low",
+        "confidence": 0.99,
+        "provenance": {
+          "sources": [
+            {
+              "page": 9,
+              "doc_n": 1,
+              "quote": "Artículo 281.- Las partes asumirán la carga de la prueba de los hechos constitutivos de sus\npretensiones.",
+              "filename": "230919-ADR-6433-2022.pdf",
+              "chunk_hash": "49864de372b083d94032f8df89d7419a183b6187b910a3dde0c5735e3a382ebd",
+              "end_offset": 15539,
+              "chunk_index": 5,
+              "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+              "page_located": 9,
+              "start_offset": 15434,
+              "citation_hash": "b56106273db5731ff9788c7b44dda565d6f0796bd9a71a5d42ab27230b46f10a",
+              "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+              "source_reattributed": false
+            }
+          ],
+          "verified_count": 1,
+          "confidence_adjusted": 0.99
+        },
+        "description": "El artículo 281 establece que las partes asumirán la carga de la prueba de los hechos constitutivos de sus pretensiones.",
+        "speaker_role": null,
+        "evidence_refs": [
+          {
+            "page": 9,
+            "doc_n": 1,
+            "quote": "Artículo 281.- Las partes asumirán la carga de la prueba de los hechos constitutivos de sus\npretensiones.",
+            "filename": "230919-ADR-6433-2022.pdf",
+            "verified": true,
+            "chunk_hash": "49864de372b083d94032f8df89d7419a183b6187b910a3dde0c5735e3a382ebd",
+            "end_offset": 15539,
+            "chunk_index": 5,
+            "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+            "page_located": 9,
+            "start_offset": 15434,
+            "citation_hash": "b56106273db5731ff9788c7b44dda565d6f0796bd9a71a5d42ab27230b46f10a",
+            "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+            "source_reattributed": false
+          }
+        ],
+        "affected_party": "ambas",
+        "adoption_status": null,
+        "potential_impact": "Determina quién debe probar los hechos que sustentan sus pretensiones.",
+        "proposition_type": "legal_rule",
+        "legal_significance": "Regla probatoria aplicable en procesos civiles y familiares.",
+        "audit_classification": "VERIFIED_LEGAL_RULE"
+      },
+      "final": true,
+      "claim_type": "vehicle_description_conflict",
+      "provisional": false,
+      "exact_match_id": "em_6a904c1bc68634c7",
+      "is_authority_exempt": false,
+      "canonical_finding_id": "cf_dc94e8fc042b6e2c",
+      "semantic_support_review": {
+        "hash": "a9767ab8e59cb262de129cb13644b789172e89cd971ee2a9c97fbb3966375088",
+        "reason": "The context quotes article 281 verbatim, confirming that it establishes that the parties will bear the burden of proof for the factual elements of their claims.",
+        "verdict": "supported",
+        "version": 1,
+        "supporting_quote": "Artículo 281.- Las partes asumirán la carga de la prueba de los hechos constitutivos de sus pretensiones."
+      }
+    },
+    "created_at": "2026-09-24T13:04:04.477027-06:00",
+    "updated_at": "2026-09-24T13:42:25.81926-06:00",
+    "finding_type": "DIRECT_EVIDENCE",
+    "source_document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+    "source_page": 9,
+    "source_quote": "Artículo 281.- Las partes asumirán la carga de la prueba de los hechos constitutivos de sus\npretensiones.",
+    "canonical_finding_id": "cf_dc94e8fc042b6e2c",
+    "derived_from_finding_ids": [],
+    "evidence_type": "neutral",
+    "impact_direction": "neutral",
+    "strategic_significance": null,
+    "priority": 4,
+    "verification_status": "verified",
+    "verification_notes": "supported: The context quotes article 281 verbatim, confirming that it establishes that the parties will bear the burden of proof for the factual elements of their claims.",
+    "verified_at": "2026-09-24T13:37:41.386-06:00",
+    "finding_status": "verified",
+    "supporting_engines": [],
+    "evidence_strength": 0.55,
+    "citation_quality": null,
+    "authority_level": 1,
+    "projected_from_table": null,
+    "projected_from_row_id": null,
+    "confidence_dimensions": {
+      "legal": {
+        "level": "high",
+        "reason": "Legal significance was articulated by the engine; verify the cited rule is current and applicable."
+      },
+      "factual": {
+        "level": "high",
+        "reason": "Derived from the engine's overall confidence score for this finding."
+      },
+      "extraction": {
+        "level": "indeterminate",
+        "reason": "No source document attached to this finding — extraction quality can't be assessed."
+      },
+      "procedural": {
+        "level": "moderate",
+        "reason": "Procedural-stage certainty derived from pipeline consensus."
+      },
+      "classification": {
+        "level": "moderate",
+        "reason": "Category/materia classification not independently re-verified for this finding — inherited from the source engine's own classification."
+      },
+      "evidence_quality": {
+        "level": "moderate",
+        "reason": "One evidence reference cited; additional corroboration may be needed for disputed facts or inferences."
+      },
+      "corpus_completeness": {
+        "level": "low",
+        "reason": "Only a single document in the corpus touches this finding — the official expediente may contain more."
+      }
+    },
+    "rationale": {
+      "assumptions": [],
+      "contrary_evidence": [],
+      "supporting_evidence": [],
+      "applicable_authority": [],
+      "unresolved_questions": [],
+      "attorney_review_required": false,
+      "unsupported_language_flagged": false
+    },
+    "speaker_role": null,
+    "proposition_type": null,
+    "adoption_status": null,
+    "audit_classification": null,
+    "superseded_at": null,
+    "superseded_reason": null,
+    "lifecycle_status": null,
+    "evidence_relationship": null,
+    "reconciliation_state": null,
+    "benefited_party": null,
+    "score_dimension": null,
+    "reason_for_score_effect": null,
+    "canonical_fingerprint": null,
+    "category_key": null
+  },
+  {
+    "id": "91615358-21a8-4a24-a98c-8756d68c196e",
+    "case_id": "acc8a803-d332-4de5-8fae-5ff9d4fe4427",
+    "user_id": "37f23039-a1f5-4e04-b2ad-1de95a75977f",
+    "source_module": "decision_core",
+    "category": "Hallazgo General",
+    "title": "DETERMINACIÓN DEL TRIBUNAL: Se modifica la sentencia recurrida y se ampara a la quejosa para que se aplique la presunción de necesidad de alimentos y dedicación al hogar sin carácter potestativo.",
+    "description": "Se modifica la sentencia recurrida y se ampara a la quejosa para que se aplique la presunción de necesidad de alimentos y dedicación al hogar sin carácter potestativo.",
+    "severity": "high",
+    "confidence": 0.99,
+    "legal_significance": "Determinación o cuestión identificada en la resolución judicial, respaldada por su pasaje fuente.",
+    "potential_impact": "Integra el análisis de la resolución concluida; no modifica las puntuaciones por sí sola.",
+    "affected_party": "neutral",
+    "source_doc_ids": [
+      "f5cb730e-b7d7-42de-b4ce-e3574ec61916"
+    ],
+    "evidence_refs": [
+      {
+        "label": "p.1",
+        "quote": "PRIMERO. En la materia de la\nrevisión, se modifica la sentencia\nrecurrida.\nSEGUNDO. La justicia de la\nUnión ampara y protege a ***\n***** ******** ********contra la\nsentencia definitiva de dieciséis\nde febrero de dos mil veintidós",
+        "doc_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+        "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916"
+      }
+    ],
+    "related_finding_ids": [],
+    "tags": [],
+    "metadata": {
+      "final": true,
+      "claim_type": "vehicle_description_conflict",
+      "reportable": true,
+      "provisional": false,
+      "score_moving": false,
+      "exact_match_id": "em_90ff356cbfd5dd73",
+      "is_authority_exempt": false,
+      "canonical_finding_id": "cf_0566e9d168676b80",
+      "authority_level_label": "court_record",
+      "citation_exemption_type": "CITATION_REQUIRED",
+      "mandatory_decision_core": true,
+      "mandatory_decision_kind": "COURT_HOLDING",
+      "semantic_support_review": {
+        "hash": "fefcd07ee6f80ed14b8e15747831cc143f20bb508b8f4361218f8c22f6b99426",
+        "reason": "Exact cited page context unavailable.",
+        "verdict": "insufficient",
+        "version": 1,
+        "supporting_quote": ""
+      },
+      "mandatory_decision_core_id": "decision-core:court_holding:15fd0277"
+    },
+    "created_at": "2026-09-24T13:01:28.36435-06:00",
+    "updated_at": "2026-09-24T13:42:26.11075-06:00",
+    "finding_type": "DIRECT_EVIDENCE",
+    "source_document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+    "source_page": null,
+    "source_quote": "PRIMERO. En la materia de la\nrevisión, se modifica la sentencia\nrecurrida.\nSEGUNDO. La justicia de la\nUnión ampara y protege a ***\n***** ******** ********contra la\nsentencia definitiva de dieciséis\nde febrero de dos mil veintidós",
+    "canonical_finding_id": "cf_0566e9d168676b80",
+    "derived_from_finding_ids": [],
+    "evidence_type": "neutral",
+    "impact_direction": "neutral",
+    "strategic_significance": null,
+    "priority": 3,
+    "verification_status": "unverified",
+    "verification_notes": "insufficient: Exact cited page context unavailable.",
+    "verified_at": "2026-09-24T13:37:41.522-06:00",
+    "finding_status": "candidate",
+    "supporting_engines": [],
+    "evidence_strength": null,
+    "citation_quality": null,
+    "authority_level": 1,
+    "projected_from_table": null,
+    "projected_from_row_id": null,
+    "confidence_dimensions": null,
+    "rationale": null,
+    "speaker_role": "scjn",
+    "proposition_type": "court_holding",
+    "adoption_status": "adopted",
+    "audit_classification": "VERIFIED_COURT_HOLDING",
+    "superseded_at": null,
+    "superseded_reason": null,
+    "lifecycle_status": null,
+    "evidence_relationship": "SOURCE_HOLDING",
+    "reconciliation_state": null,
+    "benefited_party": "neutral",
+    "score_dimension": null,
+    "reason_for_score_effect": "La determinación judicial no modifica por sí sola las puntuaciones.",
+    "canonical_fingerprint": null,
+    "category_key": null
+  },
+  {
+    "id": "5ccae233-c67d-4ac8-b639-4cbcf43d8c4f",
+    "case_id": "acc8a803-d332-4de5-8fae-5ff9d4fe4427",
+    "user_id": "37f23039-a1f5-4e04-b2ad-1de95a75977f",
+    "source_module": "decision_core",
+    "category": "Hallazgo General",
+    "title": "RESULTADO: PRIMERO. En la materia de la revisión, se modifica la sentencia recurrida. SEGUNDO. La justicia de la Unión ampara y protege a *** ***** ********\n********contra la sentencia definitiva de dieciséis de febrero de dos mil\nveintidós, dictada por la Quinta Sala Familiar del Tribunal Superior de Justicia\nde la Ciudad de México, en el toca de apelación ****/**** -21, en los términos\nprecisados en la presente ejecutoria. TERCERO. Es infundado el recurso de revisión adhesivo.",
+    "description": "PRIMERO. En la materia de la revisión, se modifica la sentencia recurrida. SEGUNDO. La justicia de la Unión ampara y protege a *** ***** ********\n********contra la sentencia definitiva de dieciséis de febrero de dos mil\nveintidós, dictada por la Quinta Sala Familiar del Tribunal Superior de Justicia\nde la Ciudad de México, en el toca de apelación ****/**** -21, en los términos\nprecisados en la presente ejecutoria. TERCERO. Es infundado el recurso de revisión adhesivo.",
+    "severity": "critical",
+    "confidence": 0.99,
+    "legal_significance": "Determinación o cuestión identificada en la resolución judicial, respaldada por su pasaje fuente.",
+    "potential_impact": "Integra el análisis de la resolución concluida; no modifica las puntuaciones por sí sola.",
+    "affected_party": "neutral",
+    "source_doc_ids": [
+      "f5cb730e-b7d7-42de-b4ce-e3574ec61916"
+    ],
+    "evidence_refs": [
+      {
+        "page": 53,
+        "label": "p.53",
+        "quote": "PRIMERO. En la materia de la revisión, se modifica la sentencia recurrida.",
+        "doc_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+        "filename": "230919-ADR-6433-2022.pdf",
+        "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916"
+      },
+      {
+        "page": 53,
+        "label": "p.53",
+        "quote": "SEGUNDO. La justicia de la Unión ampara y protege a *** ***** ********\n********contra la sentencia definitiva de dieciséis de febrero de dos mil\nveintidós, dictada por la Quinta Sala Familiar del Tribunal Superior de Justicia\nde la Ciudad de México, en el toca de apelación ****/**** -21, en los términos\nprecisados en la presente ejecutoria.",
+        "doc_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+        "filename": "230919-ADR-6433-2022.pdf",
+        "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916"
+      },
+      {
+        "page": 53,
+        "label": "p.53",
+        "quote": "TERCERO. Es infundado el recurso de revisión adhesivo.",
+        "doc_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+        "filename": "230919-ADR-6433-2022.pdf",
+        "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916"
+      }
+    ],
+    "related_finding_ids": [],
+    "tags": [],
+    "metadata": {
+      "final": true,
+      "claim_type": "uncategorized_finding",
+      "reportable": true,
+      "provisional": false,
+      "score_moving": false,
+      "exact_match_id": "em_e16dac9c60256df2",
+      "is_authority_exempt": false,
+      "canonical_finding_id": "cf_bc6f31598b712a0b",
+      "authority_level_label": "court_record",
+      "citation_exemption_type": "CITATION_REQUIRED",
+      "mandatory_decision_core": true,
+      "mandatory_decision_kind": "DISPOSITION",
+      "semantic_support_review": {
+        "hash": "313017bb83d7cbc11216cafe1d265c781bde4d99fc06f7f34b4e500cc4842f9e",
+        "reason": "The context contains the exact procedural statements quoted in the claim, matching the title and description verbatim.",
+        "verdict": "supported",
+        "version": 1,
+        "supporting_quote": "PRIMERO. En la materia de la revisión, se modifica la sentencia recurrida. SEGUNDO. La justicia de la Unión ampara y protege a *** ***** ******** ********contra la sentencia definitiva de dieciséis de febrero de dos mil veintidós, dictada por la Quinta Sala Familiar del Tribunal Superior de Justicia de la Ciudad de México, en el toca de apelación ****/**** -21, en los términos precisados en la presente ejecutoria. TERCERO. Es infundado el recurso de revisión adhesivo."
+      },
+      "mandatory_decision_core_id": "decision-core:disposition:1a4293d9"
+    },
+    "created_at": "2026-09-24T13:01:28.36435-06:00",
+    "updated_at": "2026-09-24T13:42:25.81926-06:00",
+    "finding_type": "DIRECT_EVIDENCE",
+    "source_document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+    "source_page": 53,
+    "source_quote": "PRIMERO. En la materia de la revisión, se modifica la sentencia recurrida.",
+    "canonical_finding_id": "cf_bc6f31598b712a0b",
+    "derived_from_finding_ids": [],
+    "evidence_type": "neutral",
+    "impact_direction": "neutral",
+    "strategic_significance": null,
+    "priority": 3,
+    "verification_status": "verified",
+    "verification_notes": "supported: The context contains the exact procedural statements quoted in the claim, matching the title and description verbatim.",
+    "verified_at": "2026-09-24T13:37:41.104-06:00",
+    "finding_status": "verified",
+    "supporting_engines": [],
+    "evidence_strength": null,
+    "citation_quality": null,
+    "authority_level": 1,
+    "projected_from_table": null,
+    "projected_from_row_id": null,
+    "confidence_dimensions": null,
+    "rationale": null,
+    "speaker_role": null,
+    "proposition_type": "procedural_fact",
+    "adoption_status": "adopted",
+    "audit_classification": "VERIFIED_FACT",
+    "superseded_at": null,
+    "superseded_reason": null,
+    "lifecycle_status": null,
+    "evidence_relationship": "SOURCE_HOLDING",
+    "reconciliation_state": null,
+    "benefited_party": "neutral",
+    "score_dimension": null,
+    "reason_for_score_effect": "La determinación judicial no modifica por sí sola las puntuaciones.",
+    "canonical_fingerprint": null,
+    "category_key": null
+  },
+  {
+    "id": "d9390f0f-e7e9-464f-8b37-59654685ba2e",
+    "case_id": "acc8a803-d332-4de5-8fae-5ff9d4fe4427",
+    "user_id": "37f23039-a1f5-4e04-b2ad-1de95a75977f",
+    "source_module": "agent:witness_credibility",
+    "category": "Hallazgo General",
+    "title": "Texto del artículo 282 del CPC de la Ciudad de México",
+    "description": "El artículo 282 indica que el que niega sólo será obligado a probar en casos específicos, como cuando la negación envuelve una afirmación expresa de un hecho.",
+    "severity": "low",
+    "confidence": 0.99,
+    "legal_significance": "Define situaciones en que la carga de la prueba recae sobre el negador.",
+    "potential_impact": "Puede aliviar la carga probatoria de la parte demandante en ciertos supuestos.",
+    "affected_party": null,
+    "source_doc_ids": [
+      "f5cb730e-b7d7-42de-b4ce-e3574ec61916"
+    ],
+    "evidence_refs": [
+      {
+        "page": 10,
+        "doc_n": 1,
+        "quote": "Artículo 282.- El que niega sólo será obligado a probar: I. Cuando la negación envuelva la afirmación\nexpresa de un hecho; II. Cuando se desconozca la presunción legal que tenga en su favor el colitigante;\nIII. Cuando se desconozca la capacidad; IV. Cuando la negativa fuere elemento constitutivo de la acción.",
+        "filename": "230919-ADR-6433-2022.pdf",
+        "verified": true,
+        "chunk_hash": "49864de372b083d94032f8df89d7419a183b6187b910a3dde0c5735e3a382ebd",
+        "end_offset": 17813,
+        "chunk_index": 5,
+        "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+        "page_located": 10,
+        "start_offset": 17503,
+        "citation_hash": "bcf9e460868cc4f3eec80304525d5cb3772faeb0a8fab2198f2af1b4b6c4c087",
+        "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+        "source_reattributed": false
+      }
+    ],
+    "related_finding_ids": [],
+    "tags": [],
+    "metadata": {
+      "raw": {
+        "title": "Texto del artículo 282 del CPC de la Ciudad de México",
+        "subject": "excepciones a la carga probatoria",
+        "severity": "low",
+        "confidence": 0.99,
+        "provenance": {
+          "sources": [
+            {
+              "page": 10,
+              "doc_n": 1,
+              "quote": "Artículo 282.- El que niega sólo será obligado a probar: I. Cuando la negación envuelva la afirmación\nexpresa de un hecho; II. Cuando se desconozca la presunción legal que tenga en su favor el colitigante;\nIII. Cuando se desconozca la capacidad; IV. Cuando la negativa fuere elemento constitutivo de la acción.",
+              "filename": "230919-ADR-6433-2022.pdf",
+              "chunk_hash": "49864de372b083d94032f8df89d7419a183b6187b910a3dde0c5735e3a382ebd",
+              "end_offset": 17813,
+              "chunk_index": 5,
+              "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+              "page_located": 10,
+              "start_offset": 17503,
+              "citation_hash": "bcf9e460868cc4f3eec80304525d5cb3772faeb0a8fab2198f2af1b4b6c4c087",
+              "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+              "source_reattributed": false
+            }
+          ],
+          "verified_count": 1,
+          "confidence_adjusted": 0.99
+        },
+        "description": "El artículo 282 indica que el que niega sólo será obligado a probar en casos específicos, como cuando la negación envuelve una afirmación expresa de un hecho.",
+        "speaker_role": null,
+        "evidence_refs": [
+          {
+            "page": 10,
+            "doc_n": 1,
+            "quote": "Artículo 282.- El que niega sólo será obligado a probar: I. Cuando la negación envuelva la afirmación\nexpresa de un hecho; II. Cuando se desconozca la presunción legal que tenga en su favor el colitigante;\nIII. Cuando se desconozca la capacidad; IV. Cuando la negativa fuere elemento constitutivo de la acción.",
+            "filename": "230919-ADR-6433-2022.pdf",
+            "verified": true,
+            "chunk_hash": "49864de372b083d94032f8df89d7419a183b6187b910a3dde0c5735e3a382ebd",
+            "end_offset": 17813,
+            "chunk_index": 5,
+            "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+            "page_located": 10,
+            "start_offset": 17503,
+            "citation_hash": "bcf9e460868cc4f3eec80304525d5cb3772faeb0a8fab2198f2af1b4b6c4c087",
+            "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+            "source_reattributed": false
+          }
+        ],
+        "affected_party": "ambas",
+        "adoption_status": null,
+        "potential_impact": "Puede aliviar la carga probatoria de la parte demandante en ciertos supuestos.",
+        "proposition_type": "legal_rule",
+        "legal_significance": "Define situaciones en que la carga de la prueba recae sobre el negador.",
+        "audit_classification": "VERIFIED_LEGAL_RULE"
+      },
+      "final": true,
+      "claim_type": "uncategorized_finding",
+      "provisional": false,
+      "exact_match_id": "em_96e957e2b6383ace",
+      "is_authority_exempt": false,
+      "canonical_finding_id": "cf_e9c6da0d90f7714d",
+      "semantic_support_review": {
+        "hash": "bd133c7b3491e2c09d680496a228ca816d8e2059de2585513a599e0dbd043ead",
+        "reason": "Semantic verification provider unavailable; claim not certified.",
+        "verdict": "insufficient",
+        "version": 1,
+        "supporting_quote": ""
+      }
+    },
+    "created_at": "2026-09-24T13:04:04.477027-06:00",
+    "updated_at": "2026-09-24T13:42:25.81926-06:00",
+    "finding_type": "DIRECT_EVIDENCE",
+    "source_document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+    "source_page": 10,
+    "source_quote": "Artículo 282.- El que niega sólo será obligado a probar: I. Cuando la negación envuelva la afirmación\nexpresa de un hecho; II. Cuando se desconozca la presunción legal que tenga en su favor el colitigante;\nIII. Cuando se desconozca la capacidad; IV. Cuando la negativa fuere elemento constitutivo de la acción.",
+    "canonical_finding_id": "cf_e9c6da0d90f7714d",
+    "derived_from_finding_ids": [],
+    "evidence_type": "neutral",
+    "impact_direction": "neutral",
+    "strategic_significance": null,
+    "priority": 4,
+    "verification_status": "unverified",
+    "verification_notes": "insufficient: Semantic verification provider unavailable; claim not certified.",
+    "verified_at": "2026-09-24T13:32:15.108-06:00",
+    "finding_status": "verified",
+    "supporting_engines": [],
+    "evidence_strength": 0.55,
+    "citation_quality": null,
+    "authority_level": 1,
+    "projected_from_table": null,
+    "projected_from_row_id": null,
+    "confidence_dimensions": {
+      "legal": {
+        "level": "high",
+        "reason": "Legal significance was articulated by the engine; verify the cited rule is current and applicable."
+      },
+      "factual": {
+        "level": "high",
+        "reason": "Derived from the engine's overall confidence score for this finding."
+      },
+      "extraction": {
+        "level": "indeterminate",
+        "reason": "No source document attached to this finding — extraction quality can't be assessed."
+      },
+      "procedural": {
+        "level": "moderate",
+        "reason": "Procedural-stage certainty derived from pipeline consensus."
+      },
+      "classification": {
+        "level": "moderate",
+        "reason": "Category/materia classification not independently re-verified for this finding — inherited from the source engine's own classification."
+      },
+      "evidence_quality": {
+        "level": "moderate",
+        "reason": "One evidence reference cited; additional corroboration may be needed for disputed facts or inferences."
+      },
+      "corpus_completeness": {
+        "level": "low",
+        "reason": "Only a single document in the corpus touches this finding — the official expediente may contain more."
+      }
+    },
+    "rationale": {
+      "assumptions": [],
+      "contrary_evidence": [],
+      "supporting_evidence": [],
+      "applicable_authority": [],
+      "unresolved_questions": [],
+      "attorney_review_required": false,
+      "unsupported_language_flagged": false
+    },
+    "speaker_role": null,
+    "proposition_type": null,
+    "adoption_status": null,
+    "audit_classification": null,
+    "superseded_at": null,
+    "superseded_reason": null,
+    "lifecycle_status": null,
+    "evidence_relationship": null,
+    "reconciliation_state": null,
+    "benefited_party": null,
+    "score_dimension": null,
+    "reason_for_score_effect": null,
+    "canonical_fingerprint": null,
+    "category_key": null
+  },
+  {
+    "id": "7464ab23-c76a-430f-958d-dab51273a6e8",
+    "case_id": "acc8a803-d332-4de5-8fae-5ff9d4fe4427",
+    "user_id": "37f23039-a1f5-4e04-b2ad-1de95a75977f",
+    "source_module": "agent:child_support_calculation",
+    "category": "Hallazgo General",
+    "title": "Modificación a 25% de los bienes como compensación económica",
+    "description": "El Tribunal modificó el porcentaje de la compensación económica a un 25% de los bienes del tercero interesado.",
+    "severity": "medium",
+    "confidence": 0.95,
+    "legal_significance": "Ajusta la cuota de compensación económica respecto al patrimonio del demandado.",
+    "potential_impact": "Incrementa la carga patrimonial del demandado en la liquidación de la compensación.",
+    "affected_party": null,
+    "source_doc_ids": [
+      "f5cb730e-b7d7-42de-b4ce-e3574ec61916"
+    ],
+    "evidence_refs": [
+      {
+        "page": 14,
+        "doc_n": 1,
+        "quote": "modificó el porcentaje de la\ncompensación económica derivada de la terminación del vínculo matrimonial por\nseparación de bienes a un 25% de los bienes del tercero interesado.",
+        "filename": "230919-ADR-6433-2022.pdf",
+        "verified": true,
+        "chunk_hash": "bce89b29f04bbee543fd78cd5dd82422837c5cd6ab6b63c75f03451be416ce7a",
+        "end_offset": 24379,
+        "chunk_index": 8,
+        "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+        "page_located": 14,
+        "start_offset": 24205,
+        "citation_hash": "a8670fb5b1ca5ddba55e8dde96d63fe2f571711521cef1e0f3f67f080b35f789",
+        "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+        "source_reattributed": false
+      }
+    ],
+    "related_finding_ids": [],
+    "tags": [],
+    "metadata": {
+      "raw": {
+        "title": "Modificación a 25% de los bienes como compensación económica",
+        "severity": "medium",
+        "confidence": 0.95,
+        "issue_type": "formula_o_porcentaje_propuesto",
+        "provenance": {
+          "sources": [
+            {
+              "page": 14,
+              "doc_n": 1,
+              "quote": "modificó el porcentaje de la\ncompensación económica derivada de la terminación del vínculo matrimonial por\nseparación de bienes a un 25% de los bienes del tercero interesado.",
+              "filename": "230919-ADR-6433-2022.pdf",
+              "chunk_hash": "bce89b29f04bbee543fd78cd5dd82422837c5cd6ab6b63c75f03451be416ce7a",
+              "end_offset": 24379,
+              "chunk_index": 8,
+              "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+              "page_located": 14,
+              "start_offset": 24205,
+              "citation_hash": "a8670fb5b1ca5ddba55e8dde96d63fe2f571711521cef1e0f3f67f080b35f789",
+              "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+              "source_reattributed": false
+            }
+          ],
+          "verified_count": 1,
+          "confidence_adjusted": 0.95
+        },
+        "description": "El Tribunal modificó el porcentaje de la compensación económica a un 25% de los bienes del tercero interesado.",
+        "evidence_refs": [
+          {
+            "page": 14,
+            "doc_n": 1,
+            "quote": "modificó el porcentaje de la\ncompensación económica derivada de la terminación del vínculo matrimonial por\nseparación de bienes a un 25% de los bienes del tercero interesado.",
+            "filename": "230919-ADR-6433-2022.pdf",
+            "verified": true,
+            "chunk_hash": "bce89b29f04bbee543fd78cd5dd82422837c5cd6ab6b63c75f03451be416ce7a",
+            "end_offset": 24379,
+            "chunk_index": 8,
+            "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+            "page_located": 14,
+            "start_offset": 24205,
+            "citation_hash": "a8670fb5b1ca5ddba55e8dde96d63fe2f571711521cef1e0f3f67f080b35f789",
+            "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+            "source_reattributed": false
+          }
+        ],
+        "affected_party": "parte_demandada",
+        "potential_impact": "Incrementa la carga patrimonial del demandado en la liquidación de la compensación.",
+        "legal_significance": "Ajusta la cuota de compensación económica respecto al patrimonio del demandado."
+      },
+      "final": true,
+      "claim_type": "uncategorized_finding",
+      "provisional": false,
+      "exact_match_id": "em_fc257f82754cba91",
+      "is_authority_exempt": false,
+      "canonical_finding_id": "cf_07066259eb134e87",
+      "semantic_support_review": {
+        "hash": "bfa80085b79df87034a267866d08a849bb687ebd60036ba96b2411f56bf55cb2",
+        "reason": "The context explicitly states that the tribunal modified the percentage of economic compensation to 25% of the assets of the interested third party.",
+        "verdict": "supported",
+        "version": 1,
+        "supporting_quote": "Por otra parte, modificó el porcentaje de la compensación económica derivada de la terminación del vínculo matrimonial por separación de bienes a un 25% de los bienes del tercero interesado."
+      }
+    },
+    "created_at": "2026-09-24T13:04:16.043437-06:00",
+    "updated_at": "2026-09-24T13:42:25.81926-06:00",
+    "finding_type": "DIRECT_EVIDENCE",
+    "source_document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+    "source_page": 14,
+    "source_quote": "modificó el porcentaje de la\ncompensación económica derivada de la terminación del vínculo matrimonial por\nseparación de bienes a un 25% de los bienes del tercero interesado.",
+    "canonical_finding_id": "cf_07066259eb134e87",
+    "derived_from_finding_ids": [],
+    "evidence_type": "neutral",
+    "impact_direction": "neutral",
+    "strategic_significance": null,
+    "priority": 4,
+    "verification_status": "verified",
+    "verification_notes": "supported: The context explicitly states that the tribunal modified the percentage of economic compensation to 25% of the assets of the interested third party.",
+    "verified_at": "2026-09-24T13:37:41.257-06:00",
+    "finding_status": "verified",
+    "supporting_engines": [],
+    "evidence_strength": 0.55,
+    "citation_quality": null,
+    "authority_level": 1,
+    "projected_from_table": null,
+    "projected_from_row_id": null,
+    "confidence_dimensions": {
+      "legal": {
+        "level": "high",
+        "reason": "Legal significance was articulated by the engine; verify the cited rule is current and applicable."
+      },
+      "factual": {
+        "level": "high",
+        "reason": "Derived from the engine's overall confidence score for this finding."
+      },
+      "extraction": {
+        "level": "indeterminate",
+        "reason": "No source document attached to this finding — extraction quality can't be assessed."
+      },
+      "procedural": {
+        "level": "moderate",
+        "reason": "Procedural-stage certainty derived from pipeline consensus."
+      },
+      "classification": {
+        "level": "moderate",
+        "reason": "Category/materia classification not independently re-verified for this finding — inherited from the source engine's own classification."
+      },
+      "evidence_quality": {
+        "level": "moderate",
+        "reason": "One evidence reference cited; additional corroboration may be needed for disputed facts or inferences."
+      },
+      "corpus_completeness": {
+        "level": "low",
+        "reason": "Only a single document in the corpus touches this finding — the official expediente may contain more."
+      }
+    },
+    "rationale": {
+      "assumptions": [],
+      "contrary_evidence": [],
+      "supporting_evidence": [],
+      "applicable_authority": [],
+      "unresolved_questions": [],
+      "attorney_review_required": false,
+      "unsupported_language_flagged": false
+    },
+    "speaker_role": null,
+    "proposition_type": null,
+    "adoption_status": null,
+    "audit_classification": null,
+    "superseded_at": null,
+    "superseded_reason": null,
+    "lifecycle_status": null,
+    "evidence_relationship": null,
+    "reconciliation_state": null,
+    "benefited_party": null,
+    "score_dimension": null,
+    "reason_for_score_effect": null,
+    "canonical_fingerprint": null,
+    "category_key": null
+  },
+  {
+    "id": "10fd9c22-0b99-4da4-802b-fa9e571d560a",
+    "case_id": "acc8a803-d332-4de5-8fae-5ff9d4fe4427",
+    "user_id": "37f23039-a1f5-4e04-b2ad-1de95a75977f",
+    "source_module": "agent:custody_best_interest_analysis",
+    "category": "Hallazgo General",
+    "title": "Carga de la prueba en la compensación económica y perspectiva de género",
+    "description": "El Tribunal Colegiado determinó que los artículos 281 y 282 del Código de Procedimientos Civiles de la Ciudad de México no son inconstitucionales, ya que forman parte de un sistema normativo que permite excepciones y el uso de presunciones o inversión de la carga probatoria cuando existe desigualdad o desequilibrio entre las partes, debiendo juzgarse con perspectiva de género.",
+    "severity": "medium",
+    "confidence": 0.95,
+    "legal_significance": "Define los alcances de la carga probatoria de quien solicita alimentos compensatorios y compensación económica, armonizándola con el principio de igualdad y la perspectiva de género.",
+    "potential_impact": "Modifica la forma en que los órganos jurisdiccionales deben ponderar las pruebas y las presunciones humanas respecto al trabajo doméstico no remunerado.",
+    "affected_party": null,
+    "source_doc_ids": [
+      "f5cb730e-b7d7-42de-b4ce-e3574ec61916"
+    ],
+    "evidence_refs": [
+      {
+        "page": 15,
+        "doc_n": 1,
+        "quote": "Por lo que cuando una de las\npartes dentro de un juicio de divorcio solicite la compensación bajo la\nafirmación de que se dedicó preponderantemente a las labores del hogar y\nal cuidado de los hijos durante el vínculo matrimonial, la carga de la prueba\nde los hechos en que se fundaba la petición corresponde a la parte\nsolicitante, sin perjuicio de que el juez pudiera desprender una presunción\nhumana de las pruebas que se ofrecieron y de las circunstancias\nparticulares de cada caso.",
+        "filename": "230919-ADR-6433-2022.pdf",
+        "verified": true,
+        "chunk_hash": "fea9e0a05dfadd5cb26add2d5fcb59ecb63d600c8bb2657e1d42c139250ddc4a",
+        "end_offset": 27671,
+        "chunk_index": 9,
+        "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+        "page_located": 15,
+        "start_offset": 27186,
+        "citation_hash": "1fbb3f9ecbec1eba74b35a5f7fe1f23985461cc01260464164ce96c24131e454",
+        "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+        "source_reattributed": false
+      }
+    ],
+    "related_finding_ids": [],
+    "tags": [],
+    "metadata": {
+      "raw": {
+        "title": "Carga de la prueba en la compensación económica y perspectiva de género",
+        "severity": "medium",
+        "confidence": 0.95,
+        "provenance": {
+          "sources": [
+            {
+              "page": 15,
+              "doc_n": 1,
+              "quote": "Por lo que cuando una de las\npartes dentro de un juicio de divorcio solicite la compensación bajo la\nafirmación de que se dedicó preponderantemente a las labores del hogar y\nal cuidado de los hijos durante el vínculo matrimonial, la carga de la prueba\nde los hechos en que se fundaba la petición corresponde a la parte\nsolicitante, sin perjuicio de que el juez pudiera desprender una presunción\nhumana de las pruebas que se ofrecieron y de las circunstancias\nparticulares de cada caso.",
+              "filename": "230919-ADR-6433-2022.pdf",
+              "chunk_hash": "fea9e0a05dfadd5cb26add2d5fcb59ecb63d600c8bb2657e1d42c139250ddc4a",
+              "end_offset": 27671,
+              "chunk_index": 9,
+              "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+              "page_located": 15,
+              "start_offset": 27186,
+              "citation_hash": "1fbb3f9ecbec1eba74b35a5f7fe1f23985461cc01260464164ce96c24131e454",
+              "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+              "source_reattributed": false
+            }
+          ],
+          "verified_count": 1,
+          "confidence_adjusted": 0.95
+        },
+        "description": "El Tribunal Colegiado determinó que los artículos 281 y 282 del Código de Procedimientos Civiles de la Ciudad de México no son inconstitucionales, ya que forman parte de un sistema normativo que permite excepciones y el uso de presunciones o inversión de la carga probatoria cuando existe desigualdad o desequilibrio entre las partes, debiendo juzgarse con perspectiva de género.",
+        "factor_type": "capacidad_de_cuidado",
+        "evidence_refs": [
+          {
+            "page": 15,
+            "doc_n": 1,
+            "quote": "Por lo que cuando una de las\npartes dentro de un juicio de divorcio solicite la compensación bajo la\nafirmación de que se dedicó preponderantemente a las labores del hogar y\nal cuidado de los hijos durante el vínculo matrimonial, la carga de la prueba\nde los hechos en que se fundaba la petición corresponde a la parte\nsolicitante, sin perjuicio de que el juez pudiera desprender una presunción\nhumana de las pruebas que se ofrecieron y de las circunstancias\nparticulares de cada caso.",
+            "filename": "230919-ADR-6433-2022.pdf",
+            "verified": true,
+            "chunk_hash": "fea9e0a05dfadd5cb26add2d5fcb59ecb63d600c8bb2657e1d42c139250ddc4a",
+            "end_offset": 27671,
+            "chunk_index": 9,
+            "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+            "page_located": 15,
+            "start_offset": 27186,
+            "citation_hash": "1fbb3f9ecbec1eba74b35a5f7fe1f23985461cc01260464164ce96c24131e454",
+            "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+            "source_reattributed": false
+          }
+        ],
+        "affected_party": "ambas",
+        "potential_impact": "Modifica la forma en que los órganos jurisdiccionales deben ponderar las pruebas y las presunciones humanas respecto al trabajo doméstico no remunerado.",
+        "legal_significance": "Define los alcances de la carga probatoria de quien solicita alimentos compensatorios y compensación económica, armonizándola con el principio de igualdad y la perspectiva de género."
+      },
+      "final": true,
+      "claim_type": "vehicle_description_conflict",
+      "provisional": false,
+      "exact_match_id": "em_2ea4ad5e855f54d2",
+      "is_authority_exempt": false,
+      "canonical_finding_id": "cf_db30492df5bc94af",
+      "semantic_support_review": {
+        "hash": "cda7b1abf4d1df5ab724778a84eb06ab741b2cb29bf03b34c926cae1843a7c58",
+        "reason": "Semantic verification provider unavailable; claim not certified.",
+        "verdict": "insufficient",
+        "version": 1,
+        "supporting_quote": ""
+      }
+    },
+    "created_at": "2026-09-24T13:04:17.047139-06:00",
+    "updated_at": "2026-09-24T13:42:25.81926-06:00",
+    "finding_type": "DIRECT_EVIDENCE",
+    "source_document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+    "source_page": 15,
+    "source_quote": "Por lo que cuando una de las\npartes dentro de un juicio de divorcio solicite la compensación bajo la\nafirmación de que se dedicó preponderantemente a las labores del hogar y\nal cuidado de los hijos durante el vínculo matrimonial, la carga de la prueba\nde los hechos en que se fundaba la petición corresponde a la parte\nsolicitante, sin perjuicio de que el juez pudiera desprender una presunción\nhumana de las pruebas que se ofrecieron y de las circunstancias\nparticulares de cada caso.",
+    "canonical_finding_id": "cf_db30492df5bc94af",
+    "derived_from_finding_ids": [],
+    "evidence_type": "neutral",
+    "impact_direction": "neutral",
+    "strategic_significance": null,
+    "priority": 4,
+    "verification_status": "unverified",
+    "verification_notes": "insufficient: Semantic verification provider unavailable; claim not certified.",
+    "verified_at": "2026-09-24T13:32:13.479-06:00",
+    "finding_status": "verified",
+    "supporting_engines": [],
+    "evidence_strength": 0.55,
+    "citation_quality": null,
+    "authority_level": 1,
+    "projected_from_table": null,
+    "projected_from_row_id": null,
+    "confidence_dimensions": {
+      "legal": {
+        "level": "high",
+        "reason": "Legal significance was articulated by the engine; verify the cited rule is current and applicable."
+      },
+      "factual": {
+        "level": "high",
+        "reason": "Derived from the engine's overall confidence score for this finding."
+      },
+      "extraction": {
+        "level": "indeterminate",
+        "reason": "No source document attached to this finding — extraction quality can't be assessed."
+      },
+      "procedural": {
+        "level": "moderate",
+        "reason": "Procedural-stage certainty derived from pipeline consensus."
+      },
+      "classification": {
+        "level": "moderate",
+        "reason": "Category/materia classification not independently re-verified for this finding — inherited from the source engine's own classification."
+      },
+      "evidence_quality": {
+        "level": "moderate",
+        "reason": "One evidence reference cited; additional corroboration may be needed for disputed facts or inferences."
+      },
+      "corpus_completeness": {
+        "level": "low",
+        "reason": "Only a single document in the corpus touches this finding — the official expediente may contain more."
+      }
+    },
+    "rationale": {
+      "assumptions": [],
+      "contrary_evidence": [],
+      "supporting_evidence": [],
+      "applicable_authority": [],
+      "unresolved_questions": [],
+      "attorney_review_required": false,
+      "unsupported_language_flagged": false
+    },
+    "speaker_role": null,
+    "proposition_type": null,
+    "adoption_status": null,
+    "audit_classification": null,
+    "superseded_at": null,
+    "superseded_reason": null,
+    "lifecycle_status": null,
+    "evidence_relationship": null,
+    "reconciliation_state": null,
+    "benefited_party": null,
+    "score_dimension": null,
+    "reason_for_score_effect": null,
+    "canonical_fingerprint": null,
+    "category_key": null
+  },
+  {
+    "id": "d9a46c8b-04ba-43e8-8cb7-a155327ced21",
+    "case_id": "acc8a803-d332-4de5-8fae-5ff9d4fe4427",
+    "user_id": "37f23039-a1f5-4e04-b2ad-1de95a75977f",
+    "source_module": "agent:child_support_calculation",
+    "category": "Hallazgo General",
+    "title": "Capacidad económica del cónyuge demandado",
+    "description": "El cónyuge demandado ejercía una profesión de tiempo completo, lo que indica capacidad económica para cumplir con la obligación alimenticia y de compensación.",
+    "severity": "medium",
+    "confidence": 0.94,
+    "legal_significance": "Apoya la valoración de la capacidad económica del deudor, elemento esencial para fijar la pensión y la compensación.",
+    "potential_impact": "Justifica la imposición de la obligación de pago al demandado.",
+    "affected_party": null,
+    "source_doc_ids": [
+      "f5cb730e-b7d7-42de-b4ce-e3574ec61916"
+    ],
+    "evidence_refs": [
+      {
+        "page": 4,
+        "doc_n": 1,
+        "quote": "Durante el mismo tiempo, **** ****** se dedicó a ejercer su profesión de tiempo\ncompleto.",
+        "filename": "230919-ADR-6433-2022.pdf",
+        "verified": true,
+        "chunk_hash": "68d59ab6e9274ae37313b01104ad104f2b3731c7b5f22386874d14b1ce92bd48",
+        "end_offset": 3844,
+        "chunk_index": 1,
+        "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+        "page_located": 4,
+        "start_offset": 3755,
+        "citation_hash": "ab541cd231849478749da60f6051fb758530bfc3dd38d559d09aa1aa22fd7071",
+        "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+        "source_reattributed": false
+      }
+    ],
+    "related_finding_ids": [],
+    "tags": [],
+    "metadata": {
+      "raw": {
+        "title": "Capacidad económica del cónyuge demandado",
+        "severity": "medium",
+        "confidence": 0.94,
+        "issue_type": "capacidad_economica_del_deudor",
+        "provenance": {
+          "sources": [
+            {
+              "page": 4,
+              "doc_n": 1,
+              "quote": "Durante el mismo tiempo, **** ****** se dedicó a ejercer su profesión de tiempo\ncompleto.",
+              "filename": "230919-ADR-6433-2022.pdf",
+              "chunk_hash": "68d59ab6e9274ae37313b01104ad104f2b3731c7b5f22386874d14b1ce92bd48",
+              "end_offset": 3844,
+              "chunk_index": 1,
+              "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+              "page_located": 4,
+              "start_offset": 3755,
+              "citation_hash": "ab541cd231849478749da60f6051fb758530bfc3dd38d559d09aa1aa22fd7071",
+              "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+              "source_reattributed": false
+            }
+          ],
+          "verified_count": 1,
+          "confidence_adjusted": 0.94
+        },
+        "description": "El cónyuge demandado ejercía una profesión de tiempo completo, lo que indica capacidad económica para cumplir con la obligación alimenticia y de compensación.",
+        "evidence_refs": [
+          {
+            "page": 4,
+            "doc_n": 1,
+            "quote": "Durante el mismo tiempo, **** ****** se dedicó a ejercer su profesión de tiempo\ncompleto.",
+            "filename": "230919-ADR-6433-2022.pdf",
+            "verified": true,
+            "chunk_hash": "68d59ab6e9274ae37313b01104ad104f2b3731c7b5f22386874d14b1ce92bd48",
+            "end_offset": 3844,
+            "chunk_index": 1,
+            "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+            "page_located": 4,
+            "start_offset": 3755,
+            "citation_hash": "ab541cd231849478749da60f6051fb758530bfc3dd38d559d09aa1aa22fd7071",
+            "document_hash": "df001d7cbc5b07591981271c06a6e72cee14ef1439e3c9757e7b2e834b81120e",
+            "source_reattributed": false
+          }
+        ],
+        "affected_party": "parte_demandada",
+        "potential_impact": "Justifica la imposición de la obligación de pago al demandado.",
+        "legal_significance": "Apoya la valoración de la capacidad económica del deudor, elemento esencial para fijar la pensión y la compensación."
+      },
+      "final": true,
+      "claim_type": "uncategorized_finding",
+      "provisional": false,
+      "exact_match_id": "em_aa22f73441e8eca1",
+      "is_authority_exempt": false,
+      "canonical_finding_id": "cf_fdf2bd39c27baa8f",
+      "semantic_support_review": {
+        "hash": "b016bd41c4c803dc5440c58269d5494a3979c243cca6a0547e0e8cb5da116e11",
+        "reason": "Semantic verification provider unavailable; claim not certified.",
+        "verdict": "insufficient",
+        "version": 1,
+        "supporting_quote": ""
+      }
+    },
+    "created_at": "2026-09-24T13:04:16.043437-06:00",
+    "updated_at": "2026-09-24T13:42:25.81926-06:00",
+    "finding_type": "DIRECT_EVIDENCE",
+    "source_document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+    "source_page": 4,
+    "source_quote": "Durante el mismo tiempo, **** ****** se dedicó a ejercer su profesión de tiempo\ncompleto.",
+    "canonical_finding_id": "cf_fdf2bd39c27baa8f",
+    "derived_from_finding_ids": [],
+    "evidence_type": "neutral",
+    "impact_direction": "neutral",
+    "strategic_significance": null,
+    "priority": 4,
+    "verification_status": "unverified",
+    "verification_notes": "insufficient: Semantic verification provider unavailable; claim not certified.",
+    "verified_at": "2026-09-24T13:32:15.215-06:00",
+    "finding_status": "verified",
+    "supporting_engines": [],
+    "evidence_strength": 0.55,
+    "citation_quality": null,
+    "authority_level": 1,
+    "projected_from_table": null,
+    "projected_from_row_id": null,
+    "confidence_dimensions": {
+      "legal": {
+        "level": "high",
+        "reason": "Legal significance was articulated by the engine; verify the cited rule is current and applicable."
+      },
+      "factual": {
+        "level": "high",
+        "reason": "Derived from the engine's overall confidence score for this finding."
+      },
+      "extraction": {
+        "level": "indeterminate",
+        "reason": "No source document attached to this finding — extraction quality can't be assessed."
+      },
+      "procedural": {
+        "level": "moderate",
+        "reason": "Procedural-stage certainty derived from pipeline consensus."
+      },
+      "classification": {
+        "level": "moderate",
+        "reason": "Category/materia classification not independently re-verified for this finding — inherited from the source engine's own classification."
+      },
+      "evidence_quality": {
+        "level": "moderate",
+        "reason": "One evidence reference cited; additional corroboration may be needed for disputed facts or inferences."
+      },
+      "corpus_completeness": {
+        "level": "low",
+        "reason": "Only a single document in the corpus touches this finding — the official expediente may contain more."
+      }
+    },
+    "rationale": {
+      "assumptions": [],
+      "contrary_evidence": [],
+      "supporting_evidence": [],
+      "applicable_authority": [],
+      "unresolved_questions": [],
+      "attorney_review_required": false,
+      "unsupported_language_flagged": false
+    },
+    "speaker_role": null,
+    "proposition_type": null,
+    "adoption_status": null,
+    "audit_classification": null,
+    "superseded_at": null,
+    "superseded_reason": null,
+    "lifecycle_status": null,
+    "evidence_relationship": null,
+    "reconciliation_state": null,
+    "benefited_party": null,
+    "score_dimension": null,
+    "reason_for_score_effect": null,
+    "canonical_fingerprint": null,
+    "category_key": null
+  }
+]

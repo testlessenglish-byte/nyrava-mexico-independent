@@ -1,0 +1,72 @@
+{
+  "findings": null,
+  "core": {
+    "items": [
+      {
+        "id": "decision-core:court_holding:15fd0277",
+        "kind": "COURT_HOLDING",
+        "text": "Se modifica la sentencia recurrida y se ampara a la quejosa para que se aplique la presunción de necesidad de alimentos y dedicación al hogar sin carácter potestativo.",
+        "source_refs": [
+          {
+            "label": "p.1",
+            "quote": "PRIMERO. En la materia de la\nrevisión, se modifica la sentencia\nrecurrida.\nSEGUNDO. La justicia de la\nUnión ampara y protege a ***\n***** ******** ********contra la\nsentencia definitiva de dieciséis\nde febrero de dos mil veintidós",
+            "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916"
+          }
+        ],
+        "speaker_role": "scjn",
+        "adoption_status": "adopted",
+        "proposition_type": "holding"
+      },
+      {
+        "id": "decision-core:disposition:1a4293d9",
+        "kind": "DISPOSITION",
+        "text": "PRIMERO. En la materia de la revisión, se modifica la sentencia recurrida.\n\nSEGUNDO. La justicia de la Unión ampara y protege a *** ***** ********\n********contra la sentencia definitiva de dieciséis de febrero de dos mil\nveintidós, dictada por la Quinta Sala Familiar del Tribunal Superior de Justicia\nde la Ciudad de México, en el toca de apelación ****/**** -21, en los términos\nprecisados en la presente ejecutoria.\n\nTERCERO. Es infundado el recurso de revisión adhesivo.",
+        "source_refs": [
+          {
+            "page": 53,
+            "doc_n": 1,
+            "label": "p.53",
+            "quote": "PRIMERO. En la materia de la revisión, se modifica la sentencia recurrida.",
+            "filename": "230919-ADR-6433-2022.pdf",
+            "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+            "page_number": 53,
+            "page_located": 53,
+            "page_extraction_ref": "f5cb730e-b7d7-42de-b4ce-e3574ec61916:53"
+          },
+          {
+            "page": 53,
+            "doc_n": 1,
+            "label": "p.53",
+            "quote": "SEGUNDO. La justicia de la Unión ampara y protege a *** ***** ********\n********contra la sentencia definitiva de dieciséis de febrero de dos mil\nveintidós, dictada por la Quinta Sala Familiar del Tribunal Superior de Justicia\nde la Ciudad de México, en el toca de apelación ****/**** -21, en los términos\nprecisados en la presente ejecutoria.",
+            "filename": "230919-ADR-6433-2022.pdf",
+            "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+            "page_number": 53,
+            "page_located": 53,
+            "page_extraction_ref": "f5cb730e-b7d7-42de-b4ce-e3574ec61916:53"
+          },
+          {
+            "page": 53,
+            "doc_n": 1,
+            "label": "p.53",
+            "quote": "TERCERO. Es infundado el recurso de revisión adhesivo.",
+            "filename": "230919-ADR-6433-2022.pdf",
+            "document_id": "f5cb730e-b7d7-42de-b4ce-e3574ec61916",
+            "page_number": 53,
+            "page_located": 53,
+            "page_extraction_ref": "f5cb730e-b7d7-42de-b4ce-e3574ec61916:53"
+          }
+        ],
+        "speaker_role": null,
+        "adoption_status": "adopted",
+        "proposition_type": "procedural_fact"
+      }
+    ],
+    "validation": {
+      "ok": true,
+      "missing": [],
+      "required": 2,
+      "represented": 2
+    },
+    "required_for_release": true
+  }
+}

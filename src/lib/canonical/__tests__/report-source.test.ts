@@ -110,11 +110,19 @@ describe("canonical fallback reasons are actually emitted", () => {
     }
   });
 
-  it("emits empty_payload when the gate completed with no findings", async () => {
+  it("preserves an authoritative empty selection instead of restoring raw findings", async () => {
     const { db, traced } = stubDb({ version: 3, status: "completed", analysis_payload: { Findings: [] } });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const out = await loadCanonicalReportSource(db as any, "case-1");
-    expect(out).toBeNull();
+    expect(out?.orderedIds).toEqual([]);
+    expect(out?.version).toBe(3);
+    expect(applyCanonicalOrder([{ id: "excluded-raw-finding" }], out!.orderedIds)).toEqual([]);
+    expect(traced).toEqual([]);
+  });
+
+  it("still rejects a malformed canonical payload with no Findings array", async () => {
+    const { db, traced } = stubDb({ version: 3, status: "completed", analysis_payload: {} });
+    expect(await loadCanonicalReportSource(db as any, "case-1")).toBeNull();
     expect(traced[0]?.detail?.reason).toBe("empty_payload");
   });
 

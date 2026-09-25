@@ -13,7 +13,6 @@
 // =============================================================================
 
 import {
-  FEDERAL_ONLY_MATERIAS,
   getAuthorities,
   getAuthority,
   UNIVERSAL_AUTHORITY_IDS,
@@ -40,10 +39,13 @@ export type ApplicableAuthorityResult = {
 
 function toTime(value: unknown): number | null {
   if (value == null) return null;
+  if (value instanceof Date) return Number.isFinite(value.getTime()) ? value.getTime() : null;
   const s = String(value).trim();
   if (!s) return null;
   const t = Date.parse(s.length === 10 ? `${s}T00:00:00Z` : s);
-  return Number.isNaN(t) ? null : t;
+  if (!Number.isFinite(t)) return null;
+  if (/^\d{4}-\d{2}-\d{2}/.test(s) && new Date(t).toISOString().slice(0,10) !== s.slice(0,10)) return null;
+  return t;
 }
 
 /**
@@ -70,7 +72,7 @@ export function authorityValidity(
       reason: "unknown_authority",
     };
   }
-  const at = caseDate instanceof Date ? caseDate.getTime() : toTime(caseDate);
+  const at = toTime(caseDate);
   if (at == null) return { authority_id: a.id, valid: true, reason: "unknown_date" };
 
   const from = toTime(a.effective_from);
@@ -90,7 +92,7 @@ function contextOf(j: JurisdictionInput, materia: string): LegalContext {
   if (j && typeof j === "object") return j;
   return {
     materia,
-    jurisdiction_level: (typeof j === "string" ? j : "federal") as JurisdictionLevel,
+    jurisdiction_level: typeof j === "string" ? j : "unresolved",
     applicable_authorities: [...UNIVERSAL_AUTHORITY_IDS],
     confidence: typeof j === "string" ? 0.5 : 0,
   };
@@ -127,7 +129,6 @@ export function getApplicableAuthority(
   const excluded: AuthorityValidity[] = [];
   try {
     const ctx = contextOf(jurisdiction, "general");
-    const federalOnly = FEDERAL_ONLY_MATERIAS.includes(ctx.materia);
 
     const ids = new Set<string>([...ctx.applicable_authorities, ...actAuthorityIds(legalAct)]);
     for (const id of UNIVERSAL_AUTHORITY_IDS) ids.add(id);
@@ -144,20 +145,27 @@ export function getApplicableAuthority(
       );
     }
 
-    // Jurisdictional filter — never fails, only narrows.
-    if (federalOnly || ctx.jurisdiction_level === "federal") {
-      const federal = candidates.filter((a) => a.jurisdiction === "federal");
-      if (federal.length) candidates = federal;
-    } else if (ctx.jurisdiction_level === "state") {
+    // Competent court and applicable law are independent. In particular,
+    // federal review may require the underlying state's substantive law.
+    if (ctx.jurisdiction_level === "unresolved") {
+      uncertainty.push("Competencia pendiente: faltan datos para determinar el órgano competente; no se presume fuero federal ni local.");
+    }
+    if (ctx.jurisdiction_level === "state") {
       if (!ctx.state) {
         uncertainty.push(
-          "No fue posible determinar la entidad federativa; se aplica el marco federal supletorio y debe confirmarse la legislación local.",
+          "Entidad federativa pendiente; no se sustituye su legislación por la de CDMX ni por un marco federal supletorio automático.",
         );
       }
       candidates = candidates.filter((a) => a.jurisdiction !== "municipal");
     }
 
-    const hasDate = date != null && String(date).trim() !== "";
+    if (candidates.some(a => a.jurisdiction !== "federal")) {
+      uncertainty.push("Catálogo local pendiente de validación por entidad, disposición y fecha. Los instrumentos considerados no acreditan por sí solos su aplicabilidad.");
+    }
+    if (candidates.some(a => a.id === "cnpcf")) {
+      uncertainty.push("CNPCF: verificar declaratoria, reformas, tipo de procedimiento, fecha de inicio y reglas transitorias; su publicación nacional no acredita implementación local.");
+    }
+    const hasDate = toTime(date) !== null;
     const valid: LegalAuthority[] = [];
     for (const a of candidates) {
       const v = authorityValidity(a, date ?? null);

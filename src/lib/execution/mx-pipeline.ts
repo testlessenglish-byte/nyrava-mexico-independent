@@ -19,6 +19,7 @@
 // =============================================================================
 
 import { CANONICAL_STAGES, type StageDef } from "./canonical";
+import { amparoVehicleKind } from '../jurisdiction/composed-matter-scope';
 import {
   normalizeMexicanCaseType,
   requireMexicanCaseType,
@@ -309,7 +310,8 @@ export function effectiveMxProfile(
   // 1. Structured procedural classification (highest priority)
   if (vehicle === "apelacion") return "apelacion";
   if (vehicle === "cndh_queja" || vehicle === "derechos_humanos") return "derechos_humanos";
-  if (["amparo_directo_revision", "amparo_en_revision", "amparo_revision"].includes(vehicle)) return "constitucional";
+  if (amparoVehicleKind(vehicle) === 'revision') return "constitucional";
+  if (amparoVehicleKind(vehicle) === 'trial') return "amparo";
   if (vehicle === "responsabilidad_medica") return "responsabilidad_medica";
 
   // 2. Legacy fallback: case name / text signals
@@ -362,8 +364,9 @@ const EXCLUDED_STAGES: Record<MxPipelineProfile, readonly string[]> = {
   // Fiscal: Arts. 40 y 44 LFPCA admiten prueba testimonial ante TFJA
   // de forma condicionada / preguntas por escrito / exhortos.
   fiscal: ["constitutional"],
-  // Juicio contencioso administrativo (TFJA, LFPCA, LFPA): sin desahogo de testigos ni juicio oral.
-  administrativo: ["constitutional", "witness"],
+  // Testimonial may be relevant in administrative proceedings; the witness
+  // engine must require an identified witness and the applicable procedure.
+  administrativo: ["constitutional"],
   // Segunda instancia: se resuelve sobre agravios y el expediente.
   apelacion: ["constitutional", "witness"],
   // Responsabilidad médica: pericial y testimonial activas.
@@ -413,12 +416,12 @@ export function isStageRelevantForCaseType(
   const vehicle = String(proceduralVehicle ?? "").toLowerCase().trim();
 
   // Amparo Indirecto (Art. 119 Ley de Amparo): Witness intelligence is CONDITIONAL
-  if (materia === "amparo" && (vehicle === "amparo_indirecto" || vehicle === "indirecto") && stageKey === "witness") {
+  if ((vehicle === "amparo_indirecto" || vehicle === "indirecto") && stageKey === "witness") {
     return true;
   }
   // Inmobiliario Litigio: runs litigation stages
   if (materia === "inmobiliario" && vehicle === "inmobiliario_litigio") {
-    if (["witness", "discovery", "theories", "strategy", "work_product"].includes(stageKey)) {
+    if (["witness", "discovery", "theories", "strategy", "litigation_strategy_center", "work_product"].includes(stageKey)) {
       return true;
     }
   }

@@ -37,7 +37,9 @@ export class LegalQaBlockedError extends Error {
   readonly report: LegalQaReport;
   constructor(report: LegalQaReport) {
     super(
-      `Control de Calidad Jurídica bloqueó la generación del informe: ${report.blocking.length} violación(es) no subsanable(s).`,
+      report.status === "needs_classification"
+        ? "Control de Calidad Jurídica pendiente: se requiere confirmar la materia del expediente."
+        : `Control de Calidad Jurídica bloqueó la generación del informe: ${report.blocking.length} violación(es) no subsanable(s).`,
     );
     this.name = "LegalQaBlockedError";
     this.report = report;
@@ -47,7 +49,8 @@ export class LegalQaBlockedError extends Error {
 export type LegalQaReport = {
   ok: boolean;
   blocked: boolean;
-  materia: MxPipelineProfile;
+  materia: MxPipelineProfile | null;
+  status?: "completed" | "needs_classification";
   locale: "es" | "en";
   checked_rows: number;
   checked_fields: number;
@@ -267,20 +270,24 @@ export async function runLegalQaGate(args: {
     .eq("id", caseId)
     .maybeSingle();
   const row = (caseRow ?? {}) as { case_type?: string | null; report_language?: string | null };
-  // VERIFIED CASE IDENTITY — the legal QA gate remediates/audits materia-
-  // specific terminology; never a raw cases.case_type read. CORRECTION:
-  // resolveMxProfile is the STRICT variant (an alias for requireMxProfile)
-  // — it throws for null/unrecognized input, it does NOT accept null
-  // gracefully as this comment previously and incorrectly claimed.
-  // Confirmed live in production: a genuinely unusable identity
-  // (unverified-with-nothing, or a real attorney-lock-vs-evidence conflict)
-  // crashed this stage outright with "Materia desconocida en
-  // requireMxProfile". "civil" is used here only as that last-resort
-  // structural fallback so the QA gate can still run.
+  // Unknown or conflicted identity cannot authorize materia-specific rewrites.
   const { resolveCaseIdentity } = await import("./case-classification.server");
   const legalQaIdentity = await resolveCaseIdentity(db, caseId);
-  const materia = resolveMxProfile(legalQaIdentity.caseType ?? "civil");
   const locale: "es" | "en" = row.report_language === "en" ? "en" : "es";
+  if (!legalQaIdentity.caseType) {
+    const report: LegalQaReport = {
+      status: "needs_classification", ok: false, blocked: true, materia: null, locale,
+      checked_rows: 0, checked_fields: 0, remediated_fields: 0,
+      remediations: [], blocking: [], warnings: [], generated_at: new Date().toISOString(),
+    };
+    // Persist the unresolved gate before blocking; never read or mutate engine prose.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (db as any).from("cases")
+      .update({ legal_qa_report: report }).eq("id", caseId);
+    if (error) throw new Error(`No se pudo registrar la materia pendiente en control de calidad: ${error.message}`);
+    throw new LegalQaBlockedError(report);
+  }
+  const materia = resolveMxProfile(legalQaIdentity.caseType);
 
   // Party-role gender: read once from the case's own document text (never
   // guessed from a party's name — see mx-terminology.ts's
@@ -450,6 +457,7 @@ export async function runLegalQaGate(args: {
   const warnings = deduped.filter((v) => v.severity === "warning");
 
   const report: LegalQaReport = {
+    status: "completed",
     ok: blocking.length === 0 && warnings.length === 0,
     blocked: blocking.length > 0,
     materia,

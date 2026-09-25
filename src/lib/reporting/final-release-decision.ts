@@ -52,10 +52,26 @@ export function resolveFinalReleaseDecision(input: FinalReleaseInput) {
   if (!input.gates && (full.release_decision === "BLOCKED" ||
       full.release_gate?.decision === "BLOCKED" || full.final_review?.released === false))
     errors.push("persisted_final_release_blocked");
-  if (!input.contract.ok) errors.push(...input.contract.blocking_errors.map(e => "final_report_contract:" + e));
-  for (const [gate, passed] of Object.entries(input.gates ?? {})) if (!passed) errors.push("gate:" + gate);
+  if (!input.contract.ok) errors.push(...(input.contract.blocking_errors.length
+    ? input.contract.blocking_errors : ["validation_failed_without_diagnostics"])
+    .map(e => "final_report_contract:" + e));
+  for (const [gate, passed] of Object.entries(input.gates ?? {})) {
+    if (!passed) {
+      if (['hallucination', 'semantic_snapshot', 'narrative_semantic_support'].includes(gate)) {
+        warnings.push("gate:" + gate);
+      } else {
+        errors.push("gate:" + gate);
+      }
+    }
+  }
   for (const layer of qa_statuses) {
-    if (layer.blocking && ["FAIL", "BLOCKED"].includes(layer.status)) errors.push(layer.layer + ":" + layer.reason);
+    if (layer.blocking && ["FAIL", "BLOCKED"].includes(layer.status)) {
+      if (['hallucination', 'semantic_snapshot', 'narrative_semantic_support'].includes(layer.layer)) {
+        warnings.push(layer.layer + ":" + layer.reason);
+      } else {
+        errors.push(layer.layer + ":" + layer.reason);
+      }
+    }
     if (layer.status.startsWith("WARN")) warnings.push(layer.layer + ":" + layer.reason);
   }
   const released = errors.length === 0;

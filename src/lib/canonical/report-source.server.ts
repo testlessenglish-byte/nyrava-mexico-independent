@@ -103,7 +103,7 @@ export async function loadCanonicalReportSource(
     }
     const payload = (data as { analysis_payload?: unknown }).analysis_payload as CaseAnalysis | null;
     const findings = Array.isArray(payload?.Findings) ? (payload!.Findings as CanonicalFinding[]) : [];
-    if (!payload || findings.length === 0) {
+    if (!payload || !Array.isArray(payload.Findings)) {
       await traceCanonicalFallback(db, caseId, "empty_payload");
       return null;
     }
@@ -140,6 +140,8 @@ export function applyCanonicalOrder<T extends { id?: string | null }>(
   rows: T[],
   orderedIds: string[],
 ): T[] | null {
+  // An explicit empty selection is authoritative; never resurrect raw rows.
+  if (orderedIds.length === 0) return [];
   const byId = new Map<string, T>();
   for (const r of rows) {
     const id = String(r?.id ?? "");

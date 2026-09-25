@@ -19,7 +19,7 @@ type EngineRow = { engine: string; status: string };
 function makeDb(opts: { report: Record<string, unknown> | null; engineRows: EngineRow[]; updates: Update[] }) {
   const makeChain = (table: string): Record<string, unknown> => {
     const chain: Record<string, unknown> = {};
-    const passthrough = ["eq", "neq", "in", "not", "is", "order", "limit", "gte", "lte", "like", "filter"];
+    const passthrough = ["eq", "neq", "in", "not", "is", "order", "limit", "gte", "lte", "like", "filter", "range"];
     for (const m of passthrough) chain[m] = () => chain;
     chain["select"] = () => chain;
     chain["maybeSingle"] = async () => ({
@@ -58,6 +58,7 @@ function makeDb(opts: { report: Record<string, unknown> | null; engineRows: Engi
     rpc: async (fn: string, params?: Record<string, unknown>) => {
       if (fn === "finalize_report_release" && params) {
         opts.updates.push({ table: "cases", values: { status_message: params.p_status_message } });
+        opts.updates.push({ table: "reports", values: { full_report: params.p_full_report } });
       }
       return { data: null, error: null };
     },
@@ -65,6 +66,26 @@ function makeDb(opts: { report: Record<string, unknown> | null; engineRows: Engi
 }
 
 describe("runFinalReleaseReview — required-engine gate", () => {
+  it.each(["running", "queued"])("keeps a required %s stage blocked and persists optional coverage gaps", async (status) => {
+    const updates: Update[] = [];
+    const { REPORT_REQUIRED_ENGINES } = await import("@/lib/execution/canonical");
+    const { runFinalReleaseReview } = await import("@/lib/agents/orchestrator.server");
+    const engineRows = REPORT_REQUIRED_ENGINES.map(engine => ({
+      engine, status: engine === "procedural_compliance" ? status : "completed",
+    }));
+    engineRows.push({ engine: "perspectives", status: "failed" });
+    const review = await runFinalReleaseReview({
+      db: makeDb({ report: { case_id: "case-1", full_report: null }, engineRows, updates }) as never,
+      caseId: "case-1", userId: "user-1", apiKey: "key", apiKeys: ["key"],
+    });
+    expect(review.released).toBe(false);
+    expect(review.missingRequiredEngines).toContain("procedural_compliance");
+    const persisted = updates.find(u => u.table === "reports")?.values.full_report as any;
+    expect(persisted.release_gate.coverage_gaps).toEqual(expect.arrayContaining([
+      expect.objectContaining({ engine: "procedural_compliance", category: "enriching", status }),
+      expect.objectContaining({ engine: "perspectives", category: "optional", status: "failed" }),
+    ]));
+  });
   it("lists every required engine as missing when pipeline_engine_runs has no rows for them at all", async () => {
     const updates: Update[] = [];
     const { runFinalReleaseReview } = await import("@/lib/agents/orchestrator.server");

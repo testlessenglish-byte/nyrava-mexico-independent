@@ -48,33 +48,33 @@ describe('_runReportInner preflight query and canonical state', () => {
     expect(mockDbQuery(allDbRows).ok).toBe(true);
   });
 
-  it('Optional = running => BLOCK with engine name', () => {
+  it('Optional = running => draft permitted with engine named as incomplete', () => {
     const allDbRows = [
       ...REPORT_REQUIRED_ENGINES.map(e => row(e, 'completed')),
       row('perspectives', 'running')
     ];
     const gate = mockDbQuery(allDbRows);
-    expect(gate.ok).toBe(false);
+    expect(gate.ok).toBe(true);
     expect(gate.missingEnriching).toContain('perspectives');
   });
 
-  it('Optional = queued => BLOCK with engine name', () => {
+  it('Optional = queued => draft permitted with engine named as incomplete', () => {
     const allDbRows = [
       ...REPORT_REQUIRED_ENGINES.map(e => row(e, 'completed')),
       row('perspectives', 'queued')
     ];
     const gate = mockDbQuery(allDbRows);
-    expect(gate.ok).toBe(false);
+    expect(gate.ok).toBe(true);
     expect(gate.missingEnriching).toContain('perspectives');
   });
 
-  it('Optional = failed => BLOCK with engine name', () => {
+  it('Optional = failed => draft permitted with engine named as incomplete', () => {
     const allDbRows = [
       ...REPORT_REQUIRED_ENGINES.map(e => row(e, 'completed')),
       row('perspectives', 'failed')
     ];
     const gate = mockDbQuery(allDbRows);
-    expect(gate.ok).toBe(false);
+    expect(gate.ok).toBe(true);
     expect(gate.missingEnriching).toContain('perspectives');
   });
 
@@ -93,5 +93,11 @@ describe('_runReportInner preflight query and canonical state', () => {
     const gate = mockDbQuery(allDbRows);
     expect(gate.ok).toBe(true);
   });
-});
 
+  it('a required blocking engine still running is named and prevents draft readiness', () => {
+    const gate = mockDbQuery(REPORT_REQUIRED_ENGINES.map(e => row(e, e === 'extraction' ? 'running' : 'completed')));
+    expect(gate.ok).toBe(false);
+    expect(gate.missingBlocking).toContain('extraction');
+    expect(gate.blockers).toContainEqual(expect.objectContaining({ engine: 'extraction', status: 'running' }));
+  });
+});
