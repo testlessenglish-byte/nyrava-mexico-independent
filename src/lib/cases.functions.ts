@@ -3990,6 +3990,7 @@ export const getCase = createServerFn({ method: "POST" })
     const clientForReport = c.data?.client_id
       ? await supabase.from('clients').select('display_name').eq('id', c.data.client_id).maybeSingle()
       : null;
+    const currentExecutionId = (c.data as any)?.execution_id ?? null;
     return {
       case: c.data ? { ...c.data, client_name: clientForReport?.data?.display_name ?? null, matter_metadata: {
         ...((c.data.matter_metadata as any) ?? {}), source_identity_audit: sourceIdentityAudit,
@@ -4055,7 +4056,6 @@ export const getCase = createServerFn({ method: "POST" })
       // right where it's inferred) avoids that collapse.
       findings: (() => {
         const rawRows = findings.data ?? [];
-        const currentExecutionId = (caseRow as any)?.execution_id ?? null;
         const activeRows = rawRows.filter((f: any) => {
           const fExec = f.execution_id ?? f.metadata?.execution_id ?? null;
           if (currentExecutionId && fExec && fExec !== currentExecutionId) return false;
@@ -4075,11 +4075,9 @@ export const getCase = createServerFn({ method: "POST" })
         return canonical.length > 0 ? canonical : all;
       })(),
       theories: (() => {
-        const currentExecutionId = (caseRow as any)?.execution_id ?? null;
         return (theories.data ?? []).filter((t: any) => !currentExecutionId || !t.execution_id || t.execution_id === currentExecutionId);
       })(),
       opportunities: (() => {
-        const currentExecutionId = (caseRow as any)?.execution_id ?? null;
         return (opps.data ?? []).filter((o: any) => !currentExecutionId || !o.execution_id || o.execution_id === currentExecutionId);
       })(),
       witnesses: witnesses.data ?? [],
