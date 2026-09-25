@@ -138,14 +138,18 @@ export async function reconcileCaseFindingsClaims(
     }
 
     // Action 2: REPAIR compound claims (fact entailed, legal conclusion unproven)
-    if (diag.claim_action === "REPAIR" && diag.repaired_description) {
+    if (diag.claim_action === "REPAIR" && (diag.repaired_description || diag.repaired_claim)) {
+      const repairedTitle = diag.repaired_claim ?? f.title;
+      const repairedDesc = diag.repaired_description ?? f.description;
       const patchObj: Record<string, unknown> = {
-        description: diag.repaired_description,
+        title: repairedTitle,
+        description: repairedDesc,
         finding_status: "verified",
         verification_status: "verified",
         verification_notes: diag.entailment_reason,
         metadata: {
           ...(f.metadata || {}),
+          original_unrepaired_title: f.title,
           original_unrepaired_description: f.description,
           claim_entailment_diagnostic: diag,
         },
@@ -153,8 +157,10 @@ export async function reconcileCaseFindingsClaims(
       };
       if (isPartyAllegation) {
         patchObj.speaker_role = roleLabel;
+        patchObj.speaker_role_label = badge;
         patchObj.finding_type = "DIRECT_EVIDENCE";
         patchObj.proposition_type = "allegation";
+        patchObj.audit_classification = "PARTY_ALLEGATION";
         (patchObj.metadata as any).claim_classification = "PARTY_ALLEGATION";
         (patchObj.metadata as any).presentation_category = "PARTY_ALLEGATION";
         (patchObj.metadata as any).speaker_role_badge = badge;
@@ -165,13 +171,22 @@ export async function reconcileCaseFindingsClaims(
       });
       allFindings[i] = {
         ...f,
-        description: diag.repaired_description,
+        title: repairedTitle,
+        description: repairedDesc,
         finding_status: "verified",
         verification_status: "verified",
         verification_notes: diag.entailment_reason,
         speaker_role: isPartyAllegation ? roleLabel : f.speaker_role,
+        speaker_role_label: isPartyAllegation ? badge : f.speaker_role_label,
         finding_type: isPartyAllegation ? "DIRECT_EVIDENCE" : f.finding_type,
         proposition_type: isPartyAllegation ? "allegation" : f.proposition_type,
+        audit_classification: isPartyAllegation ? "PARTY_ALLEGATION" : f.audit_classification,
+        metadata: {
+          ...(f.metadata || {}),
+          original_unrepaired_title: f.title,
+          original_unrepaired_description: f.description,
+          claim_entailment_diagnostic: diag,
+        },
       };
       repairedCount++;
       continue;
@@ -185,8 +200,9 @@ export async function reconcileCaseFindingsClaims(
           finding_type: "DIRECT_EVIDENCE",
           proposition_type: "allegation",
           speaker_role: roleLabel,
+          speaker_role_label: badge,
           adoption_status: "party_position",
-          audit_classification: "SUPPORTED_INFERENCE",
+          audit_classification: "PARTY_ALLEGATION",
           finding_status: "verified",
           verification_status: "verified",
           verification_notes: diag.entailment_reason,
@@ -205,8 +221,9 @@ export async function reconcileCaseFindingsClaims(
         finding_type: "DIRECT_EVIDENCE",
         proposition_type: "allegation",
         speaker_role: roleLabel,
+        speaker_role_label: badge,
         adoption_status: "party_position",
-        audit_classification: "SUPPORTED_INFERENCE",
+        audit_classification: "PARTY_ALLEGATION",
         finding_status: "verified",
         verification_status: "verified",
         verification_notes: diag.entailment_reason,

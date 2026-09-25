@@ -50,6 +50,13 @@ export interface StandardClaimObject {
   execution_id: string | null;
   original_claim: string;
   repaired_claim: string | null;
+  repaired_title?: string | null;
+  repaired_description?: string | null;
+  canonical_title: string;
+  canonical_description: string;
+  canonical_speaker_role?: string;
+  canonical_speaker_badge?: string;
+  is_party_allegation?: boolean;
   source_agent: string | null;
   claim_type: ClaimType;
   speaker: SpeakerAttribution;
@@ -451,12 +458,58 @@ export function classifyValidatePublishClaim(
     context.isConcludedAudit ||
     /desechamiento|se\s+desecha|queda\s+firme/i.test(`${title} ${desc} ${quote}`);
 
+  const isPreSuppressed =
+    rawClaim.finding_status === "suppressed" ||
+    rawClaim.lifecycle_status === "quarantined" ||
+    rawClaim.lifecycle_status === "superseded" ||
+    rawClaim.lifecycle_status === "rejected" ||
+    rawClaim.lifecycle_status === "suppressed" ||
+    rawClaim.publication_status === "SUPPRESSED" ||
+    rawClaim.publication_status === "QUARANTINED" ||
+    rawClaim.verification_status === "quarantined" ||
+    rawClaim.superseded_at != null ||
+    (rawClaim.metadata as any)?.quarantined === true ||
+    (rawClaim.metadata as any)?.publication_status === "SUPPRESSED" ||
+    (rawClaim.metadata as any)?.publication_status === "QUARANTINED" ||
+    (rawClaim.metadata as any)?.claim_entailment_diagnostic?.final_reportable === false ||
+    (rawClaim.metadata as any)?.claim_entailment_diagnostic?.claim_action === "REMOVE" ||
+    (rawClaim.metadata as any)?.claim_entailment_diagnostic?.claim_action === "QUARANTINE";
+
   let publicationStatus: PublicationStatus = "APPROVED";
   let suppressionReason: string | null = null;
-  let repairedClaim: string | null = entailmentDiag.repaired_claim;
-  let repairedDesc: string | null = entailmentDiag.repaired_description;
+  let repairedClaim: string | null =
+    entailmentDiag.repaired_claim ||
+    (rawClaim.repaired_title as string) ||
+    (rawClaim.repaired_claim as string) ||
+    ((rawClaim.metadata as any)?.repaired_title as string) ||
+    ((rawClaim.metadata as any)?.repaired_claim as string) ||
+    null;
+  let repairedDesc: string | null =
+    entailmentDiag.repaired_description ||
+    (rawClaim.repaired_description as string) ||
+    ((rawClaim.metadata as any)?.repaired_description as string) ||
+    null;
 
-  if (isExplicitHolding) {
+  if (repairedClaim && repairedClaim.includes(": ") && !repairedDesc) {
+    const parts = repairedClaim.split(": ");
+    repairedClaim = parts[0];
+    repairedDesc = parts.slice(1).join(": ");
+  }
+
+  if (isPreSuppressed) {
+    const isQuar =
+      rawClaim.lifecycle_status === "quarantined" ||
+      rawClaim.publication_status === "QUARANTINED" ||
+      rawClaim.verification_status === "quarantined" ||
+      (rawClaim.metadata as any)?.quarantined === true ||
+      (rawClaim.metadata as any)?.claim_entailment_diagnostic?.claim_action === "QUARANTINE";
+    publicationStatus = isQuar ? "QUARANTINED" : "SUPPRESSED";
+    suppressionReason =
+      (rawClaim.suppression_reason as string) ||
+      (rawClaim.metadata as any)?.suppressed_reason ||
+      (rawClaim.metadata as any)?.suppression_reason ||
+      "Claim previously suppressed or quarantined in upstream verification.";
+  } else if (isExplicitHolding) {
     publicationStatus = "APPROVED";
   } else if (!entailmentDiag.final_reportable || entailmentDiag.claim_action === "REMOVE") {
     publicationStatus = "SUPPRESSED";
@@ -464,7 +517,7 @@ export function classifyValidatePublishClaim(
   } else if (entailmentDiag.claim_action === "QUARANTINE") {
     publicationStatus = "QUARANTINED";
     suppressionReason = entailmentDiag.entailment_reason;
-  } else if (entailmentDiag.claim_action === "REPAIR") {
+  } else if (entailmentDiag.claim_action === "REPAIR" || repairedDesc || (repairedClaim && repairedClaim !== title)) {
     publicationStatus = "REPAIRED";
   }
 
@@ -481,23 +534,37 @@ export function classifyValidatePublishClaim(
 
   // Rule 3: Reclassify party allegations correctly
   if (isPartyAllegation && publicationStatus !== "SUPPRESSED" && publicationStatus !== "QUARANTINED") {
-    if (entailmentDiag.claim_action === "REPAIR") {
+    if (entailmentDiag.claim_action === "REPAIR" || repairedDesc || (repairedClaim && repairedClaim !== title)) {
       publicationStatus = "REPAIRED";
     } else {
       publicationStatus = "APPROVED";
     }
   }
 
-  const allowedSection = getAllowedSectionForClaim(claimType);
+  const canonicalTitle = (publicationStatus === "REPAIRED" && repairedClaim) ? repairedClaim : title;
+  const canonicalDesc = (publicationStatus === "REPAIRED" && repairedDesc) ? repairedDesc : desc;
+  const canonicalSpeakerRole = isPartyAllegation
+    ? roleLabel
+    : (speaker !== "unattributed" ? speaker : (existingSpeaker ?? "unresolved"));
+  const canonicalSpeakerBadge = isPartyAllegation ? badge : (existingSpeaker ? formatSpeakerRoleBadge(rawClaim) : badge);
+
+  const allowedSection = getAllowedSectionForClaim(isPartyAllegation ? "PARTY_ALLEGATION" : claimType);
 
   return {
     claim_id: claimId,
     execution_id: context.executionId ?? (rawClaim.execution_id as string) ?? null,
     original_claim: `${title}: ${desc}`,
     repaired_claim: repairedClaim ? `${repairedClaim}: ${repairedDesc ?? desc}` : null,
+    repaired_title: repairedClaim,
+    repaired_description: repairedDesc,
+    canonical_title: canonicalTitle,
+    canonical_description: canonicalDesc,
+    canonical_speaker_role: canonicalSpeakerRole,
+    canonical_speaker_badge: canonicalSpeakerBadge,
+    is_party_allegation: isPartyAllegation,
     source_agent: (rawClaim.source_module as string) ?? (rawClaim.agent_type as string) ?? null,
-    claim_type: claimType,
-    speaker,
+    claim_type: isPartyAllegation ? "PARTY_ALLEGATION" : claimType,
+    speaker: isPartyAllegation ? "party" : speaker,
     attribution: badge,
     source_ids: rawClaim.source_document_id ? [String(rawClaim.source_document_id)] : [],
     source_quotes: quote ? [quote] : [],
@@ -512,11 +579,13 @@ export function classifyValidatePublishClaim(
       ...(typeof rawClaim.metadata === "object" && rawClaim.metadata !== null ? rawClaim.metadata : {}),
       claim_entailment_diagnostic: entailmentDiag,
       deterministic_attribution: {
-        speaker,
-        roleLabel,
-        badge,
+        speaker: isPartyAllegation ? "party" : speaker,
+        roleLabel: canonicalSpeakerRole,
+        badge: canonicalSpeakerBadge,
         isPartyAllegation,
       },
+      raw_unreconciled_title: title,
+      raw_unreconciled_description: desc,
     },
   };
 }
@@ -728,25 +797,88 @@ export function sweepReportForPdfPublication<T extends { findings?: any[]; repor
       const pub = published.find((p) => p.claim_id === String(f.id));
       if (!pub) return f;
 
-      const repairedDesc = pub.repaired_claim
-        ? pub.repaired_claim.split(": ").slice(1).join(": ")
-        : f.description;
+      const isParty =
+        pub.claim_type === "PARTY_ALLEGATION" ||
+        pub.speaker === "party" ||
+        pub.is_party_allegation === true ||
+        (pub.metadata?.deterministic_attribution as any)?.isPartyAllegation === true;
 
-      return {
+      const canonicalTitle =
+        pub.canonical_title ||
+        pub.repaired_title ||
+        (pub.repaired_claim ? pub.repaired_claim.split(": ")[0] : f.title);
+
+      const canonicalDesc =
+        pub.canonical_description ||
+        pub.repaired_description ||
+        (pub.repaired_claim ? pub.repaired_claim.split(": ").slice(1).join(": ") : f.description);
+
+      const canonicalSpeakerRole = isParty
+        ? ((pub.metadata?.deterministic_attribution as any)?.roleLabel || "quejoso")
+        : f.speaker_role;
+
+      const candidateFinding: any = {
         ...f,
-        description: repairedDesc,
-        speaker_role: pub.speaker !== "unattributed" ? (f.speaker_role ?? "quejoso") : f.speaker_role,
-        speaker_role_label: pub.attribution,
+        title: canonicalTitle,
+        description: canonicalDesc,
+        speaker_role: canonicalSpeakerRole,
         finding_status: "verified",
         verification_status: "verified",
         lifecycle_status: null,
-        metadata: {
-          ...(f.metadata || {}),
-          published_claim: pub,
-          speaker_role_badge: pub.attribution,
-        },
+        audit_classification: isParty ? "PARTY_ALLEGATION" : f.audit_classification,
+        content_class: isParty ? "PARTY_ARGUMENT" : f.content_class,
+        proposition_type: isParty ? "party_argument" : f.proposition_type,
+        adoption_status: isParty ? "party_position" : f.adoption_status,
       };
+
+      const canonicalSpeakerBadge = formatSpeakerRoleBadge(candidateFinding);
+      candidateFinding.speaker_role_label = canonicalSpeakerBadge;
+      candidateFinding.metadata = {
+        ...(f.metadata || {}),
+        published_claim: pub,
+        speaker_role_badge: canonicalSpeakerBadge,
+        raw_unreconciled_title: f.title,
+        raw_unreconciled_description: f.description,
+      };
+
+      return candidateFinding;
     });
+
+  // Synchronize report_presentation if already constructed
+  if ((data as any).report_presentation) {
+    const pres = (data as any).report_presentation;
+    if (Array.isArray(pres.finding_cards)) {
+      pres.finding_cards = pres.finding_cards
+        .filter((card: any) => survivingFindingIds.has(String(card.finding?.id)))
+        .map((card: any) => {
+          const updated = activeFindingsForPdf.find((f: any) => String(f.id) === String(card.finding?.id));
+          return updated ? { ...card, finding: updated } : card;
+        });
+    }
+    if (pres.snapshot && Array.isArray(pres.snapshot.priorityReview)) {
+      const suppressedClaims = all.filter(
+        (c) => c.publication_status === "SUPPRESSED" || c.publication_status === "QUARANTINED",
+      );
+      pres.snapshot.priorityReview = pres.snapshot.priorityReview
+        .filter((text: string) => {
+          return !suppressedClaims.some((s) => {
+            const rawTitle = s.original_claim.split(": ")[0];
+            return text.includes(rawTitle);
+          });
+        })
+        .map((text: string) => {
+          for (const pub of published) {
+            if (pub.publication_status === "REPAIRED" && pub.canonical_title) {
+              const rawTitle = pub.original_claim.split(": ")[0];
+              if (rawTitle && text.includes(rawTitle)) {
+                return text.replace(rawTitle, pub.canonical_title);
+              }
+            }
+          }
+          return text;
+        });
+    }
+  }
 
   // Sanitize executive summary and objective
   const { executiveSummary, objective } = sanitizeReportObjectiveAndProse(report, published, context);

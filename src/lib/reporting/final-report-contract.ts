@@ -19,6 +19,7 @@ import {receivingProceedings,relocateReportReferences} from './report-source-con
 import {auditText} from '../intelligence/mx-terminology';
 import {mxProfileOrNull} from '../execution/mx-pipeline';
 import {alignDecisionCoreFindings} from '../intelligence/mandatory-decision-core';
+import {classifyValidatePublishClaim} from '../intelligence/final-claim-publication';
 
 type Row = Record<string, any>;
 const obj = (x: any): Row => x && typeof x === "object" && !Array.isArray(x) ? x : {};
@@ -47,6 +48,27 @@ export type FinalReportPayload = CaseExportData & { report_presentation: ReportP
 
 export function resolveReportSpeaker(finding: Row, core: Row[]): string {
   const metadata = obj(finding.metadata);
+  const isPartyAllegation =
+    finding.audit_classification === "PARTY_ALLEGATION" ||
+    finding.claim_type === "PARTY_ALLEGATION" ||
+    finding.content_class === "PARTY_ARGUMENT" ||
+    finding.proposition_type === "party_argument" ||
+    finding.proposition_type === "allegation" ||
+    finding.isPartyAllegation === true ||
+    metadata.claim_classification === "PARTY_ALLEGATION" ||
+    metadata.presentation_category === "PARTY_ALLEGATION" ||
+    metadata.deterministic_attribution?.isPartyAllegation === true ||
+    finding.speaker === "party";
+
+  if (isPartyAllegation) {
+    const role =
+      finding.speaker_role ||
+      metadata.deterministic_attribution?.roleLabel ||
+      (finding.speaker === "party" ? "quejoso" : null);
+    if (role && role !== "unresolved" && role !== "no_determinado") return role;
+    return "quejoso";
+  }
+
   const verified = core.find(item =>
     item.id === finding.mandatory_decision_core_id || item.id === metadata.mandatory_decision_core_id ||
     (item.text && [finding.title, finding.description, finding.source_quote].some(t => norm(t) === norm(item.text))) ||
@@ -143,18 +165,128 @@ export function composeFinalReportPayload(input: CaseExportData): FinalReportPay
   const withheld: ReportPresentation["withheld_findings"] = [];
   const findings = arr(data.findings).map((f): Row | null => {
     if (historicalFindingIds.has(f.id)) return null;
-    if (f.lifecycle_status === 'superseded' || f.lifecycle_status === 'quarantined' || f.lifecycle_status === 'rejected') return null;
-    if (f.superseded_at) return null;
-    if (f.metadata?.quarantined === true) return null;
+    if (
+      f.lifecycle_status === 'superseded' ||
+      f.lifecycle_status === 'quarantined' ||
+      f.lifecycle_status === 'rejected' ||
+      f.lifecycle_status === 'suppressed' ||
+      f.finding_status === 'suppressed' ||
+      f.publication_status === 'SUPPRESSED' ||
+      f.publication_status === 'QUARANTINED' ||
+      f.verification_status === 'quarantined' ||
+      f.superseded_at != null ||
+      f.metadata?.quarantined === true ||
+      f.metadata?.publication_status === 'SUPPRESSED' ||
+      f.metadata?.publication_status === 'QUARANTINED' ||
+      f.metadata?.published_claim?.publication_status === 'SUPPRESSED' ||
+      f.metadata?.published_claim?.publication_status === 'QUARANTINED' ||
+      f.metadata?.claim_entailment_diagnostic?.final_reportable === false ||
+      f.metadata?.claim_entailment_diagnostic?.claim_action === 'REMOVE' ||
+      f.metadata?.claim_entailment_diagnostic?.claim_action === 'QUARANTINE'
+    ) return null;
+
     const checked = validateReincidenciaEvidence(f);
     if (checked.report_suppressed) {
       withheld.push({ id: f.id, category: checked.category, attorney_review_required: true });
       return null;
     }
-    const speaker_role = resolveReportSpeaker(checked, core);
-    return { ...checked, content_class: checked.audit_classification === "VERIFIED_COURT_HOLDING" ? "VERIFIED_HOLDING" :
-      checked.proposition_type === "party_argument" || checked.proposition_type === "argument" ? "PARTY_ARGUMENT" : checked.content_class, speaker_role, speaker_role_label: formatSpeakerRoleBadge({ ...checked, speaker_role }),
-      evidence_refs: resolveReportSourceRefs(arr(checked.evidence_refs), sources) };
+
+    // PRIORITY #3: CANONICAL REPAIRED CLAIM AND ATTRIBUTION ENFORCEMENT
+    let pubClaim = checked.metadata?.published_claim;
+    if (!pubClaim) {
+      pubClaim = classifyValidatePublishClaim(checked, {
+        executionId: c.execution_id,
+        caseType: c.case_type,
+        isConcludedAudit: governance.is_concluded,
+      });
+    }
+
+    if (
+      pubClaim.publication_status === 'SUPPRESSED' ||
+      pubClaim.publication_status === 'QUARANTINED'
+    ) {
+      return null;
+    }
+
+    const diag = checked.metadata?.claim_entailment_diagnostic ?? pubClaim.metadata?.claim_entailment_diagnostic;
+
+    let canonicalTitle = pubClaim?.canonical_title || checked.title;
+    let canonicalDesc = pubClaim?.canonical_description || checked.description;
+
+    if (pubClaim?.repaired_title) {
+      canonicalTitle = pubClaim.repaired_title;
+    } else if (checked.repaired_title || checked.metadata?.repaired_title) {
+      canonicalTitle = checked.repaired_title ?? checked.metadata?.repaired_title;
+    } else if (pubClaim?.publication_status === 'REPAIRED' && pubClaim?.repaired_claim) {
+      canonicalTitle = pubClaim.repaired_claim.split(': ')[0];
+    } else if (diag?.claim_action === 'REPAIR' && diag?.repaired_claim) {
+      canonicalTitle = diag.repaired_claim;
+    }
+
+    if (pubClaim?.repaired_description) {
+      canonicalDesc = pubClaim.repaired_description;
+    } else if (checked.repaired_description || checked.metadata?.repaired_description) {
+      canonicalDesc = checked.repaired_description ?? checked.metadata?.repaired_description;
+    } else if (pubClaim?.publication_status === 'REPAIRED' && pubClaim?.repaired_claim) {
+      canonicalDesc = pubClaim.repaired_claim.split(': ').slice(1).join(': ');
+    } else if (diag?.claim_action === 'REPAIR' && diag?.repaired_description) {
+      canonicalDesc = diag.repaired_description;
+    }
+
+    const isParty =
+      checked.audit_classification === 'PARTY_ALLEGATION' ||
+      checked.proposition_type === 'party_argument' ||
+      checked.proposition_type === 'allegation' ||
+      pubClaim?.claim_type === 'PARTY_ALLEGATION' ||
+      pubClaim?.speaker === 'party' ||
+      pubClaim?.is_party_allegation === true ||
+      checked.metadata?.deterministic_attribution?.isPartyAllegation === true ||
+      checked.metadata?.claim_classification === 'PARTY_ALLEGATION';
+
+    const speaker_role = isParty
+      ? (checked.speaker_role || pubClaim?.canonical_speaker_role || checked.metadata?.deterministic_attribution?.roleLabel || 'quejoso')
+      : resolveReportSpeaker(checked, core);
+
+    const speaker_role_label = isParty
+      ? (pubClaim?.attribution || checked.metadata?.deterministic_attribution?.badge || formatSpeakerRoleBadge({ ...checked, speaker_role }))
+      : formatSpeakerRoleBadge({ ...checked, speaker_role });
+
+    const content_class = isParty
+      ? 'PARTY_ARGUMENT'
+      : checked.audit_classification === 'VERIFIED_COURT_HOLDING'
+        ? 'VERIFIED_HOLDING'
+        : checked.content_class;
+
+    const audit_classification = isParty
+      ? 'PARTY_ALLEGATION'
+      : checked.audit_classification;
+
+    const proposition_type = isParty
+      ? 'party_argument'
+      : checked.proposition_type;
+
+    const adoption_status = isParty
+      ? 'party_position'
+      : checked.adoption_status;
+
+    return {
+      ...checked,
+      title: canonicalTitle,
+      description: canonicalDesc,
+      speaker_role,
+      speaker_role_label,
+      content_class,
+      audit_classification,
+      proposition_type,
+      adoption_status,
+      evidence_refs: resolveReportSourceRefs(arr(checked.evidence_refs), sources),
+      metadata: {
+        ...(checked.metadata || {}),
+        raw_unreconciled_title: checked.title,
+        raw_unreconciled_description: checked.description,
+        published_claim: pubClaim ?? checked.metadata?.published_claim,
+      },
+    };
   }).filter((f): f is NonNullable<typeof f> => f !== null);
   findings.sort((a,b) => governance.decision_core_priority
     ? getFindingConcludedPriority(b) - getFindingConcludedPriority(a)
