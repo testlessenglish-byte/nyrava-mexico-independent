@@ -58,7 +58,12 @@ export function resolveReportSpeaker(finding: Row, core: Row[]): string {
   if (finding.adoption_status === "adopted" && finding.reviewing_court_role) return finding.reviewing_court_role;
   // Preserve a non-conflicting attributed speaker; never pick among conflicting merged roles.
   const roles = new Set([finding.speaker_role, ...arr(finding.merged_findings).map(f => f.speaker_role)].filter(Boolean));
-  return roles.size === 1 ? [...roles][0] : "unresolved";
+  if (roles.size === 1) return [...roles][0];
+  const combined = `${finding.title ?? ""} ${finding.description ?? ""} ${finding.source_quote ?? ""}`;
+  if (/\b(?:el\s+quejoso|la\s+quejosa|el\s+recurrente|la\s+recurrente)\s+(?:argumenta|sostiene|alega|aduce|senala|señala)\b/i.test(combined)) {
+    return "quejoso";
+  }
+  return "unresolved";
 }
 
 const STRATEGY_FIELDS = new Set(["recommendations", "canonical_recommendations", "next_actions", "strategy_recommendations",

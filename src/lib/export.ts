@@ -5454,6 +5454,9 @@ async function renderPdf(
   // back to cases.report_language for rows written before that column).
   setReportTemplateLocale(resolveReportLocale(data.report, data.case));
   initCitationContext(data, opts?.citationMode ?? "attorney");
+  // Step 13: Final Pre-PDF Sweep
+  const { sweepReportForPdfPublication } = await import("./intelligence/final-claim-publication");
+  data = sweepReportForPdfPublication(data);
   primeCitationFootnotes(data);
 
   const b = new PdfBuilder(name, deriveMatterId(data));

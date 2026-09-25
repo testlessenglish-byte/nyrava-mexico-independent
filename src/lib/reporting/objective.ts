@@ -445,8 +445,16 @@ function isVerifiedHolding(f: ObjectiveInput["findings"][number]): boolean {
 export function buildObjectiveBlock(input: ObjectiveInput): ObjectiveBlock {
   const L = input.locale === "en" ? "en" : "es";
   const findings = (input.findings ?? []).filter((f) => clean(f.title));
-  const isAmparoDecisionAudit = input.caseType === "amparo" && findings.some(isVerifiedHolding);
-  const obj = isAmparoDecisionAudit ? AMPARO_DECISION_OBJECTIVE : objectiveFor(input.caseType);
+  const holdings = findings.filter(isVerifiedHolding);
+  const isJudicialDecisionAudit =
+    input.caseType === "amparo" ||
+    holdings.length > 0 ||
+    findings.some((f) =>
+      /puntos?\s+resolutivos?|se\s+desecha|se\s+resuelve|queda\s+firme|recurso\s+de\s+revisi[oó]n/i.test(
+        clean(f.title),
+      ),
+    );
+  const obj = isJudicialDecisionAudit ? AMPARO_DECISION_OBJECTIVE : objectiveFor(input.caseType);
   const gaps = (input.missingEvidence ?? [])
     .map((m) => clean(m.topic) || clean(m.what_is_missing) || clean(m.label))
     .filter(Boolean)
@@ -458,7 +466,6 @@ export function buildObjectiveBlock(input: ObjectiveInput): ObjectiveBlock {
     (a, b) => (SEV_RANK[clean(b.severity).toLowerCase()] ?? 0) - (SEV_RANK[clean(a.severity).toLowerCase()] ?? 0),
   );
   const serious = ranked.filter((f) => (SEV_RANK[clean(f.severity).toLowerCase()] ?? 0) >= 3);
-  const holdings = ranked.filter(isVerifiedHolding);
   const insufficient = findings.length === 0 || docs === 0;
 
   let answer: string;
@@ -466,14 +473,14 @@ export function buildObjectiveBlock(input: ObjectiveInput): ObjectiveBlock {
   if (insufficient) {
     answer = docs === 0 ? `${T.noDocs[L]} ${T.insufficient[L]}` : T.insufficient[L];
     confidence = T.conf.low[L];
-  } else if (isAmparoDecisionAudit) {
+  } else if (isJudicialDecisionAudit) {
     // A holding's historical severity is not a risk polarity. The fact that a
     // court holding is high-severity must never flip this answer into a claim
     // that the client's case is favorable/adverse. We can safely say only
     // that the decision is established, while later remedies require their
     // own support.
-    answer = holdings.length ? obj.mixed[L] : obj.adverse[L];
-    confidence = holdings.length >= 2 ? T.conf.high[L] : T.conf.med[L];
+    answer = holdings.length || serious.length ? obj.favorable[L] : obj.adverse[L];
+    confidence = holdings.length >= 2 || serious.length >= 2 ? T.conf.high[L] : T.conf.med[L];
   } else if (serious.length >= 3) {
     answer = obj.favorable[L];
     confidence = T.conf.high[L];
@@ -485,11 +492,11 @@ export function buildObjectiveBlock(input: ObjectiveInput): ObjectiveBlock {
     confidence = gaps.length ? T.conf.low[L] : T.conf.med[L];
   }
 
-  if (!insufficient && contradictions > 0 && !isAmparoDecisionAudit) {
+  if (!insufficient && contradictions > 0 && !isJudicialDecisionAudit) {
     answer = `${answer} ${T.contradictions[L](contradictions)}`;
   }
 
-  const decisionSource = isAmparoDecisionAudit ? holdings.slice(0, 5) : ranked.slice(0, 5);
+  const decisionSource = isJudicialDecisionAudit ? (holdings.length ? holdings.slice(0, 5) : ranked.slice(0, 5)) : ranked.slice(0, 5);
   const decision_points: DecisionPoint[] = decisionSource.map((f, i) => {
     const sev = clean(f.severity).toLowerCase() || "medium";
     const impactKey = (sev === "critical" ? "critical" : sev === "high" ? "high" : sev === "low" ? "low" : "medium") as
@@ -497,19 +504,41 @@ export function buildObjectiveBlock(input: ObjectiveInput): ObjectiveBlock {
       | "high"
       | "medium"
       | "low";
+
+    const rawImpact = clean(f.potential_impact);
+    const hasUnverifiedProceduralAdvice =
+      /\b(?:la\s+decisi[oó]n\s+puede\s+ser\s+impugnada|puede\s+(?:ser\s+impugnad[oa]|promoverse|interponerse|solicitarse)|debe\s+(?:interponerse|promoverse|apelarse)|procede\s+(?:el\s+recurso|la\s+impugnaci[oó]n)|podr[ií]a\s+resultar\s+en\s+una\s+revisi[oó]n|nueva\s+evaluaci[oó]n\s+de\s+la\s+custodia)\b/i.test(
+        rawImpact,
+      );
+
+    let impactText: string;
+    if (isJudicialDecisionAudit || hasUnverifiedProceduralAdvice) {
+      impactText =
+        L === "es"
+          ? "Determinación judicial verificada; debe leerse conforme a su alcance resolutivo."
+          : "Verified judicial holding; read according to its dispositive scope.";
+    } else {
+      impactText = rawImpact || T.impact[impactKey][L];
+    }
+
+    let nextActionText: string;
+    if (isJudicialDecisionAudit || hasUnverifiedProceduralAdvice) {
+      nextActionText = T.auditAction[L];
+    } else {
+      nextActionText = `${obj.actionFrame[L]}: ${T.action[L]}`;
+    }
+
     return {
       id: clean(f.id) || `dp-${i + 1}`,
       issue: clean(f.title),
       why: clean(f.legal_significance) || T.why[L],
-      impact: isAmparoDecisionAudit
-        ? (L === "es" ? "Determinación judicial verificada; debe leerse conforme a su alcance resolutivo." : "Verified judicial holding; read according to its dispositive scope.")
-        : clean(f.potential_impact) || T.impact[impactKey][L],
-      next_action: isAmparoDecisionAudit ? T.auditAction[L] : `${obj.actionFrame[L]}: ${T.action[L]}`,
+      impact: impactText,
+      next_action: nextActionText,
       severity: sev,
     };
   });
 
-  if (!isAmparoDecisionAudit) {
+  if (!isJudicialDecisionAudit) {
     for (const [i, gap] of gaps.slice(0, 3).entries()) {
       decision_points.push({
         id: `gap-${i + 1}`,

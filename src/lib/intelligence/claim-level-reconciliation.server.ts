@@ -73,6 +73,8 @@ export async function reconcileCaseFindingsClaims(
   const reviewDismissalIndices: number[] = [];
   const precedentGroups = new Map<string, number[]>();
 
+  const { determineSpeakerAndAttribution } = await import("./final-claim-publication.server");
+
   // Pass 1: Proposition & Entailment Evaluation for each claim
   for (let i = 0; i < allFindings.length; i++) {
     const f = allFindings[i];
@@ -82,6 +84,13 @@ export async function reconcileCaseFindingsClaims(
     const title = String(f.title ?? "");
     const desc = String(f.description ?? "");
     const quote = typeof f.source_quote === "string" ? f.source_quote.trim() : "";
+
+    const { speaker, roleLabel, badge, isPartyAllegation } = determineSpeakerAndAttribution(
+      title,
+      desc,
+      quote,
+      f.speaker_role,
+    );
 
     // Track review dismissals for merging
     if (
@@ -130,20 +139,29 @@ export async function reconcileCaseFindingsClaims(
 
     // Action 2: REPAIR compound claims (fact entailed, legal conclusion unproven)
     if (diag.claim_action === "REPAIR" && diag.repaired_description) {
+      const patchObj: Record<string, unknown> = {
+        description: diag.repaired_description,
+        finding_status: "verified",
+        verification_status: "verified",
+        verification_notes: diag.entailment_reason,
+        metadata: {
+          ...(f.metadata || {}),
+          original_unrepaired_description: f.description,
+          claim_entailment_diagnostic: diag,
+        },
+        updated_at: new Date().toISOString(),
+      };
+      if (isPartyAllegation) {
+        patchObj.speaker_role = roleLabel;
+        patchObj.finding_type = "DIRECT_EVIDENCE";
+        patchObj.proposition_type = "allegation";
+        (patchObj.metadata as any).claim_classification = "PARTY_ALLEGATION";
+        (patchObj.metadata as any).presentation_category = "PARTY_ALLEGATION";
+        (patchObj.metadata as any).speaker_role_badge = badge;
+      }
       updates.push({
         id: f.id,
-        patch: {
-          description: diag.repaired_description,
-          finding_status: "verified",
-          verification_status: "verified",
-          verification_notes: diag.entailment_reason,
-          metadata: {
-            ...(f.metadata || {}),
-            original_unrepaired_description: f.description,
-            claim_entailment_diagnostic: diag,
-          },
-          updated_at: new Date().toISOString(),
-        },
+        patch: patchObj,
       });
       allFindings[i] = {
         ...f,
@@ -151,19 +169,22 @@ export async function reconcileCaseFindingsClaims(
         finding_status: "verified",
         verification_status: "verified",
         verification_notes: diag.entailment_reason,
+        speaker_role: isPartyAllegation ? roleLabel : f.speaker_role,
+        finding_type: isPartyAllegation ? "DIRECT_EVIDENCE" : f.finding_type,
+        proposition_type: isPartyAllegation ? "allegation" : f.proposition_type,
       };
       repairedCount++;
       continue;
     }
 
     // Action 3: RECLASSIFY party allegations
-    if (diag.claim_action === "RECLASSIFY") {
+    if (diag.claim_action === "RECLASSIFY" || isPartyAllegation) {
       updates.push({
         id: f.id,
         patch: {
           finding_type: "DIRECT_EVIDENCE",
           proposition_type: "allegation",
-          speaker_role: "quejoso",
+          speaker_role: roleLabel,
           adoption_status: "party_position",
           audit_classification: "SUPPORTED_INFERENCE",
           finding_status: "verified",
@@ -173,6 +194,7 @@ export async function reconcileCaseFindingsClaims(
             ...(f.metadata || {}),
             claim_classification: "PARTY_ALLEGATION",
             presentation_category: "PARTY_ALLEGATION",
+            speaker_role_badge: badge,
             claim_entailment_diagnostic: diag,
           },
           updated_at: new Date().toISOString(),
@@ -182,7 +204,7 @@ export async function reconcileCaseFindingsClaims(
         ...f,
         finding_type: "DIRECT_EVIDENCE",
         proposition_type: "allegation",
-        speaker_role: "quejoso",
+        speaker_role: roleLabel,
         adoption_status: "party_position",
         audit_classification: "SUPPORTED_INFERENCE",
         finding_status: "verified",
@@ -192,6 +214,7 @@ export async function reconcileCaseFindingsClaims(
           ...(f.metadata || {}),
           claim_classification: "PARTY_ALLEGATION",
           presentation_category: "PARTY_ALLEGATION",
+          speaker_role_badge: badge,
           claim_entailment_diagnostic: diag,
         },
       };
@@ -291,6 +314,52 @@ export async function reconcileCaseFindingsClaims(
     }
   }
 
+  // Pass 4: Semantic Deduplication for party allegations (e.g. Discriminación de género vs Discriminación en la custodia)
+  for (let i = 0; i < allFindings.length; i++) {
+    const f1 = allFindings[i];
+    if (f1.finding_status === "suppressed" || f1.lifecycle_status === "superseded") continue;
+
+    const t1 = String(f1.title ?? "").toLowerCase();
+    const d1 = String(f1.description ?? "").toLowerCase();
+
+    for (let j = i + 1; j < allFindings.length; j++) {
+      const f2 = allFindings[j];
+      if (f2.finding_status === "suppressed" || f2.lifecycle_status === "superseded") continue;
+
+      const t2 = String(f2.title ?? "").toLowerCase();
+      const d2 = String(f2.description ?? "").toLowerCase();
+
+      const bothCustodyGender =
+        (t1.includes("discriminación") || t1.includes("discriminacion") || d1.includes("discriminación") || d1.includes("discriminacion")) &&
+        (t2.includes("discriminación") || t2.includes("discriminacion") || d2.includes("discriminación") || d2.includes("discriminacion")) &&
+        (t1.includes("custodia") || d1.includes("custodia") || t1.includes("genero") || d1.includes("genero") || t1.includes("sexo") || d1.includes("sexo")) &&
+        (t2.includes("custodia") || d2.includes("custodia") || t2.includes("genero") || d2.includes("genero") || t2.includes("sexo") || d2.includes("sexo"));
+
+      if (bothCustodyGender) {
+        updates.push({
+          id: f2.id,
+          patch: {
+            finding_status: "suppressed",
+            lifecycle_status: "superseded",
+            superseded_reason: "duplicate_allegation_merged",
+            metadata: {
+              ...(f2.metadata || {}),
+              superseded_by: f1.id,
+              suppressed_reason: "duplicate_allegation_merged",
+            },
+            updated_at: new Date().toISOString(),
+          },
+        });
+        allFindings[j] = {
+          ...f2,
+          finding_status: "suppressed",
+          lifecycle_status: "superseded",
+        };
+        mergedCount++;
+      }
+    }
+  }
+
   // Persist all finding updates to Supabase
   for (const { id, patch } of updates) {
     const patchWithExec = executionId ? { ...patch, execution_id: executionId } : patch;
@@ -320,8 +389,16 @@ export async function reconcileCaseFindingsClaims(
   if (reportRow) {
     const full = reportRow.full_report ?? {};
     const activeVerifiedCount = activeFindings.filter((f) => f.finding_status === "verified").length;
+    const { sanitizeReportObjectiveAndProse } = await import("./final-claim-publication.server");
+    const sanitizedProse = sanitizeReportObjectiveAndProse(reportRow, activeFindings as any, { isConcludedAudit: true });
+
     const sanitizedFull = {
       ...full,
+      prose: {
+        ...((full.prose as Record<string, unknown>) ?? {}),
+        executive_summary: sanitizedProse.executiveSummary,
+      },
+      objective: sanitizedProse.objective ?? full.objective,
       consolidated_findings: activeFindings,
       quarantined_claims: removedFindings.map((r) => ({
         id: r.id,
@@ -374,6 +451,7 @@ export async function reconcileCaseFindingsClaims(
       .from("reports")
       .update({
         full_report: sanitizedFull,
+        executive_summary: sanitizedProse.executiveSummary,
         findings_count: activeFindings.length,
         quality_blocked: nonClaimReasons.length > 0,
         quality_block_reasons: nonClaimReasons,

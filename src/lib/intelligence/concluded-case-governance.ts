@@ -203,6 +203,34 @@ export function formatSpeakerRoleBadge(
     return "RESOLUTIVO";
   }
 
+  const desc = String(finding.description ?? "");
+  const quote = String(finding.source_quote ?? "");
+  const rawClaim = String(finding.raw_claim ?? (finding.metadata as any)?.original_claim ?? "");
+  const textCombined = `${title} ${desc} ${quote} ${rawClaim}`;
+
+  // Deterministic party attribution rules:
+  // "El quejoso argumenta..." must NEVER display "NO DETERMINADO"
+  if (
+    /\b(?:el\s+quejoso|la\s+quejosa|el\s+recurrente|la\s+recurrente)\s+(?:argumenta|sostiene|alega|aduce|senala|señala|expone|plantea|refiere|afirma|solicita)\b/i.test(
+      textCombined,
+    )
+  ) {
+    return "ARGUMENTO DEL QUEJOSO";
+  }
+  if (/\b(?:la\s+autoridad\s+responsable)\s+(?:argumenta|sostiene|alega|aduce|senala|señala|manifiesta)\b/i.test(textCombined)) {
+    return "ARGUMENTO DE LA AUTORIDAD RESPONSABLE";
+  }
+  if (/\b(?:el\s+tercero\s+interesado|la\s+tercera\s+interesada)\s+(?:argumenta|sostiene|alega|aduce|senala|señala)\b/i.test(textCombined)) {
+    return "ARGUMENTO DEL TERCERO INTERESADO";
+  }
+  if (
+    /\b(?:la\s+parte\s+actora|la\s+parte\s+demandada|el\s+actor|el\s+demandado|el\s+ministerio\s+p[uú]blico)\s+(?:argumenta|sostiene|alega|aduce|senala|señala|expone|plantea)\b/i.test(
+      textCombined,
+    )
+  ) {
+    return "ARGUMENTO / ALEGACIÓN DE PARTE";
+  }
+
   // 2. Hard Invariant: Party allegations not adopted by the court must NEVER be DETERMINACIÓN JUDICIAL
   const isPartySpeaker =
     speaker === "quejoso" ||
@@ -272,7 +300,14 @@ export function formatSpeakerRoleBadge(
   }
 
   // 6. Party arguments fallback
-  if (propType === "argument" || auditClass === "PARTY_ALLEGATION" || /alega|plantea|sostiene|aduce/i.test(title)) {
+  const meta = (finding.metadata ?? {}) as Record<string, unknown>;
+  if (
+    propType === "argument" ||
+    auditClass === "PARTY_ALLEGATION" ||
+    finding.claim_classification === "PARTY_ALLEGATION" ||
+    meta.claim_classification === "PARTY_ALLEGATION" ||
+    /\b(?:alega|plantea|sostiene|aduce|argumenta)\b/i.test(textCombined)
+  ) {
     return "ARGUMENTO / ALEGACIÓN DE PARTE";
   }
 
