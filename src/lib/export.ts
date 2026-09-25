@@ -862,50 +862,108 @@ export class PdfBuilder {
     engineVersion?: string;
     certification?: string;
   }) {
-    const { pageW, pageH, margin } = this;
+    const { pageW, pageH } = this;
 
-    // 1. Full-bleed approved cover artwork (Lady Justice, Cathedral, angled green framing, pillars)
+    // 1. Full-bleed approved cover branding artwork (clean template: Lady Justice, Cathedral, angled green framing, 4 pillars)
     this.doc.addImage(NYRAVA_APPROVED_COVER_BASE64, "JPEG", 0, 0, pageW, pageH);
 
-    // 2. Structured information blocks: render dynamic case metadata cleanly over the
-    // metadata card area (x: 48, y: 326, width: 282, height: 216) in crisp vector text.
+    const leftX = 42;
+    const metaW = 216;
+
+    // 2. Header / Logo
+    const markSize = 24;
+    this.doc.addImage(NYRAVA_N_LOGO_BASE64, "PNG", leftX, 42, markSize, markSize);
+
+    this.doc.setFont("helvetica", "bold");
+    this.doc.setFontSize(14.5);
+    this.doc.setTextColor(...PRIMARY_DEEP);
+    this.doc.text("NYRAVA MÉXICO", leftX + markSize + 8, 54);
+
+    this.doc.setFont("helvetica", "normal");
+    this.doc.setFontSize(7.2);
+    this.doc.setTextColor(...ACCENT);
+    this.doc.text("Inteligencia jurídica para un México más fuerte", leftX + markSize + 8, 65);
+
+    // Thin gold divider under header
+    this.doc.setDrawColor(...ACCENT);
+    this.doc.setLineWidth(0.6);
+    this.doc.line(leftX, 78, leftX + metaW, 78);
+
+    // 3. Report Title hierarchy
+    let curY = 98;
+    this.doc.setFont("helvetica", "bold");
+    this.doc.setFontSize(8.5);
+    this.doc.setTextColor(...ACCENT);
+    this.doc.text(spaced("INFORME DE"), leftX, curY);
+
+    curY += 24;
+    this.doc.setFont("times", "bold");
+    this.doc.setFontSize(24);
+    this.doc.setTextColor(...PRIMARY);
+    this.doc.text("Inteligencia Jurídica", leftX, curY);
+
+    curY += 18;
+    this.doc.setFont("helvetica", "bold");
+    this.doc.setFontSize(6.5);
+    this.doc.setTextColor(...NAVY_TINT);
+    this.doc.text("EVIDENCIA REAL.   ANÁLISIS PROFESIONAL.   RESULTADOS CONFIABLES.", leftX, curY);
+
+    curY += 14;
+    this.doc.setDrawColor(...ACCENT);
+    this.doc.setLineWidth(0.5);
+    this.doc.line(leftX, curY, leftX + metaW, curY);
+
+    // 4. Dynamic Matter Metadata (rendered directly on the cream background — NO WHITE BOX)
+    const rawMatterId = opts.matterId || "No proporcionado";
+    const cleanMatterId = rawMatterId.length > 36 ? rawMatterId.slice(0, 36) : rawMatterId;
     const fields = [
-      { k: "CLIENTE", v: opts.client || opts.caseName || "No proporcionado" },
+      { k: "CLIENTE", v: opts.client || opts.caseName || "Caso en identificación..." },
       { k: "EXPEDIENTE", v: opts.caseNumber || "No proporcionado" },
       { k: "MATERIA", v: opts.matterType || "Familiar" },
       { k: "ÓRGANO JURISDICCIONAL", v: opts.court || "Juzgado de lo Familiar" },
-      { k: "FECHA DEL ANÁLISIS", v: opts.date || "2026-09-25" },
-      { k: "NYRAVA MATTER ID", v: opts.matterId || "No proporcionado" },
+      { k: "FECHA DEL ANÁLISIS", v: opts.date || "25 de septiembre de 2026" },
+      { k: "NYRAVA MATTER ID", v: cleanMatterId },
     ];
 
-    const cardX = 48;
-    const cardY = 326;
-    const cardW = 282;
-    const cardH = 216;
-
-    // Warm ivory card background matching the cover paper tone (#FAF6F0)
-    this.doc.setFillColor(...PAGE_BG);
-    this.doc.setDrawColor(...LINE);
-    this.doc.setLineWidth(0.5);
-    this.doc.roundedRect(cardX, cardY, cardW, cardH, 4, 4, "FD");
-
-    let rowY = cardY + 16;
+    curY += 16;
     for (const f of fields) {
       this.doc.setFont("helvetica", "bold");
-      this.doc.setFontSize(7);
+      this.doc.setFontSize(6.8);
       this.doc.setTextColor(...ACCENT);
-      this.doc.text(spaced(f.k), cardX + 14, rowY);
-      rowY += 12;
+      this.doc.text(spaced(f.k), leftX, curY);
 
+      curY += 11;
       this.doc.setFont("helvetica", "normal");
-      this.doc.setFontSize(9);
+      this.doc.setFontSize(8.6);
       this.doc.setTextColor(...INK);
-      const valLines = this.doc.splitTextToSize(f.v, cardW - 28) as string[];
-      this.doc.text(valLines[0] ?? f.v, cardX + 14, rowY);
-      rowY += 19;
+      const valLines = this.doc.splitTextToSize(f.v, metaW) as string[];
+      this.doc.text(valLines[0] ?? f.v, leftX, curY);
+
+      curY += 9;
+      this.doc.setDrawColor(...LINE);
+      this.doc.setLineWidth(0.4);
+      this.doc.line(leftX, curY, leftX + metaW, curY);
+
+      curY += 12;
     }
 
-    // Page numbering is painted only after final pagination is complete.
+    // 5. Bottom Confidential Badge & Indicators
+    curY += 4;
+    this.doc.setDrawColor(...ACCENT);
+    this.doc.setLineWidth(0.6);
+    this.doc.roundedRect(leftX, curY, 88, 14, 2.5, 2.5, "S");
+    this.doc.setFont("helvetica", "bold");
+    this.doc.setFontSize(6.8);
+    this.doc.setTextColor(...ACCENT);
+    this.doc.text(spaced("CONFIDENCIAL"), leftX + 44, curY + 9.5, { align: "center" });
+
+    curY += 22;
+    this.doc.setFont("helvetica", "italic");
+    this.doc.setFontSize(7.2);
+    this.doc.setTextColor(...MUTED);
+    this.doc.text("Sustentado en evidencia. Citas auditadas.", leftX, curY);
+    curY += 9.5;
+    this.doc.text("Diseñado para trabajo de inteligencia jurídica sensible.", leftX, curY);
   }
 
   // Grid of compact stat cards (replaces the old plain label/value rows on
@@ -2063,55 +2121,82 @@ export class PdfBuilder {
   closingPage(meta: { generatedAt: string }) {
     this.pageBreak();
     const cx = this.pageW / 2;
-    let yy = this.pageH / 2 - 90;
-    this.trustBadge(cx, yy, 40);
-    yy += 40;
+    let yy = this.pageH / 2 - 120;
+
+    // Subtle decorative gold & green geometric element
+    this.doc.setDrawColor(...ACCENT);
+    this.doc.setLineWidth(1);
+    this.doc.line(cx - 30, yy - 20, cx + 30, yy - 20);
+
+    // Centered authentic N mark
+    this.trustBadge(cx, yy + 10, 48);
+    yy += 54;
+
+    // Typography
     this.doc.setFont("times", "bold");
-    this.doc.setFontSize(18);
+    this.doc.setFontSize(22);
     this.doc.setTextColor(...PRIMARY);
     this.doc.text("NYRAVA MÉXICO", cx, yy, { align: "center" });
-    yy += 16;
+    yy += 18;
+
     this.doc.setFont("helvetica", "bold");
-    this.doc.setFontSize(8.5);
+    this.doc.setFontSize(9);
     this.doc.setTextColor(...ACCENT);
-    this.doc.text("I N T E L I G E N C I A   J U R Í D I C A   A V A N Z A D A", cx, yy, { align: "center" });
-    yy += 14;
+    this.doc.text(spaced("INTELIGENCIA JURÍDICA AVANZADA"), cx, yy, { align: "center" });
+    yy += 16;
+
     this.doc.setFont("helvetica", "normal");
     this.doc.setFontSize(9.5);
     this.doc.setTextColor(...MUTED);
     this.doc.text("mexico.nyrava.com", cx, yy, { align: "center" });
-    yy += 22;
-    this.doc.setDrawColor(...LINE);
+    yy += 24;
+
+    // Thin gold divider
+    this.doc.setDrawColor(...ACCENT);
     this.doc.setLineWidth(0.75);
-    this.doc.line(cx - 60, yy, cx + 60, yy);
+    this.doc.line(cx - 70, yy, cx + 70, yy);
     yy += 20;
+
+    // Generation timestamp and engine version
     this.doc.setFont("helvetica", "normal");
     this.doc.setFontSize(8.5);
     this.doc.setTextColor(...MUTED);
     const generatedLabel = meta.generatedAt.replace("T", " ").replace(".000Z", " UTC");
-    this.doc.text(`Generado ${generatedLabel}  ·  Motor v${NYRAVA_REPORT_VERSION}`, cx, yy, {
+    this.doc.text(`Generado: ${generatedLabel}   ·   Motor de Inteligencia v${NYRAVA_REPORT_VERSION}`, cx, yy, {
       align: "center",
     });
-    yy += 34;
-    // Standing disclaimer, boxed for visual weight
-    const boxW = this.pageW - this.margin * 2 - 60;
+    yy += 36;
+
+    // Refined lower panel for legal disclaimer
+    const boxW = this.pageW - this.margin * 2 - 40;
     const boxX = cx - boxW / 2;
     const disclaimer =
-      "Este reporte fue generado con Nyrava Intelligence\u2122 y busca apoyar \u2014no sustituir\u2014 el criterio jurídico profesional. El abogado es responsable de revisar y verificar todos los hallazgos, citas, puntajes, análisis jurídico y producto de trabajo contra el expediente oficial antes de presentarlo o sustentarse en él.";
+      "Este informe fue elaborado mediante el sistema Nyrava Intelligence™ y constituye un documento de análisis y respaldo técnico que no sustituye el criterio jurídico profesional. El abogado responsable deberá verificar todos los hallazgos, citas, transcripciones, fundamentaciones y constancias procesales contra el expediente judicial antes de cualquier actuación forense o presentación en juicio.";
     this.doc.setFont("helvetica", "normal");
-    this.doc.setFontSize(9);
-    const lines = this.doc.splitTextToSize(disclaimer, boxW - 24) as string[];
-    const boxH = lines.length * 13 + 20;
+    this.doc.setFontSize(8.5);
+    const lines = this.doc.splitTextToSize(disclaimer, boxW - 32) as string[];
+    const boxH = lines.length * 13 + 24;
+
     this.doc.setFillColor(...QUOTE_BG);
+    this.doc.roundedRect(boxX, yy, boxW, boxH, 4, 4, "F");
     this.doc.setDrawColor(...LINE);
-    this.doc.setLineWidth(0.75);
-    this.doc.roundedRect(boxX, yy, boxW, boxH, 5, 5, "FD");
+    this.doc.setLineWidth(0.6);
+    this.doc.roundedRect(boxX, yy, boxW, boxH, 4, 4, "S");
+    this.doc.setFillColor(...ACCENT);
+    this.doc.rect(boxX, yy + 4, 3, boxH - 8, "F");
+
     this.doc.setTextColor(...PRIMARY);
-    let ly = yy + 16;
+    let ly = yy + 18;
     for (const line of lines) {
       this.doc.text(line, cx, ly, { align: "center" });
       ly += 13;
     }
+
+    // Subtle end watermark at bottom
+    this.doc.setFont("helvetica", "bold");
+    this.doc.setFontSize(7.5);
+    this.doc.setTextColor(...ACCENT);
+    this.doc.text(spaced("FIN DEL INFORME · DOCUMENTO AUDITADO"), cx, this.pageH - 48, { align: "center" });
   }
 
   async save(filename: string, meta: { parity: string; ess: string; generatedAt: string } | null = null, validateOnly = false, internalPreflight = false) {
@@ -3525,46 +3610,105 @@ function renderScorecard(b: PdfBuilder, data: CaseExportData) {
 function renderKeyFindings(b: PdfBuilder, data: CaseExportData) {
   const cards = presentation(data).finding_cards;
   if (!cards.length) return;
-  b.h1(rt("Key Findings"));
-  b.table([["#", "Hallazgo", "Atribución", "Fuentes"]], cards.map((card, i) => [
-    i + 1, asStr(card.finding.title), asStr(card.finding.speaker_role_label), card.source_count,
-  ]));
+  b.h1(rt("Key Findings"), "Hallazgos Clave");
+  b.text(
+    `${cards.length} proposiciones jurídicamente relevantes verificadas y vinculadas a fuentes primarias del expediente.`,
+    { size: 9.5, color: MUTED, gap: 10 },
+  );
+
+  // Summary Table of Findings
+  b.table([["#", "Hallazgo Jurídico", "Atribución", "Fuentes"]], cards.map((card, i) => [
+    String(i + 1).padStart(2, "0"),
+    asStr(card.finding.title),
+    asStr(card.finding.speaker_role_label),
+    card.source_count,
+  ]), {
+    columnStyles: {
+      0: { cellWidth: 28, fontStyle: "bold" },
+      1: { cellWidth: 260 },
+      2: { cellWidth: 140 },
+      3: { cellWidth: 50, halign: "center" },
+    },
+  });
+
+  b.y += 16;
+
+  // Editorial blocks for each finding
   for (const [i, card] of cards.entries()) {
-    const f = card.finding, wp = card.details;
-    const title = '#' + (i + 1) + ' ' + asStr(f.title);
-    const firstQuote = asArr(f.evidence_refs).find(ref=>ref.quote);
-    // Reserve the heading, attribution, full description, source label and
-    // first short quotation as one unit. h2's own reservation covered only
-    // its label, leaving the actual finding stranded on the following page.
-    const openingHeight = 80 + b.measureTextHeight(title.toUpperCase(),10,12) +
-      b.measureTextHeight(asStr(f.speaker_role_label),9,4) +
-      b.measureTextHeight(asStr(f.description),9.6,4) +
-      (firstQuote ? b.measureTextHeight(formatPdfSourceQuote(asStr(firstQuote.quote)),8.6,32) : 0);
-    b.ensureSpace(Math.min(openingHeight,b.printableBottom-b.printableTop));
-    b.h2("#" + (i + 1) + " " + asStr(f.title));
-    b.text(asStr(f.speaker_role_label), {size:9, color:MUTED, gap:4});
-    b.text(asStr(f.description), {size:9.6, gap:4});
-    b.label(rt("Sources"), String(card.source_count));
-    for (const ref of asArr(f.evidence_refs)) {
-      if (ref.quote) b.evidenceQuote(asStr(ref.quote), asStr(ref.filename));
+    const f = card.finding;
+    const wp = card.details;
+    const numStr = String(i + 1).padStart(2, "0");
+    const title = asStr(f.title).toUpperCase();
+    const speakerLabel = asStr(f.speaker_role_label) || "HALLAZGO VERIFICADO";
+
+    b.ensureSpace(120);
+
+    // 1. Large Finding Number (e.g. 01, 02)
+    b.doc.setFont("times", "bold");
+    b.doc.setFontSize(22);
+    b.doc.setTextColor(...ACCENT);
+    b.doc.text(numStr, b.margin, b.y);
+    b.y += 18;
+
+    // 2. Finding Title in bold Deep Nyrava Green
+    b.doc.setFont("times", "bold");
+    b.doc.setFontSize(13.5);
+    b.doc.setTextColor(...PRIMARY);
+    const titleLines = b.doc.splitTextToSize(title, b.printableWidth) as string[];
+    for (const tLine of titleLines) {
+      b.doc.text(tLine, b.margin, b.y);
+      b.y += 16;
     }
-    if (wp.importance.length) {
-      b.h2("IMPORTANCIA ESTRATÉGICA");
-      wp.importance.forEach(text => b.text(text, {size:9.4, gap:4}));
+    b.y += 2;
+
+    // 3. Small semantic attribution badge
+    b.attributionBadge(speakerLabel);
+    b.y += 4;
+
+    // 4. Description text
+    if (f.description) {
+      b.text(asStr(f.description), { size: 10, color: INK, gap: 8 });
     }
+
+    // 5. Evidence Quotes
+    const quotes = asArr(f.evidence_refs).filter((ref) => ref.quote);
+    if (quotes.length) {
+      b.doc.setFont("helvetica", "bold");
+      b.doc.setFontSize(7.5);
+      b.doc.setTextColor(...ACCENT);
+      b.doc.text(spaced("EVIDENCIA DOCUMENTAL"), b.margin, b.y);
+      b.y += 12;
+
+      for (const ref of quotes) {
+        const quoteText = asStr(ref.quote);
+        const sourceDoc = asStr(ref.filename) || resolveDocTitle(ref.doc_n) || `Documento ${asStr(ref.doc_n)}`;
+        const pageInfo = ref.page ? ` · p. ${ref.page}` : "";
+        const attribution = `${sourceDoc}${pageInfo}`;
+        b.evidenceQuote(quoteText, attribution);
+      }
+    }
+
+    // 6. Sub-blocks (Síntesis probatoria, Evidencia pendiente, Importancia)
     if (wp.synthesis) {
-      b.h2("SÍNTESIS PROBATORIA");
-      b.text(wp.synthesis.narrative, {size:9.4, gap:4});
-      b.bullets(wp.synthesis.lines);
+      b.h3("SÍNTESIS PROBATORIA");
+      if (wp.synthesis.narrative) b.text(wp.synthesis.narrative, { size: 9.5, gap: 4 });
+      if (wp.synthesis.lines?.length) b.bullets(wp.synthesis.lines);
     }
-    if (wp.pending.length) {
-      b.h2("EVIDENCIA PENDIENTE O NO LOCALIZADA");
+    if (wp.pending?.length) {
+      b.h3("EVIDENCIA PENDIENTE O NO LOCALIZADA");
       b.bullets(wp.pending);
     }
-    if (wp.actions.length) {
-      b.h2(wp.actions_title);
+    if (wp.importance?.length) {
+      b.h3("IMPORTANCIA ESTRATÉGICA");
+      wp.importance.forEach((text) => b.text(text, { size: 9.5, gap: 4 }));
+    }
+    if (wp.actions?.length) {
+      b.h3(wp.actions_title || "ACCIONES RECOMENDADAS");
       b.bullets(wp.actions);
     }
+
+    // 7. Thin separator between findings
+    b.divider();
   }
 }
 
