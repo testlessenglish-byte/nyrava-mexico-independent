@@ -1,0 +1,3 @@
+# Ensure generated files retain LF line endings across platforms
+* text=auto
+src/routeTree.gen.ts text eol=lf
