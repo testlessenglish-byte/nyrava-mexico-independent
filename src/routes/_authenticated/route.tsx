@@ -67,8 +67,7 @@ async function getAuthenticatedUser() {
   }
 
   // 2. Retry window for session re-hydration:
-  // On hard refresh (especially in Lovable preview iframe or during token restore),
-  // storage synchronization over postMessage or storage load can take 100-600ms.
+  // On hard refresh or during token restore, session storage load can take 100-600ms.
   // We poll up to 3 times before giving up.
   for (let attempt = 0; attempt < 3; attempt++) {
     await new Promise((resolve) => setTimeout(resolve, attempt === 0 ? 250 : 500));
@@ -109,7 +108,6 @@ export const Route = createFileRoute("/_authenticated")({
     ],
   }),
   beforeLoad: async ({ location }) => {
-    if (location.pathname.startsWith("/lovable/")) return;
     const user = await getAuthenticatedUser();
     if (!user) {
       const target = `${location.pathname}${location.searchStr ? `?${location.searchStr}` : ""}`;

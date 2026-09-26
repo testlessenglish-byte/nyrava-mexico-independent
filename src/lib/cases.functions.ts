@@ -1024,8 +1024,8 @@ export const queueCaseForPipeline = createServerFn({ method: "POST" })
     // in the background, unaware its lease was cleared) while the next cron
     // tick legitimately CAS-claimed and started a SECOND independent run of
     // the same case. Two loops then fought over the same rows and doubled
-    // load on the same Groq keys. Fix per lovable_fix_instructions_2 #5:
-    // check the current state and refuse to overwrite a live lease.
+    // load on the same Groq keys.
+    // Check the current state and refuse to overwrite a live lease.
     const admin = getAdminClient();
     let { data: existing, error: readErr } = await (supabase as any)
       .from("cases")

@@ -1,18 +1,7 @@
 /**
- * Thin adapter over the ONE provider manager (`routeAI`).
+ * Thin adapter over the canonical provider manager (`routeAI`).
  *
- * History / why this file changed:
- * Until now this was a standalone shim that POSTed directly to
- * `https://ai.gateway.lovable.dev/v1/chat/completions` with
- * `process.env.LOVABLE_API_KEY`, completely bypassing `ai_providers`,
- * `user_ai_keys`, cooldowns, rotation and usage accounting. That made it a
- * second, invisible AI routing layer: every document extract/classify/entity
- * call during case execution billed platform credits instead of using the
- * user's own Groq/Gemini keys — which is exactly the divergence from the USA
- * branch that this audit found.
- *
- * It is now a pure translation layer: OpenAI-style `messages[]` in, `routeAI`
- * out. No gateway URL, no LOVABLE_API_KEY, no provider selection of its own.
+ * It is a pure translation layer: OpenAI-style `messages[]` in, `routeAI` out.
  * Providers come solely from `ai_providers` + the caller's `user_ai_keys`.
  */
 

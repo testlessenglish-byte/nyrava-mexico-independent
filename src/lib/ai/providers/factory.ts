@@ -115,8 +115,6 @@ export function buildProvider(row: ProviderRow, apiKeyOverride?: string | null):
       return makeOpenAICompatible(cfg, {
         requiresKey: row.provider_type !== "ollama" && row.provider_type !== "lmstudio",
       });
-    // No "lovable" case: the Lovable AI Gateway adapter was removed so that no
-    // execution path can bill platform credits. See provider.server.ts header.
     case "anthropic":
       return makeAnthropic(cfg);
     case "gemini":

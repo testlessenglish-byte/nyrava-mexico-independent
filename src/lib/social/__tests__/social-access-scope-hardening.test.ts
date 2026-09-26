@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const lovableMigration = readFileSync(
+const baselineMigration = readFileSync(
   join(
     process.cwd(),
     "supabase",
@@ -65,7 +65,7 @@ const internalRoutines = [
 
 describe("social access-scope correction", () => {
   it("detects and reverses the blanket authenticated function grant", () => {
-    expect(lovableMigration).toContain(
+    expect(baselineMigration).toContain(
       "grant execute on function %s to authenticated",
     );
     for (const routine of serverOnlyRoutines) {

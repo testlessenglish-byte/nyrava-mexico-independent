@@ -199,8 +199,7 @@ export async function resolveVoiceProviderChain(db: Db, userId: string): Promise
   // do have configured for a different provider — same as how routeAI's
   // server_secret_fallback already behaves for text chat. This only reads
   // the same per-provider env vars already used elsewhere in this file
-  // (GROQ_API_KEY / OPENAI_API_KEY / GEMINI_API_KEY) — never the Lovable AI
-  // Gateway key.
+  // (GROQ_API_KEY / OPENAI_API_KEY / GEMINI_API_KEY).
   let hasPlatform = false;
   for (const provider of VOICE_PROVIDERS) {
     if (providersWithUserKeys.has(provider)) continue;

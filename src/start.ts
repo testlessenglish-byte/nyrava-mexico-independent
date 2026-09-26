@@ -18,12 +18,7 @@ const securityHeadersMiddleware = createMiddleware().server(async ({ request, ne
   return response;
 });
 
-const errorMiddleware = createMiddleware().server(async ({ request, next }) => {
-  // Internal Lovable routes (email webhooks, previews, etc.) must bypass app middleware
-  const url = new URL(request.url);
-  if (url.pathname.startsWith("/lovable/")) {
-    return next();
-  }
+const errorMiddleware = createMiddleware().server(async ({ next }) => {
   try {
     return await next();
   } catch (error) {

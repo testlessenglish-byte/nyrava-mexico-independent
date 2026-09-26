@@ -1,8 +1,8 @@
 /**
- * Phase 1 safe security hardening — browser security headers.
+ * Browser security headers for independent production deployment.
  *
  * Everything here is additive and low-risk:
- *   - HSTS, nosniff, Referrer-Policy, Permissions-Policy, frame-ancestors
+ *   - HSTS, nosniff, Referrer-Policy, Permissions-Policy, frame-ancestors ('self')
  *   - Content-Security-Policy-Report-Only (DISCOVERY ONLY — never enforced)
  *
  * The CSP is deliberately emitted in Report-Only mode so violations can be
@@ -31,8 +31,6 @@ const SUPABASE_HOSTS = () => {
 
 /** AI + platform endpoints the browser or SSR layer may legitimately reach. */
 const CONNECT_EXTRA = [
-  "https://*.lovable.app",
-  "https://*.lovable.dev",
   "https://api.groq.com",
   "https://generativelanguage.googleapis.com",
   "https://accounts.google.com",
@@ -65,12 +63,10 @@ export function buildCspReportOnly(): string {
 }
 
 /**
- * Clickjacking protection. Lovable preview and the published site both embed
- * the app in an editor iframe, and Google OAuth uses popups (not frames), so
- * we allow self + the Lovable editor origins rather than a blanket DENY.
+ * Clickjacking protection. Standard self-origin frame ancestors for independent production.
  */
 function FRAME_ANCESTORS(): string[] {
-  return ["'self'", "https://*.lovable.app", "https://*.lovable.dev", "https://lovable.dev"];
+  return ["'self'"];
 }
 
 export function buildSecurityHeaders(): Record<string, string> {
@@ -95,10 +91,8 @@ export function buildSecurityHeaders(): Record<string, string> {
 }
 
 /** True when the header set should be applied to this response. */
-export function shouldApplySecurityHeaders(pathname: string): boolean {
-  // Internal Lovable routes (email webhooks/previews) are excluded, matching
-  // the existing error-middleware bypass.
-  return !pathname.startsWith("/lovable/");
+export function shouldApplySecurityHeaders(_pathname: string): boolean {
+  return true;
 }
 
 /**

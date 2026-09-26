@@ -1,10 +1,7 @@
 // Groq provider interface. Server-only.
 // Runtime execution is Groq-only; legacy adapters are not registered in the router.
 
-// NOTE: there is deliberately no "lovable" provider type. The Lovable AI
-// Gateway was removed from the runtime (see 20260726120000 migration) so no
-// case execution can ever bill platform credits; providers come only from
-// ai_providers + the user's own user_ai_keys.
+// Providers come only from ai_providers + the user's own user_ai_keys.
 export type ProviderType = "groq" | "openai" | "anthropic" | "gemini" | "openrouter" | "ollama" | "lmstudio";
 
 export type AITask = "extraction" | "analysis" | "reasoning" | "report" | "chat";

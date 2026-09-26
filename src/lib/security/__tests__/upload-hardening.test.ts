@@ -148,13 +148,11 @@ describe("security headers", () => {
     expect(headers["X-Content-Type-Options"]).toBe("nosniff");
     expect(headers["Referrer-Policy"]).toBe("strict-origin-when-cross-origin");
     expect(headers["Permissions-Policy"]).toContain("microphone=(self)");
-    expect(headers["Content-Security-Policy-Report-Only"]).toContain("frame-ancestors");
+    expect(headers["Content-Security-Policy-Report-Only"]).toContain("frame-ancestors 'self'");
+    expect(headers["Content-Security-Policy-Report-Only"]).not.toContain("lovable");
   });
 
-  it("skips internal lovable routes and never overwrites existing headers", () => {
-    const skipped = withSecurityHeaders(new Response("ok"), "/lovable/email/auth/webhook");
-    expect(skipped.headers.get("X-Content-Type-Options")).toBeNull();
-
+  it("applies security headers and never overwrites existing headers", () => {
     const applied = withSecurityHeaders(
       new Response("ok", { headers: { "Referrer-Policy": "no-referrer" } }),
       "/dashboard",

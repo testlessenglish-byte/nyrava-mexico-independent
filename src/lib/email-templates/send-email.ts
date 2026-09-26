@@ -1,25 +1,18 @@
 import * as React from 'react'
 import { render } from '@react-email/render'
-import { EmailAPIError, sendLovableEmail } from '@lovable.dev/email-js'
 import { TEMPLATES } from './registry'
+import { sendTransactionalEmail } from '../email/transactional.server'
 
-// Server-only: reads LOVABLE_API_KEY. Never import from client components.
+// Server-only: sends transactional emails using the independent provider-neutral email service.
+// Never import from client components.
 
-// Configuration baked in at scaffold time
-const SITE_NAME = "nyravamexico"
-// SENDER_DOMAIN is the verified sender subdomain FQDN (e.g., "notify.example.com").
-// It MUST match the subdomain delegated to Lovable's nameservers. NEVER use the root domain.
-const SENDER_DOMAIN = "notify.mexico.nyrava.com"
-// FROM_DOMAIN is the domain shown in the From: header (e.g., "example.com").
-// Can be the root domain when display_from_root is enabled — this is cosmetic only.
-const FROM_DOMAIN = "mexico.nyrava.com"
-// Replies to app emails land in the monitored business inbox (forwarded to the
-// team's real mailbox). Callers can override per-send via options.replyTo.
-const DEFAULT_REPLY_TO = "support@mexico.nyrava.com"
+const SITE_NAME = "Nyrava México"
+const FROM_DOMAIN = process.env.EMAIL_DOMAIN || "mexico.nyrava.com"
+const DEFAULT_REPLY_TO = process.env.EMAIL_REPLY_TO || "support@mexico.nyrava.com"
 
 export type SendTemplateEmailResult =
   | { sent: true }
-  | { sent: false; reason: 'recipient_suppressed' }
+  | { sent: false; reason: 'recipient_suppressed' | 'provider_not_configured' }
 
 export interface SendTemplateEmailOptions {
   templateData?: Record<string, any>
@@ -29,22 +22,14 @@ export interface SendTemplateEmailOptions {
 }
 
 /**
- * Renders a registered template and sends it through Lovable's managed email
- * API. Suppression, retries, and rate limits are enforced by Lovable
- * server-side. A suppressed recipient is an expected outcome
- * ({ sent: false }); any other failure throws — EmailAPIError exposes
- * .code and .status for branching.
+ * Renders a registered template and sends it through the independent transactional email service.
+ * If no provider is configured, it fails gracefully without disrupting caller execution.
  */
 export async function sendTemplateEmail(
   templateName: string,
   to: string,
   options: SendTemplateEmailOptions = {}
 ): Promise<SendTemplateEmailResult> {
-  const apiKey = process.env['LOVABLE_API_KEY']
-  if (!apiKey) {
-    throw new Error('LOVABLE_API_KEY is not configured')
-  }
-
   const template = TEMPLATES[templateName]
   if (!template) {
     throw new Error(
@@ -68,27 +53,22 @@ export async function sendTemplateEmail(
       ? template.subject(templateData)
       : template.subject
 
-  try {
-    await sendLovableEmail(
-      {
-        to: recipient,
-        from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
-        sender_domain: SENDER_DOMAIN,
-        subject,
-        html,
-        text,
-        purpose: 'transactional',
-        label: templateName,
-        idempotency_key: options.idempotencyKey || crypto.randomUUID(),
-        reply_to: options.replyTo || DEFAULT_REPLY_TO,
-      },
-      { apiKey, sendUrl: process.env['LOVABLE_SEND_URL'] }
-    )
-  } catch (error) {
-    if (error instanceof EmailAPIError && error.code === 'recipient_suppressed') {
+  const result = await sendTransactionalEmail({
+    to: recipient,
+    from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
+    replyTo: options.replyTo || DEFAULT_REPLY_TO,
+    subject,
+    html,
+    text,
+    label: templateName,
+    idempotencyKey: options.idempotencyKey || crypto.randomUUID(),
+  })
+
+  if (!result.sent) {
+    if (result.reason === 'recipient_suppressed') {
       return { sent: false, reason: 'recipient_suppressed' }
     }
-    throw error
+    return { sent: false, reason: 'provider_not_configured' }
   }
 
   return { sent: true }

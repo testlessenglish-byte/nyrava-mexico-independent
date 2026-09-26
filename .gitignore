@@ -52,7 +52,6 @@ secrets.json
 
 # Local workspace state, generated reports and diagnostic scratch files
 /.workspace/
-/.lovable/
 /Sample_*.pdf
 /rep-es.pdf
 /test*.txt

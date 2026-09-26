@@ -18,7 +18,7 @@ function walk(dir: string, acc: string[] = []): string[] {
 
 const PLACEHOLDER_MARKERS = [
   "PlaceholderIndex",
-  "data-lovable-blank-page-placeholder",
+  "data-blank-page-placeholder",
   "REPLACE this",
 ];
 

@@ -840,10 +840,7 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
     }
     // Server-secret fallback: after every user/runtime key has been tried,
     // fall through to enabled ai_providers rows whose key comes from a
-    // server-side secret. This never includes a platform/credit-billed
-    // gateway — the Lovable provider was removed from ProviderType, from the
-    // factory and from the database, so only self-hosted or self-funded
-    // provider secrets (GROQ_API_KEY, GEMINI_API_KEY, ...) can appear here.
+    // server-side secret (GROQ_API_KEY, GEMINI_API_KEY, ...).
     // A provider already tried above as a user key is skipped so the same
     // provider is not walked twice per call.
     // BYOK requests do not consume package allowance. Never silently bill a
@@ -909,7 +906,7 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
   // Groq keys skipped during an active cooldown). Used for the final error
   // message so "tried: x, y" reflects reality instead of the full chain.
   const attemptedProviders = new Set<ProviderType>();
-  // Failure taxonomy (see .lovable/plan archive 2026-09-18): some faults are
+  // Failure taxonomy: some faults are
   // provider/model-scoped, not key-scoped. Rotating every configured key
   // against a model the provider does not serve (HTTP 404 model_not_found)
   // or against a key the provider rejected (401/403) is pure amplification:
