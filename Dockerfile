@@ -7,6 +7,13 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
+# Browser-safe public build arguments required for Vite client-side bundle
+ARG VITE_SUPABASE_URL=https://your-project-ref.supabase.co
+ARG VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_or_anon_key
+
+ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
+ENV VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY
+
 # Install all dependencies (including devDependencies required for bundling)
 COPY package.json package-lock.json ./
 RUN npm ci

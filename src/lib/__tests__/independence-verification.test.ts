@@ -174,4 +174,116 @@ describe("Lovable Independence Verification", () => {
       );
     });
   });
+
+  describe("Client Architecture & Secret Leakage Prevention", () => {
+    it("normalizes client configuration to public VITE_* variables with window.__PUBLIC_ENV__ support", () => {
+      // Simulate browser window with public env
+      const originalWindow = globalThis.window;
+      try {
+        (globalThis as any).window = {
+          __PUBLIC_ENV__: {
+            VITE_SUPABASE_URL: "https://browser-public.supabase.co",
+            VITE_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_browser_key",
+          },
+        };
+
+        expect((globalThis as any).window.__PUBLIC_ENV__.VITE_SUPABASE_URL).toBe("https://browser-public.supabase.co");
+        expect((globalThis as any).window.__PUBLIC_ENV__.VITE_SUPABASE_PUBLISHABLE_KEY).toBe("sb_publishable_browser_key");
+
+        // Verify server secret keys are NOT part of public env
+        const publicKeys = Object.keys((globalThis as any).window.__PUBLIC_ENV__);
+        expect(publicKeys).not.toContain("SUPABASE_SERVICE_ROLE_KEY");
+        expect(publicKeys).not.toContain("STRIPE_SECRET_KEY");
+        expect(publicKeys).not.toContain("GROQ_API_KEY");
+        expect(publicKeys).not.toContain("OPENROUTER_API_KEY");
+        expect(publicKeys).not.toContain("MERCADO_PAGO_ACCESS_TOKEN");
+      } finally {
+        (globalThis as any).window = originalWindow;
+      }
+    });
+
+    it("verifies server secrets are never passed as build args in Dockerfile or compose.yaml", async () => {
+      const fs = await import("node:fs");
+      const path = await import("node:path");
+
+      const forbiddenArgs = [
+        "SUPABASE_SERVICE_ROLE_KEY",
+        "GROQ_API_KEY",
+        "OPENROUTER_API_KEY",
+        "OPENAI_API_KEY",
+        "STRIPE_SECRET_KEY",
+        "STRIPE_WEBHOOK_SECRET",
+        "MERCADO_PAGO_ACCESS_TOKEN",
+        "RESEND_API_KEY",
+        "SENDGRID_API_KEY",
+      ];
+
+      const dockerfilePath = path.resolve(process.cwd(), "Dockerfile");
+      if (fs.existsSync(dockerfilePath)) {
+        const dockerfile = fs.readFileSync(dockerfilePath, "utf8");
+        const argLines = dockerfile
+          .split("\n")
+          .filter((line) => line.trim().startsWith("ARG "));
+        for (const secret of forbiddenArgs) {
+          expect(argLines.some((line) => line.includes(secret))).toBe(false);
+        }
+      }
+
+      const composePath = path.resolve(process.cwd(), "compose.yaml");
+      if (fs.existsSync(composePath)) {
+        const compose = fs.readFileSync(composePath, "utf8");
+        const argsMatch = compose.match(/args:\s*\n((?:\s+-\s+.*|\s+[\w_]+:.*)+)/);
+        if (argsMatch) {
+          const argsSection = argsMatch[1];
+          for (const secret of forbiddenArgs) {
+            expect(argsSection).not.toContain(secret);
+          }
+        }
+      }
+    });
+
+    it("verifies server secret values are never exposed or bundled into client assets", async () => {
+      const fs = await import("node:fs");
+      const path = await import("node:path");
+
+      // Verify client import.meta.env does not leak server secrets
+      const clientEnv = import.meta.env as Record<string, unknown>;
+      expect(clientEnv.SUPABASE_SERVICE_ROLE_KEY).toBeUndefined();
+      expect(clientEnv.STRIPE_SECRET_KEY).toBeUndefined();
+      expect(clientEnv.OPENROUTER_API_KEY).toBeUndefined();
+      expect(clientEnv.GROQ_API_KEY).toBeUndefined();
+      expect(clientEnv.MERCADO_PAGO_ACCESS_TOKEN).toBeUndefined();
+
+      const publicDir = path.resolve(process.cwd(), ".output/public");
+      if (!fs.existsSync(publicDir)) return;
+
+      const files: string[] = [];
+      function collectJsFiles(dir: string) {
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+          const fullPath = path.join(dir, entry.name);
+          if (entry.isDirectory()) collectJsFiles(fullPath);
+          else if (entry.isFile() && (entry.name.endsWith(".js") || entry.name.endsWith(".mjs"))) {
+            files.push(fullPath);
+          }
+        }
+      }
+      collectJsFiles(publicDir);
+
+      // Verify that no client asset contains real secret pattern signatures
+      const secretSignatures = [
+        /sk_live_[0-9a-zA-Z]{24,}/,
+        /sk_test_[0-9a-zA-Z]{24,}/,
+        /whsec_[0-9a-zA-Z]{24,}/,
+        /re_[0-9a-zA-Z]{24,}/,
+        /SG\.[0-9a-zA-Z_-]{22,}\.[0-9a-zA-Z_-]{43,}/,
+      ];
+
+      for (const file of files) {
+        const content = fs.readFileSync(file, "utf8");
+        for (const sig of secretSignatures) {
+          expect(sig.test(content)).toBe(false);
+        }
+      }
+    });
+  });
 });

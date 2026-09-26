@@ -3,6 +3,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-${SUPABASE_URL:-https://your-project-ref.supabase.co}}
+        VITE_SUPABASE_PUBLISHABLE_KEY: ${VITE_SUPABASE_PUBLISHABLE_KEY:-${SUPABASE_PUBLISHABLE_KEY:-your_supabase_publishable_or_anon_key}}
     container_name: nyrava-mexico
     restart: unless-stopped
     ports:
@@ -14,6 +17,10 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - HOST=0.0.0.0
+      - VITE_SUPABASE_URL=${VITE_SUPABASE_URL:-${SUPABASE_URL:-https://your-project-ref.supabase.co}}
+      - VITE_SUPABASE_PUBLISHABLE_KEY=${VITE_SUPABASE_PUBLISHABLE_KEY:-${SUPABASE_PUBLISHABLE_KEY:-your_supabase_publishable_or_anon_key}}
+      - SUPABASE_URL=${SUPABASE_URL:-${VITE_SUPABASE_URL:-https://your-project-ref.supabase.co}}
+      - SUPABASE_PUBLISHABLE_KEY=${SUPABASE_PUBLISHABLE_KEY:-${VITE_SUPABASE_PUBLISHABLE_KEY:-your_supabase_publishable_or_anon_key}}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
       interval: 30s

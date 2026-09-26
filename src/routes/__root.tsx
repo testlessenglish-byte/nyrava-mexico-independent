@@ -138,10 +138,32 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 });
 
 function RootShell({ children }: { children: ReactNode }) {
+  // Only expose safe, public client configuration to the browser window.
+  // Never expose server secrets (e.g. SUPABASE_SERVICE_ROLE_KEY, AI/Stripe keys).
+  const publicEnv =
+    typeof process !== "undefined"
+      ? {
+          VITE_SUPABASE_URL:
+            process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "",
+          VITE_SUPABASE_PUBLISHABLE_KEY:
+            process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+            process.env.SUPABASE_PUBLISHABLE_KEY ||
+            "",
+        }
+      : null;
+
   return (
     <html lang="es-MX">
       <head>
         <HeadContent />
+        {publicEnv && (
+          <script
+            id="public-env"
+            dangerouslySetInnerHTML={{
+              __html: `window.__PUBLIC_ENV__ = ${JSON.stringify(publicEnv)};`,
+            }}
+          />
+        )}
       </head>
       <body>
         {children}

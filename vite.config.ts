@@ -14,6 +14,14 @@ const serverEnv = loadEnv(
 );
 Object.assign(process.env, serverEnv);
 
+// Normalize public Vite variables from SUPABASE_* if VITE_* is not explicitly set
+if (!process.env.VITE_SUPABASE_URL && process.env.SUPABASE_URL) {
+  process.env.VITE_SUPABASE_URL = process.env.SUPABASE_URL;
+}
+if (!process.env.VITE_SUPABASE_PUBLISHABLE_KEY && process.env.SUPABASE_PUBLISHABLE_KEY) {
+  process.env.VITE_SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY;
+}
+
 export default defineConfig(async ({ command }) => {
   const isBuild = command === "build";
 
