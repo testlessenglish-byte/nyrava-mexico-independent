@@ -11,6 +11,8 @@ describe("Lovable Independence Verification", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     process.env = { ...originalEnv };
+    process.env.SUPABASE_URL = process.env.SUPABASE_URL || "https://example.supabase.co";
+    process.env.SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY || "sb_publishable_testkey";
   });
 
   afterEach(() => {
