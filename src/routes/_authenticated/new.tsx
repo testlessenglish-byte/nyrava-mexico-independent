@@ -82,6 +82,7 @@ function NewCasePage() {
   const [applicableLawState, setApplicableLawState] = useState("");
   const [proceedingStartedOn, setProceedingStartedOn] = useState("");
   const [civilFamilyProceeding, setCivilFamilyProceeding] = useState("");
+  const [showManualSubtype, setShowManualSubtype] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [drag, setDrag] = useState(false);
 
@@ -416,107 +417,157 @@ function NewCasePage() {
               <div>
                 <label className="text-sm font-medium">
                   {locale === "es" ? "Subtipo migratorio" : "Immigration subtype"}{" "}
-                  <span className="text-muted-foreground font-normal">({locale === "es" ? "Opcional — Auto-clasificación por IA" : "Optional — AI Auto-classification"})</span>
+                  <span className="text-muted-foreground font-normal">
+                    ({locale === "es" ? "Auto-detectar desde documentos" : "Auto-detect from documents"})
+                  </span>
                 </label>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  {locale === "es"
-                    ? "Si lo dejas en blanco, Nyrava analizará los documentos cargados para determinar automáticamente el subtipo de la taxonomía (73 subtipos), la autoridad y la postura procesal."
-                    : "If left blank, Nyrava will analyze uploaded documents to automatically determine the taxonomy subtype (73 subtypes), authority, and procedural posture."}
-                </p>
-                <select
-                  value={immigrationSubtype}
-                  onChange={(e) => setImmigrationSubtype(e.target.value)}
-                  className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="">
-                    {locale === "es" ? "Auto-detectar desde documentos (o selecciona un subtipo)" : "Auto-detect from documents (or select a subtype)"}
-                  </option>
-                  {IMMIGRATION_SUBTYPES.map(([key, es, en]) => (
-                    <option key={key} value={key}>
-                      {locale === "es" ? es : en}
+                <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
+                  <span>
+                    {immigrationSubtype
+                      ? (IMMIGRATION_SUBTYPES.find(([k]) => k === immigrationSubtype)?.[locale === "es" ? 1 : 2] ?? immigrationSubtype)
+                      : (locale === "es" ? "Auto-detectar desde documentos (Recomendado)" : "Auto-detect from documents (Recommended)")}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowManualSubtype((v) => !v)}
+                    className="font-medium text-primary hover:underline"
+                  >
+                    {showManualSubtype
+                      ? (locale === "es" ? "Ocultar selector manual" : "Hide manual selector")
+                      : (locale === "es" ? "Seleccionar subtipo manualmente" : "Select subtype manually")}
+                  </button>
+                </div>
+                {showManualSubtype && (
+                  <select
+                    value={immigrationSubtype}
+                    onChange={(e) => setImmigrationSubtype(e.target.value)}
+                    className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="">
+                      {locale === "es" ? "Auto-detectar desde documentos (Recomendado)" : "Auto-detect from documents (Recommended)"}
                     </option>
-                  ))}
-                </select>
+                    {IMMIGRATION_SUBTYPES.map(([key, es, en]) => (
+                      <option key={key} value={key}>
+                        {locale === "es" ? es : en}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {[
-                  {
-                    label: locale === "es" ? "Nombre del cliente" : "Client name",
-                    value: immigrationClientName,
-                    set: setImmigrationClientName,
-                  },
-                  {
-                    label: locale === "es" ? "Nacionalidad" : "Nationality",
-                    value: immigrationNationality,
-                    set: setImmigrationNationality,
-                  },
-                  {
-                    label: locale === "es" ? "Pasaporte" : "Passport",
-                    value: immigrationPassport,
-                    set: setImmigrationPassport,
-                  },
-                  {
-                    label:
-                      locale === "es"
-                        ? "Condición de estancia actual"
-                        : "Current immigration status",
-                    value: immigrationCondition,
-                    set: setImmigrationCondition,
-                  },
-                  {
-                    label: locale === "es" ? "Beneficio solicitado" : "Requested benefit",
-                    value: immigrationBenefit,
-                    set: setImmigrationBenefit,
-                  },
-                ].map((field) => (
-                  <label key={field.label} className="text-xs font-medium">
-                    {field.label}
-                    <input
-                      value={field.value}
-                      onChange={(e) => field.set(e.target.value)}
-                      className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    />
-                  </label>
-                ))}
+
+              <div>
+                <label className="text-xs font-medium">
+                  {locale === "es" ? "Nacionalidad" : "Nationality"}{" "}
+                  <span className="text-muted-foreground font-normal">({locale === "es" ? "Opcional" : "Optional"})</span>
+                  <input
+                    value={immigrationNationality}
+                    onChange={(e) => setImmigrationNationality(e.target.value)}
+                    placeholder={locale === "es" ? "Ej. Colombiana, Venezolana, etc." : "E.g. Colombian, Venezuelan, etc."}
+                    className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  />
+                </label>
               </div>
-              <p className="text-xs text-muted-foreground">
-                {locale === "es"
-                  ? "Los pasaportes y números sensibles se enmascaran en listados y registros."
-                  : "Passports and sensitive identifiers are masked in list views and logs."}
-              </p>
+
+              <details className="rounded-lg border border-border/60 bg-background/50 p-3">
+                <summary className="cursor-pointer text-xs font-semibold text-muted-foreground hover:text-foreground">
+                  {locale === "es" ? "Información adicional (opcional)" : "Additional information (optional)"}
+                </summary>
+                <div className="mt-3 space-y-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="text-xs font-medium">
+                      {locale === "es" ? "Pasaporte (opcional)" : "Passport (optional)"}
+                      <input
+                        type="password"
+                        value={immigrationPassport}
+                        onChange={(e) => setImmigrationPassport(e.target.value)}
+                        placeholder="••••••••"
+                        autoComplete="off"
+                        className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm tracking-widest font-mono"
+                      />
+                      <span className="text-[10px] text-muted-foreground font-normal">
+                        {locale === "es" ? "Enmascarado automáticamente para protección de datos sensibles." : "Automatically masked for privacy."}
+                      </span>
+                    </label>
+
+                    <label className="text-xs font-medium">
+                      {locale === "es" ? "Condición de estancia actual" : "Current condition of stay"}
+                      <input
+                        value={immigrationCondition}
+                        onChange={(e) => setImmigrationCondition(e.target.value)}
+                        placeholder={locale === "es" ? "Ej. Visitante, Residente temporal..." : "E.g. Visitor, Temporary resident..."}
+                        className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      />
+                    </label>
+
+                    <label className="text-xs font-medium sm:col-span-2">
+                      {locale === "es" ? "Beneficio solicitado" : "Requested benefit"}
+                      <input
+                        value={immigrationBenefit}
+                        onChange={(e) => setImmigrationBenefit(e.target.value)}
+                        placeholder={locale === "es" ? "Ej. Cambio de condición por unidad familiar..." : "E.g. Change of status via family unity..."}
+                        className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      />
+                    </label>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-medium">
+                      {locale === "es" ? "Jurisdicción (override manual)" : "Jurisdiction (manual override)"}
+                    </label>
+                    <select
+                      value={jurisdiction}
+                      onChange={(e) => setJurisdiction(e.target.value)}
+                      className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                    >
+                      <option value="">{locale === "es" ? "Auto-detectar (Federal por defecto)" : "Auto-detect (Federal default)"}</option>
+                      {JURISDICTION_GROUPS.map((g) => (
+                        <optgroup key={g.level} label={g.label}>
+                          {g.options.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </details>
             </div>
           )}
 
-          <div>
-            <label className="text-sm font-medium">
-              {t("new.field.jurisdiction")}{" "}
-              <span className="text-muted-foreground">{t("common.optional")}</span>
-            </label>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              {t("new.field.jurisdiction.hint")}
-            </p>
-            <select
-              value={jurisdiction}
-              onChange={(e) => setJurisdiction(e.target.value)}
-              className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-            >
-              <option value="">{t("new.field.jurisdiction.auto")}</option>
-              {JURISDICTION_GROUPS.map((g) => (
-                <optgroup key={g.level} label={g.label}>
-                  {g.options.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          </div>
+          {caseType !== "migratorio" && (
+            <div>
+              <label className="text-sm font-medium">
+                {t("new.field.jurisdiction")}{" "}
+                <span className="text-muted-foreground">{t("common.optional")}</span>
+              </label>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {t("new.field.jurisdiction.hint")}
+              </p>
+              <select
+                value={jurisdiction}
+                onChange={(e) => setJurisdiction(e.target.value)}
+                className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="">{t("new.field.jurisdiction.auto")}</option>
+                {JURISDICTION_GROUPS.map((g) => (
+                  <optgroup key={g.level} label={g.label}>
+                    {g.options.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         <div className="mt-8 space-y-4 border-t border-border pt-6">
           {needsCivilFamilyProcedure(caseType, caseType === "amparo" ? underlyingMateria : null) && <CivilFamilyProcedureFields startedOn={proceedingStartedOn} proceeding={civilFamilyProceeding} onStartedOnChange={setProceedingStartedOn} onProceedingChange={setCivilFamilyProceeding} locale={locale} />}
-          <ApplicableLawStateField value={applicableLawState} onChange={setApplicableLawState} locale={locale} />
+          {caseType !== "migratorio" && <ApplicableLawStateField value={applicableLawState} onChange={setApplicableLawState} locale={locale} />}
           <SectionLabel>{t("new.section.analysis")}</SectionLabel>
 
           <div className="rounded-xl border border-primary/25 bg-primary/5 p-4">

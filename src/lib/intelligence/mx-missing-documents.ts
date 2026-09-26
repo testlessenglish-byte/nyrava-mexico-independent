@@ -690,6 +690,20 @@ export function requiredDocuments(
   corpusText?: string,
 ): readonly RequiredDocument[] {
   const base = CHECKLISTS[materia];
+  if (materia === "migratorio") {
+    if (!corpusText || corpusText.trim().length === 0) return base;
+    const hay = normalize(corpusText);
+    const hasRefugio = /\b(refugi|comar|asilo|proteccion complementaria|no devolucion|apatrida)\b/.test(hay);
+    const hasNacionalidad = /\b(naturalizaci|nacionalidad|sre|carta de naturalizacion|declaratoria de nacionalidad)\b/.test(hay);
+    const hasFamilia = /\b(vinculo familiar|unidad familiar|matrimonio|hijo|conyuge|concubin|reunificacion familiar)\b/.test(hay);
+
+    return base.filter((doc) => {
+      if (doc.id === "refugio_comar") return hasRefugio;
+      if (doc.id === "nacionalidad_sre") return hasNacionalidad;
+      if (doc.id === "vinculo_familiar") return hasFamilia;
+      return true;
+    });
+  }
   if (materia !== "constitucional" || !corpusText) return base;
   const subtype = resolveConstitucionalReviewSubtype(corpusText);
   if (!subtype) return base;

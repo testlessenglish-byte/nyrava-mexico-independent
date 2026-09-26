@@ -296,6 +296,12 @@ export const MX_ENGINES: Record<MexicanCaseType, readonly string[]> = {
     "agent:nationality_naturalization_analysis",
     "agent:immigration_due_process_remedies",
     "agent:child_vulnerability_protection",
+    "agent:conventionality_pro_persona",
+    "agent:constitutional_rights_mapping",
+    "agent:international_human_rights_analysis",
+    "agent:suspension_analysis",
+    "agent:standing_procedencia",
+    "agent:authority_notification_validation",
   ],
 };
 
@@ -856,6 +862,10 @@ export const MX_FINDING_MODULES: Record<MexicanCaseType, readonly string[]> = {
     "nacionalidad",
     "naturalizacion",
     "vigencia_fuente_legal",
+    "derechos_fundamentales",
+    "control_de_convencionalidad",
+    "suspension_del_acto",
+    "procedencia_del_amparo",
   ],
 };
 

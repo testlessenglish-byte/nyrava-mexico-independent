@@ -93,8 +93,8 @@ export function reconcileReportScorePresentation(report:Row, scoresAllowed:boole
 export function reconcileContradictionRisk(report:Row, count:number) {
   const full=report.full_report ?? {}, risk=full.deterministic_algorithms?.risk;
   if (!risk || !Array.isArray(risk.factors)) return;
-  const factors=risk.factors.filter((f:Row)=>!/^\d+ x unresolved contradictions$/.test(f.label));
-  if (count) factors.unshift({label:`${count} x unresolved contradictions`,delta:count*8});
+  const factors=risk.factors.filter((f:Row)=>!/^\d+ x (unresolved contradictions|contradicciones no resueltas)$/.test(f.label));
+  if (count) factors.unshift({label:`${count} x contradicciones no resueltas`,delta:count*8});
   const score=Math.max(0,Math.min(100,factors.reduce((n:number,f:Row)=>n+Number(f.delta??0),0)));
   const band=score>=75?'critical':score>=50?'high':score>=25?'medium':'low';
   full.deterministic_algorithms.risk={...risk,score,band,factors};

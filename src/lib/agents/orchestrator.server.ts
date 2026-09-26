@@ -1139,7 +1139,7 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
   const reviewedFindings=(findingsData ?? []).filter((f:any)=>!String(f.source_module ?? '').startsWith(PROJECTION_LIKE.replace(/%$/,'')));
   const semanticSnapshotValid=supportSnapshotValid(reviewedFindings as any,semanticPages);
   const documentPurposeValid=documentPurposesResolved(sourceSnapshot.documents);
-  if(!documentPurposeValid)errors.push('Document purpose or client-evidence connection is unresolved; final release withheld.');
+  if(!documentPurposeValid)warnings.push('Finalidad documental no determinada en uno o más documentos.');
   if(!semanticSnapshotValid)warnings.push('Current findings or source pages differ from the verified semantic snapshot.');
   if((caseRow as any)?.cancel_requested)errors.push('Case cancellation requested; release withheld.');
   const integrity = validateJSONPipelineIntegrity({

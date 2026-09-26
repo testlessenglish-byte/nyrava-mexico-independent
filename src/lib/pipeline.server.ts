@@ -60,6 +60,7 @@ import { mergeCanonicalRecommendations } from "./intelligence/report-recommendat
 import { withStageTimeout } from "@/lib/execution/blocking-stage-guard.server";
 import { PROJECTION_LIKE } from "@/lib/intelligence/finding-selection";
 import { consolidateFindings } from "@/lib/intelligence/finding-dedupe";
+import { reconcileSpecialistFindings } from "@/lib/intelligence/specialist-finding-reconciliation";
 import {
   judicialHierarchyInstructions,
   judicialHierarchySchemaFragment,
@@ -4248,6 +4249,10 @@ export async function runAgents(args: {
       proceduralVehicle: agentsIdentity.proceduralVehicle,
       proceedingType: agentsIdentity.proceedingType,
       documents: chunks.map((chunk) => ({ id: chunk.docId, text: chunk.text })),
+      caseType: area,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      matterMetadata: (caseRow as any)?.matter_metadata,
+      matterSubtype: matterSubtype?.key,
     };
 
     const activeAgents: typeof AGENTS = [];
@@ -4661,6 +4666,7 @@ export async function runAgents(args: {
                     suppressed_ess: 0,
                     suppressed_validator: 0,
                     meta: {
+                      internal_batch: true,
                       agent_type: agent.type,
                       batchIdx: idx,
                       batchKey: key,
@@ -4788,7 +4794,7 @@ export async function runAgents(args: {
             confidence: confidences.length
               ? confidences.reduce((a, b) => a + b, 0) / confidences.length
               : null,
-            findings: mergedFindings,
+            findings: reconcileSpecialistFindings(mergedFindings, agent.type),
           };
           const generated = Array.isArray(parsed.findings) ? parsed.findings.length : 0;
           // Agent grounding gate: every finding must carry a
