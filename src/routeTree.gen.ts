@@ -63,6 +63,7 @@ import { Route as AuthenticatedTalkRouteImport } from './routes/_authenticated/t
 import { Route as AuthenticatedTimelineRouteImport } from './routes/_authenticated/timeline'
 import { Route as AuthenticatedUsageRouteImport } from './routes/_authenticated/usage'
 import { Route as AuthenticatedWitnessRouteImport } from './routes/_authenticated/witness'
+import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as DemoSlugRouteImport } from './routes/demo.$slug'
 import { Route as HelpIndexRouteImport } from './routes/help.index'
 import { Route as HelpApiKeysRouteImport } from './routes/help.api-keys'
@@ -366,6 +367,11 @@ const AuthenticatedWitnessRoute = AuthenticatedWitnessRouteImport.update({
   path: '/witness',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiHealthRoute = ApiHealthRouteImport.update({
+  id: '/api/health',
+  path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DemoSlugRoute = DemoSlugRouteImport.update({
   id: '/demo/$slug',
   path: '/demo/$slug',
@@ -592,6 +598,7 @@ export interface FileRoutesByFullPath {
   '/timeline': typeof AuthenticatedTimelineRoute
   '/usage': typeof AuthenticatedUsageRoute
   '/witness': typeof AuthenticatedWitnessRoute
+  '/api/health': typeof ApiHealthRoute
   '/demo/$slug': typeof DemoSlugRoute
   '/help/api-keys': typeof HelpApiKeysRoute
   '/help/first-case': typeof HelpFirstCaseRoute
@@ -676,6 +683,7 @@ export interface FileRoutesByTo {
   '/timeline': typeof AuthenticatedTimelineRoute
   '/usage': typeof AuthenticatedUsageRoute
   '/witness': typeof AuthenticatedWitnessRoute
+  '/api/health': typeof ApiHealthRoute
   '/demo/$slug': typeof DemoSlugRoute
   '/help/api-keys': typeof HelpApiKeysRoute
   '/help/first-case': typeof HelpFirstCaseRoute
@@ -764,6 +772,7 @@ export interface FileRoutesById {
   '/_authenticated/timeline': typeof AuthenticatedTimelineRoute
   '/_authenticated/usage': typeof AuthenticatedUsageRoute
   '/_authenticated/witness': typeof AuthenticatedWitnessRoute
+  '/api/health': typeof ApiHealthRoute
   '/demo/$slug': typeof DemoSlugRoute
   '/help/api-keys': typeof HelpApiKeysRoute
   '/help/first-case': typeof HelpFirstCaseRoute
@@ -852,6 +861,7 @@ export interface FileRouteTypes {
     | '/timeline'
     | '/usage'
     | '/witness'
+    | '/api/health'
     | '/demo/$slug'
     | '/help/api-keys'
     | '/help/first-case'
@@ -936,6 +946,7 @@ export interface FileRouteTypes {
     | '/timeline'
     | '/usage'
     | '/witness'
+    | '/api/health'
     | '/demo/$slug'
     | '/help/api-keys'
     | '/help/first-case'
@@ -1023,6 +1034,7 @@ export interface FileRouteTypes {
     | '/_authenticated/timeline'
     | '/_authenticated/usage'
     | '/_authenticated/witness'
+    | '/api/health'
     | '/demo/$slug'
     | '/help/api-keys'
     | '/help/first-case'
@@ -1087,6 +1099,7 @@ export interface RootRouteChildren {
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   TermsRoute: typeof TermsRoute
   TrustRoute: typeof TrustRoute
+  ApiHealthRoute: typeof ApiHealthRoute
   DemoSlugRoute: typeof DemoSlugRoute
   ProductSlugRoute: typeof ProductSlugRoute
   SupportPublicIdRoute: typeof SupportPublicIdRoute
@@ -1479,6 +1492,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedWitnessRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/health': {
+      id: '/api/health'
+      path: '/api/health'
+      fullPath: '/api/health'
+      preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/demo/$slug': {
       id: '/demo/$slug'
       path: '/demo/$slug'
@@ -1855,6 +1875,7 @@ const rootRouteChildren: RootRouteChildren = {
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   TermsRoute: TermsRoute,
   TrustRoute: TrustRoute,
+  ApiHealthRoute: ApiHealthRoute,
   DemoSlugRoute: DemoSlugRoute,
   ProductSlugRoute: ProductSlugRoute,
   SupportPublicIdRoute: SupportPublicIdRoute,

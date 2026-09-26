@@ -34,9 +34,10 @@ export default defineConfig(async ({ command }) => {
   ];
 
   if (isBuild) {
+    const defaultPreset = process.env.NITRO_PRESET || "cloudflare-module";
     plugins.push(
       nitro({
-        defaultPreset: "cloudflare-module",
+        defaultPreset,
       }),
     );
   } else {
