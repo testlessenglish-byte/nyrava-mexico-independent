@@ -308,6 +308,71 @@ async function processLeasedCase(
   }
 }
 
+export async function drainPipelineQueue(opts?: {
+  admin?: ReturnType<typeof createClient<Database>>;
+  maxPerTick?: number;
+}): Promise<{
+  ok: boolean;
+  processed: number;
+  results?: Array<{ caseId: string; ok: boolean; error?: string; deferred?: boolean }>;
+}> {
+  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
+  if (!url || !serviceKey) {
+    return { ok: false, processed: 0, results: [] };
+  }
+  const admin =
+    opts?.admin ??
+    createClient<Database>(url, serviceKey, {
+      auth: { persistSession: false, autoRefreshToken: false, storage: undefined },
+    });
+
+  // Sweep stalled cases FIRST — recover any case whose lease died between
+  // ticks so the next lease pass can pick it up (or the owner sees the
+  // "failed — click Resume" state instead of a stuck spinner).
+  try {
+    const { sweepStalledCases } = await import("@/lib/pipeline-stall.server");
+    await sweepStalledCases(admin);
+  } catch (e) {
+    console.warn("[pipeline-worker] stall sweep failed", e);
+  }
+
+  // Report release watchdog — ensures completed reports reach terminal state and have downloadable PDF
+  try {
+    const { runReportReleaseWatchdog } = await import("@/lib/reporting/report-release-watchdog.server");
+    await runReportReleaseWatchdog(admin);
+  } catch (e) {
+    console.warn("[pipeline-worker] report release watchdog failed", e);
+  }
+
+  // Drain SEVERAL cases per tick, in parallel. Each has its own CAS
+  // lease keyed by case_id, so Case A and Case B run truly
+  // concurrently instead of B waiting a full cron minute for A.
+  const maxPerTick =
+    opts?.maxPerTick ?? Math.max(1, Number(process.env.PIPELINE_WORKER_MAX_PER_TICK ?? 3));
+  const leasedCases: LeasedCase[] = [];
+  for (let i = 0; i < maxPerTick; i++) {
+    const next = await leaseOneCase(admin);
+    if (!next) break;
+    if (leasedCases.some((c) => c.id === next.id)) break;
+    leasedCases.push(next as LeasedCase);
+  }
+  if (leasedCases.length === 0) {
+    return { ok: true, processed: 0, results: [] };
+  }
+
+  const settled = await Promise.allSettled(
+    leasedCases.map((c) => processLeasedCase(admin, c)),
+  );
+  const results = settled.map((r, i) =>
+    r.status === "fulfilled"
+      ? r.value
+      : { caseId: leasedCases[i].id, ok: false, error: String(r.reason) },
+  );
+  const anyFailed = results.some((r) => !r.ok);
+  return { ok: !anyFailed, processed: results.length, results };
+}
+
 export const Route = createFileRoute("/api/public/hooks/pipeline-worker")({
   server: {
     handlers: {
@@ -357,53 +422,10 @@ export const Route = createFileRoute("/api/public/hooks/pipeline-worker")({
           });
         }
 
-        // Sweep stalled cases FIRST — recover any case whose lease died between
-        // ticks so the next lease pass can pick it up (or the owner sees the
-        // "failed — click Resume" state instead of a stuck spinner).
-        try {
-          const { sweepStalledCases } = await import("@/lib/pipeline-stall.server");
-          await sweepStalledCases(admin);
-        } catch (e) {
-          console.warn("[pipeline-worker] stall sweep failed", e);
-        }
-
-        // Report release watchdog — ensures completed reports reach terminal state and have downloadable PDF
-        try {
-          const { runReportReleaseWatchdog } = await import("@/lib/reporting/report-release-watchdog.server");
-          await runReportReleaseWatchdog(admin);
-        } catch (e) {
-          console.warn("[pipeline-worker] report release watchdog failed", e);
-        }
-
-        // Drain SEVERAL cases per tick, in parallel. Each has its own CAS
-        // lease keyed by case_id, so Case A and Case B run truly
-        // concurrently instead of B waiting a full cron minute for A.
-        const maxPerTick = Math.max(1, Number(process.env.PIPELINE_WORKER_MAX_PER_TICK ?? 3));
-        const leasedCases: LeasedCase[] = [];
-        for (let i = 0; i < maxPerTick; i++) {
-          const next = await leaseOneCase(admin);
-          if (!next) break;
-          if (leasedCases.some((c) => c.id === next.id)) break;
-          leasedCases.push(next as LeasedCase);
-        }
-        if (leasedCases.length === 0) {
-          return new Response(JSON.stringify({ ok: true, processed: 0 }), {
-            headers: { "Content-Type": "application/json" },
-          });
-        }
-
-        const settled = await Promise.allSettled(
-          leasedCases.map((c) => processLeasedCase(admin, c)),
-        );
-        const results = settled.map((r, i) =>
-          r.status === "fulfilled"
-            ? r.value
-            : { caseId: leasedCases[i].id, ok: false, error: String(r.reason) },
-        );
-        const anyFailed = results.some((r) => !r.ok);
+        const outcome = await drainPipelineQueue({ admin });
         return new Response(
-          JSON.stringify({ ok: !anyFailed, processed: results.length, results }),
-          { status: anyFailed ? 500 : 200, headers: { "Content-Type": "application/json" } },
+          JSON.stringify(outcome),
+          { status: outcome.ok ? 200 : 500, headers: { "Content-Type": "application/json" } },
         );
       },
     },

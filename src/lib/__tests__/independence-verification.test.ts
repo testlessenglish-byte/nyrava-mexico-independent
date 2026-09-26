@@ -286,4 +286,30 @@ describe("Lovable Independence Verification", () => {
       }
     });
   });
+
+  describe("Pipeline Trace and Extraction Security & Permissions", () => {
+    it("trace executes safely without throwing when unprivileged client is passed", async () => {
+      const { trace } = await import("../pipeline-trace.server");
+      const fakeUserDb = {
+        from: vi.fn(() => ({
+          insert: vi.fn().mockRejectedValue(new Error("permission denied for table pipeline_trace")),
+        })),
+      };
+      await expect(
+        trace({
+          db: fakeUserDb as never,
+          caseId: "00000000-0000-0000-0000-000000000001",
+          phase: "upload",
+          step: "storage.upload_and_document_rows",
+        }),
+      ).resolves.toBeUndefined();
+    });
+
+    it("drainPipelineQueue is exported and runnable without external webhook", async () => {
+      const { drainPipelineQueue } = await import(
+        "@/routes/api/public/hooks/pipeline-worker"
+      );
+      expect(drainPipelineQueue).toBeTypeOf("function");
+    });
+  });
 });

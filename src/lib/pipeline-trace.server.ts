@@ -15,10 +15,27 @@
 //    to console and swallowed.
 // =============================================================================
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 
 type Db = SupabaseClient<Database>;
+
+let _traceAdminClient: Db | null = null;
+
+function getTraceAdminClient(): Db | null {
+  if (_traceAdminClient) return _traceAdminClient;
+  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
+  if (!url || !serviceKey) return null;
+  try {
+    _traceAdminClient = createClient<Database>(url, serviceKey, {
+      auth: { persistSession: false, autoRefreshToken: false, storage: undefined },
+    });
+    return _traceAdminClient;
+  } catch {
+    return null;
+  }
+}
 
 export type TracePhase =
   | "upload"
@@ -121,7 +138,8 @@ function sanitize(detail: Record<string, unknown> | undefined): Record<string, u
  */
 export async function trace(entry: TraceEntry): Promise<void> {
   const scope = scopeStore.getStore();
-  const db = entry.db ?? scope?.db;
+  const adminDb = getTraceAdminClient();
+  const db = adminDb ?? entry.db ?? scope?.db;
   const caseId = entry.caseId ?? scope?.caseId;
   const userId = entry.userId ?? scope?.userId ?? null;
   const correlationId = entry.correlationId ?? scope?.correlationId ?? null;

@@ -1,8 +1,11 @@
 import "./lib/error-capture";
-
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 import { withSecurityHeaders } from "./lib/security/security-headers";
+import { startServerPipelinePump } from "./lib/server-pipeline-pump";
+
+// Start automatic background queue pump for standalone Node / Docker runtime
+startServerPipelinePump();
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;

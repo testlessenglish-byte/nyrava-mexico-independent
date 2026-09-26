@@ -345,7 +345,11 @@ export const createCaseAndUpload = createServerFn({ method: "POST" })
     }
     const caseId = created.id;
     const correlationId = newCorrelationId(caseId);
-    const traceTarget = { db: supabase, caseId, userId, correlationId };
+    let adminTraceDb: Db | undefined;
+    try {
+      adminTraceDb = getAdminClient();
+    } catch {}
+    const traceTarget = { db: adminTraceDb ?? supabase, caseId, userId, correlationId };
 
     await trace({
       ...traceTarget,
@@ -962,7 +966,11 @@ export const queueCaseForPipeline = createServerFn({ method: "POST" })
     // uploading files costs nothing; queuing for the pipeline is what
     // actually spends AI credits.
     const { trace } = await import("@/lib/pipeline-trace.server");
-    const traceTarget = { db: supabase, caseId: data.caseId, userId };
+    let adminTraceDb: Db | undefined;
+    try {
+      adminTraceDb = getAdminClient();
+    } catch {}
+    const traceTarget = { db: adminTraceDb ?? supabase, caseId: data.caseId, userId };
 
     const { getBillingAccess, consumeFreeCase } = await import("./billing.functions");
     const billingAccess = await getBillingAccess(userId, data.caseId);
@@ -1172,6 +1180,18 @@ export const queueCaseForPipeline = createServerFn({ method: "POST" })
         new_next_stage: data.reset ? "reset" : (data.startFrom ?? "extraction"),
       })}`,
     );
+
+    // In self-contained / Docker environments without external pg_cron ingress,
+    // trigger queue drain immediately so extraction / pipeline starts.
+    try {
+      const { drainPipelineQueue } = await import("@/routes/api/public/hooks/pipeline-worker");
+      void drainPipelineQueue().catch((err) => {
+        console.warn("[queueCaseForPipeline] background worker drain threw", err);
+      });
+    } catch (err) {
+      console.warn("[queueCaseForPipeline] failed to invoke drainPipelineQueue", err);
+    }
+
     return { ok: true, queued: true };
   });
 
@@ -1441,8 +1461,12 @@ export const resumeFullPipelineStep = createServerFn({ method: "POST" })
     if (updateErr) throw new Error(updateErr.message);
 
     const { trace } = await import("@/lib/pipeline-trace.server");
+    let adminTraceDb: Db | undefined;
+    try {
+      adminTraceDb = getAdminClient();
+    } catch {}
     await trace({
-      db: supabase,
+      db: adminTraceDb ?? supabase,
       caseId: data.caseId,
       userId,
       phase: "queue",
@@ -1450,6 +1474,16 @@ export const resumeFullPipelineStep = createServerFn({ method: "POST" })
       status: "ok",
       detail: { startFrom: resumeKey, queued_at: queuedAt },
     });
+
+    try {
+      const { drainPipelineQueue } = await import("@/routes/api/public/hooks/pipeline-worker");
+      void drainPipelineQueue().catch((err) => {
+        console.warn("[resumeFullPipelineStep] background worker drain threw", err);
+      });
+    } catch (err) {
+      console.warn("[resumeFullPipelineStep] failed to invoke drainPipelineQueue", err);
+    }
+
     return { ok: true, queued: true, startFrom: resumeKey };
   });
 

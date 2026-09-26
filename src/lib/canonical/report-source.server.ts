@@ -20,6 +20,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import type { CaseAnalysis, Finding as CanonicalFinding } from "./case-analysis";
+import { trace } from "../pipeline-trace.server";
 
 type Db = SupabaseClient<Database>;
 
@@ -58,9 +59,9 @@ export async function traceCanonicalFallback(
   detail: Record<string, unknown> = {},
 ): Promise<void> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (db as any).from("pipeline_trace").insert({
-      case_id: caseId,
+    await trace({
+      db,
+      caseId,
       phase: "report",
       step: "canonical_fallback",
       status: "warn",
