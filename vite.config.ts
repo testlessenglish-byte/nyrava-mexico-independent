@@ -5,7 +5,6 @@ import viteReact from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import tsConfigPaths from "vite-tsconfig-paths";
 import { nitro } from "nitro/vite";
-import { localPipelinePlugin } from "./scripts/local-pipeline-pump.mjs";
 
 // Load all env vars into process.env for server routes (SUPABASE_SERVICE_ROLE_KEY, RESEND_API_KEY, etc.)
 const serverEnv = loadEnv(
@@ -15,7 +14,7 @@ const serverEnv = loadEnv(
 );
 Object.assign(process.env, serverEnv);
 
-export default defineConfig(({ command }) => {
+export default defineConfig(async ({ command }) => {
   const isBuild = command === "build";
 
   const plugins: PluginOption[] = [
@@ -32,7 +31,6 @@ export default defineConfig(({ command }) => {
     viteReact(),
     tailwindcss(),
     tsConfigPaths({ projects: ["./tsconfig.json"] }),
-    localPipelinePlugin(),
   ];
 
   if (isBuild) {
@@ -41,6 +39,14 @@ export default defineConfig(({ command }) => {
         defaultPreset: "cloudflare-module",
       }),
     );
+  } else {
+    // Local-development helper only; never loaded or required during production builds
+    try {
+      const { localPipelinePlugin } = await import("./scripts/local-pipeline-pump.mjs");
+      plugins.push(localPipelinePlugin());
+    } catch {
+      // Gracefully continue if local helper is not present
+    }
   }
 
   return {
