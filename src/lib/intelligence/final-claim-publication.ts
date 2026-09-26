@@ -15,6 +15,8 @@
 import {
   evaluateClaimEntailment,
   splitCompoundClaim,
+  formatReconstructedPropositions,
+  SPANISH_STOPWORDS,
   type ClaimEntailmentDiagnostic,
   type EntailmentStatus,
   type SpeakerAttribution,
@@ -478,16 +480,16 @@ export function classifyValidatePublishClaim(
   let publicationStatus: PublicationStatus = "APPROVED";
   let suppressionReason: string | null = null;
   let repairedClaim: string | null =
-    entailmentDiag.repaired_claim ||
     (rawClaim.repaired_title as string) ||
     (rawClaim.repaired_claim as string) ||
     ((rawClaim.metadata as any)?.repaired_title as string) ||
     ((rawClaim.metadata as any)?.repaired_claim as string) ||
+    entailmentDiag.repaired_claim ||
     null;
   let repairedDesc: string | null =
-    entailmentDiag.repaired_description ||
     (rawClaim.repaired_description as string) ||
     ((rawClaim.metadata as any)?.repaired_description as string) ||
+    entailmentDiag.repaired_description ||
     null;
 
   if (repairedClaim && repairedClaim.includes(": ") && !repairedDesc) {
@@ -517,7 +519,11 @@ export function classifyValidatePublishClaim(
   } else if (entailmentDiag.claim_action === "QUARANTINE") {
     publicationStatus = "QUARANTINED";
     suppressionReason = entailmentDiag.entailment_reason;
-  } else if (entailmentDiag.claim_action === "REPAIR" || repairedDesc || (repairedClaim && repairedClaim !== title)) {
+  } else if (
+    entailmentDiag.claim_action === "REPAIR" ||
+    (repairedDesc && repairedDesc !== desc) ||
+    (repairedClaim && repairedClaim !== title)
+  ) {
     publicationStatus = "REPAIRED";
   }
 
@@ -534,7 +540,11 @@ export function classifyValidatePublishClaim(
 
   // Rule 3: Reclassify party allegations correctly
   if (isPartyAllegation && publicationStatus !== "SUPPRESSED" && publicationStatus !== "QUARANTINED") {
-    if (entailmentDiag.claim_action === "REPAIR" || repairedDesc || (repairedClaim && repairedClaim !== title)) {
+    if (
+      entailmentDiag.claim_action === "REPAIR" ||
+      (repairedDesc && repairedDesc !== desc) ||
+      (repairedClaim && repairedClaim !== title)
+    ) {
       publicationStatus = "REPAIRED";
     } else {
       publicationStatus = "APPROVED";
@@ -766,6 +776,169 @@ export function sanitizeReportObjectiveAndProse(
   };
 }
 
+function matchesUnsupportedProposition(text: string, unsupported: string): boolean {
+  const normText = normalizeText(text);
+  const normUns = normalizeText(unsupported);
+  if (!normText || !normUns) return false;
+  if (normText.includes(normUns) || normUns.includes(normText)) return true;
+
+  // Check distinctive token overlap
+  const unsTokens = normUns.split(" ").filter((t) => t.length > 3 && !SPANISH_STOPWORDS.has(t));
+  if (unsTokens.length >= 3) {
+    const matching = unsTokens.filter((t) => normText.includes(t));
+    if (matching.length >= 3 && matching.length / unsTokens.length >= 0.5) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Rule 3: Unsupported proposition cannot reappear in another report section.
+ * Scrubs stripped or unsupported propositions from executive summary, objective,
+ * priority review, executive questions, and next actions.
+ */
+export function scrubUnsupportedPropositionsFromSections(
+  reportRow: Record<string, any>,
+  pres: Record<string, any> | undefined,
+  unsupportedPropositions: string[],
+): { executiveSummary: string } {
+  const normUnsupported = unsupportedPropositions
+    .map((p) => p.trim())
+    .filter((p) => p.length >= 8);
+
+  if (!normUnsupported.length) {
+    return { executiveSummary: String(reportRow.executive_summary ?? "") };
+  }
+
+  // 1. Scrub executive summary
+  let exec = String(reportRow.executive_summary ?? "");
+  for (const uns of normUnsupported) {
+    if (matchesUnsupportedProposition(exec, uns)) {
+      const sentences = exec.split(/(?<=[.!?])\s+/);
+      exec = sentences
+        .filter((s) => !matchesUnsupportedProposition(s, uns))
+        .join(" ")
+        .trim();
+    }
+  }
+  reportRow.executive_summary = exec;
+  if (reportRow.full_report?.prose) {
+    (reportRow.full_report.prose as any).executive_summary = exec;
+  }
+
+  // 2. Scrub snapshot priorityReview
+  if (pres?.snapshot?.priorityReview && Array.isArray(pres.snapshot.priorityReview)) {
+    pres.snapshot.priorityReview = pres.snapshot.priorityReview.filter((item: string) => {
+      return !normUnsupported.some((uns) => matchesUnsupportedProposition(item, uns));
+    });
+  }
+
+  // 3. Scrub executive questions
+  if (pres?.executive_questions && Array.isArray(pres.executive_questions)) {
+    pres.executive_questions = pres.executive_questions.filter((q: any) => {
+      const qText = String(typeof q === "string" ? q : q.question ?? q.answer ?? "");
+      return !normUnsupported.some((uns) => matchesUnsupportedProposition(qText, uns));
+    });
+  }
+
+  // 4. Scrub next_actions and recommendations
+  if (Array.isArray(reportRow.next_actions)) {
+    reportRow.next_actions = reportRow.next_actions.filter((act: any) => {
+      const actText = String(act.action ?? act.title ?? "");
+      return !normUnsupported.some((uns) => matchesUnsupportedProposition(actText, uns));
+    });
+  }
+  if (Array.isArray(reportRow.full_report?.canonical_recommendations)) {
+    reportRow.full_report.canonical_recommendations = reportRow.full_report.canonical_recommendations.filter(
+      (rec: any) => {
+        const recText = String(rec.title ?? rec.reason ?? "");
+        return !normUnsupported.some((uns) => matchesUnsupportedProposition(recText, uns));
+      },
+    );
+  }
+
+  // 5. Scrub objective
+  if (reportRow.full_report?.objective) {
+    const obj = reportRow.full_report.objective;
+    if (obj.answer) {
+      for (const uns of normUnsupported) {
+        if (matchesUnsupportedProposition(String(obj.answer), uns)) {
+          const sentences = String(obj.answer).split(/(?<=[.!?])\s+/);
+          obj.answer = sentences
+            .filter((s) => !matchesUnsupportedProposition(s, uns))
+            .join(" ")
+            .trim();
+        }
+      }
+    }
+    if (Array.isArray(obj.decision_points)) {
+      obj.decision_points = obj.decision_points.filter((dp: any) => {
+        const dpText = `${dp.issue || ""} ${dp.impact || ""} ${dp.next_action || ""}`;
+        return !normUnsupported.some((uns) => matchesUnsupportedProposition(dpText, uns));
+      });
+    }
+  }
+
+  return { executiveSummary: exec };
+}
+
+/**
+ * Rule 4: Downstream prose cannot add a new substantive proposition after verification.
+ * Formatting and shortening are allowed. Adding meaning is NOT.
+ */
+export function enforceNoAddedPropositions(
+  candidateText: string,
+  verifiedClaim: StandardClaimObject,
+): string {
+  const verifiedDesc = (verifiedClaim.canonical_description || verifiedClaim.repaired_description || "").trim();
+  if (!candidateText || candidateText.trim() === verifiedDesc) {
+    return verifiedDesc || candidateText;
+  }
+
+  const normCandidate = normalizeText(candidateText);
+  const normVerified = normalizeText(verifiedDesc);
+  if (normVerified.includes(normCandidate) || normCandidate === normVerified) {
+    return candidateText;
+  }
+
+  // Split candidateText into atomic propositions
+  const candidateProps = splitCompoundClaim("", candidateText);
+  const quote = verifiedClaim.source_quotes[0] || "";
+  const normQuote = normalizeText(quote);
+
+  // Check each proposition: must either be part of verifiedDesc or directly entailed by the quote
+  const survivingProps = candidateProps.filter((cp) => {
+    const normCp = normalizeText(cp.text);
+    if (normVerified.includes(normCp)) return true;
+
+    // Check if directly entailed by the quote
+    if (cp.is_legal_conclusion) {
+      const quoteHasLegalTerms =
+        /\b(?:inconstitucional|contraviene|vulnera|viola|derechos\s+humanos|ilegal|invalido|indemnizaci[oó]n|suspender|desacato|sancionable|injustificado)\b/i.test(
+          normQuote,
+        );
+      const tokens = normCp.split(" ").filter((t) => t.length > 3 && !SPANISH_STOPWORDS.has(t));
+      const matching = tokens.filter((t) => normQuote.includes(t));
+      return quoteHasLegalTerms && tokens.length > 0 && matching.length / tokens.length >= 0.5;
+    }
+
+    const tokens = normCp.split(" ").filter((t) => t.length > 2 && !SPANISH_STOPWORDS.has(t));
+    const matching = tokens.filter((t) => normQuote.includes(t));
+    return tokens.length > 0 && matching.length / tokens.length >= 0.45;
+  });
+
+  if (survivingProps.length === 0) {
+    return verifiedDesc;
+  }
+
+  if (survivingProps.length < candidateProps.length) {
+    return formatReconstructedPropositions(survivingProps.map((p) => p.text));
+  }
+
+  return candidateText;
+}
+
 /**
  * Step 13: Final Pre-PDF Sweep
  * Runs immediately before PDF rendering.
@@ -788,6 +961,24 @@ export function sweepReportForPdfPublication<T extends { findings?: any[]; repor
 
   // Classify and validate all findings
   const { published, all } = classifyValidatePublishClaims(findings, context);
+
+  // Collect all unsupported/stripped propositions for section scrubbing (Rule 3)
+  const unsupportedPropositions: string[] = [];
+  for (const item of all) {
+    if (item.publication_status === "SUPPRESSED" || item.publication_status === "QUARANTINED") {
+      const rawTitle = item.original_claim.split(": ")[0];
+      const rawDesc = item.original_claim.split(": ").slice(1).join(": ");
+      if (rawTitle && rawTitle.length > 5) unsupportedPropositions.push(rawTitle);
+      if (rawDesc && rawDesc.length > 5) unsupportedPropositions.push(rawDesc);
+    }
+    const diag = (item.metadata as any)?.claim_entailment_diagnostic;
+    if (Array.isArray(diag?.stripped_propositions)) {
+      unsupportedPropositions.push(...diag.stripped_propositions);
+    }
+    if (Array.isArray(diag?.atomic_evaluation?.failed_texts)) {
+      unsupportedPropositions.push(...diag.atomic_evaluation.failed_texts);
+    }
+  }
 
   // Map published StandardClaimObjects back to finding row shapes
   const survivingFindingIds = new Set(published.map((p) => p.claim_id));
@@ -813,6 +1004,9 @@ export function sweepReportForPdfPublication<T extends { findings?: any[]; repor
         pub.repaired_description ||
         (pub.repaired_claim ? pub.repaired_claim.split(": ").slice(1).join(": ") : f.description);
 
+      // Rule 4: Enforce downstream text cannot add unverified propositions
+      const finalDesc = enforceNoAddedPropositions(canonicalDesc, pub);
+
       const canonicalSpeakerRole = isParty
         ? ((pub.metadata?.deterministic_attribution as any)?.roleLabel || "quejoso")
         : f.speaker_role;
@@ -820,7 +1014,7 @@ export function sweepReportForPdfPublication<T extends { findings?: any[]; repor
       const candidateFinding: any = {
         ...f,
         title: canonicalTitle,
-        description: canonicalDesc,
+        description: finalDesc,
         speaker_role: canonicalSpeakerRole,
         finding_status: "verified",
         verification_status: "verified",
@@ -852,7 +1046,12 @@ export function sweepReportForPdfPublication<T extends { findings?: any[]; repor
         .filter((card: any) => survivingFindingIds.has(String(card.finding?.id)))
         .map((card: any) => {
           const updated = activeFindingsForPdf.find((f: any) => String(f.id) === String(card.finding?.id));
-          return updated ? { ...card, finding: updated } : card;
+          if (!updated) return card;
+          const pub = published.find((p) => p.claim_id === String(updated.id));
+          const safeDesc = pub
+            ? enforceNoAddedPropositions(card.finding?.description || updated.description, pub)
+            : updated.description;
+          return { ...card, finding: { ...updated, description: safeDesc } };
         });
     }
     if (pres.snapshot && Array.isArray(pres.snapshot.priorityReview)) {
@@ -898,6 +1097,9 @@ export function sweepReportForPdfPublication<T extends { findings?: any[]; repor
       all_publication_diagnostics: all,
     },
   };
+
+  // Rule 3: Scrub any unsupported proposition text across all report sections
+  scrubUnsupportedPropositionsFromSections(updatedReport, (data as any).report_presentation, unsupportedPropositions);
 
   return {
     ...data,

@@ -63,10 +63,35 @@ export interface ClaimEntailmentDiagnostic {
   repaired_description: string | null;
   claim_action: ClaimAction;
   final_reportable: boolean;
+  stripped_propositions?: string[];
+  atomic_evaluation?: {
+    total: number;
+    passed: number;
+    failed: number;
+    passed_texts: string[];
+    failed_texts: string[];
+  };
 }
 
-const LEGAL_CONCLUSION_SPLIT_RX =
-  /\b(?:lo\s+que\s+(?:contraviene|vulnera|viola|resulta\s+contrario)|contraviniendo|vulnerando|violando|resultando\s+inconstitucional|lo\s+cual\s+resulta\s+ilegal|por\s+ser\s+contrario\s+a)\b/i;
+export const SPANISH_STOPWORDS = new Set([
+  "de", "la", "que", "el", "en", "y", "a", "los", "del", "se", "las", "por", "un", "para", "con", "no", "una",
+  "su", "al", "lo", "como", "mas", "pero", "sus", "le", "ya", "o", "este", "si", "porque", "esta", "entre",
+  "cuando", "muy", "sin", "sobre", "tambien", "me", "hasta", "hay", "donde", "quien", "desde", "todo", "nos",
+  "durante", "todos", "uno", "les", "ni", "contra", "otros", "ese", "eso", "ante", "ellos", "e", "esto", "mi",
+  "antes", "algunos", "unos", "yo", "otro", "otras", "otra", "tanto", "esa", "estos", "mucho",
+  "quienes", "nada", "muchos", "cual", "poco", "ella", "estar", "estas", "algunas", "algo", "nosotros",
+  "mis", "tu", "te", "ti", "tus", "ellas", "nosotras", "vosostros", "vosostras", "os", "mio", "mia",
+  "mios", "mias", "tuyo", "tuya", "tuyos", "tuyas", "suyo", "suya", "suyos", "suyas", "nuestro", "nuestra",
+  "nuestros", "nuestras", "vuestro", "vuestra", "vuestros", "vuestras", "esos", "esas", "aquel", "aquella",
+  "aquellos", "aquellas", "hacia", "tras", "mediante", "asimismo", "ademas", "ello", "dicho", "dicha",
+  "dichos", "dichas", "cada", "uno", "unos", "una", "unas", "tal", "tales", "primer", "primera", "primero",
+]);
+
+export const ATOMIC_CONNECTOR_SPLIT_RX =
+  /(?:,\s*|\s+;\s*|\s+)(?:por\s+lo\s+que|por\s+lo\s+tanto|por\s+ende|en\s+consecuencia|de\s+ah[ií]\s+que|derivado\s+de\s+lo\s+cual|con\s+lo\s+cual|por\s+consiguiente|de\s+modo\s+que|de\s+manera\s+que|lo\s+que\s+(?:hace|demuestra|implica|evidencia|conlleva|determina|conduce|obliga|genera|resulta|vulnera|viola|contraviene|constituye|acredita|justifica)|lo\s+cual\s+(?:hace|demuestra|implica|evidencia|conlleva|determina|conduce|obliga|genera|resulta|vulnera|viola|contraviene|constituye|acredita|justifica)|vulnerando|violando|contraviniendo|resultando\s+en|resultando\s+inconstitucional|implicando|generando|evidenciando|demostrando|ocasionando|y\s+(?:por\s+(?:ello|tanto|ende)|en\s+consecuencia))\b|,\s*(?:y|e)\s+(?=[a-záéíóúñ0-9])/i;
+
+export const LEGAL_CONCLUSION_RX =
+  /\b(?:inconstitucional|violaci[oó]n|ilegalidad|vulneraci[oó]n|contraviene|vulnera|viola|indemnizaci[oó]n|debi[oó]\s+suspender|debe\s+pagar|responsabilidad|sancionable|arbitrariedad|nulidad|daños\s+y\s+perjuicios|reparaci[oó]n\s+del\s+daño|desacato|procede\s+(?:la\s+indemnizaci[oó]n|el\s+pago)|hace\s+procedente|resulta\s+(?:ilegal|invalido|improcedente|nulo|contrario|injustificado))\b/i;
 
 function normalizeText(s: unknown): string {
   return String(s ?? "")
@@ -79,47 +104,87 @@ function normalizeText(s: unknown): string {
 }
 
 /**
- * Splits a compound claim into independent sub-propositions.
- * Separates factual assertions from legal conclusions / rights violations.
+ * Reconstructs a grammatically coherent, published sentence using ONLY
+ * propositions that passed independent atomic verification.
+ */
+export function formatReconstructedPropositions(propositions: string[]): string {
+  if (!propositions.length) return "";
+  return propositions
+    .map((p) => {
+      let t = p.trim().replace(/^[,;\s]+/, "");
+      t = t.replace(
+        /^(?:y|o|e|pero|por\s+lo\s+que|por\s+lo\s+tanto|por\s+ende|en\s+consecuencia|lo\s+que|lo\s+cual|de\s+ah[ií]\s+que|asimismo|adem[aá]s)\s+/i,
+        "",
+      );
+      t = t.charAt(0).toUpperCase() + t.slice(1);
+      if (!/[.!?]$/.test(t)) t += ".";
+      return t;
+    })
+    .join(" ");
+}
+
+/**
+ * Splits a compound claim into independent atomic sub-propositions.
+ * Separates factual assertions from legal conclusions, deductions, and secondary consequences.
  */
 export function splitCompoundClaim(
   title: string,
   description: string,
 ): Array<{ text: string; is_legal_conclusion: boolean; is_factual_assertion: boolean }> {
-  const full = `${title}. ${description}`.trim();
-  const match = description.match(LEGAL_CONCLUSION_SPLIT_RX);
+  const fullDesc = (description || title).trim();
+  if (!fullDesc) return [];
 
-  if (match && typeof match.index === "number" && match.index > 5) {
-    const factPart = description.slice(0, match.index).trim().replace(/[,;]\s*$/, "");
-    const conclusionPart = description.slice(match.index).trim();
+  // 1. Split on sentence boundaries
+  const rawSentences = fullDesc
+    .split(/(?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÑ0-9])/g)
+    .map((s) => s.trim())
+    .filter(Boolean);
 
-    return [
-      {
-        text: factPart.length > 10 ? factPart : title,
-        is_legal_conclusion: false,
-        is_factual_assertion: true,
-      },
-      {
-        text: conclusionPart,
-        is_legal_conclusion: true,
-        is_factual_assertion: false,
-      },
-    ];
+  const rawSegments: string[] = [];
+
+  for (const sentence of rawSentences) {
+    let rem = sentence;
+    let guard = 0;
+    while (rem && guard++ < 10) {
+      const match = rem.match(ATOMIC_CONNECTOR_SPLIT_RX);
+      if (match && typeof match.index === "number" && match.index > 5) {
+        const left = rem.slice(0, match.index).trim().replace(/[,;]\s*$/, "");
+        const right = rem.slice(match.index).trim();
+        if (left.length > 5) {
+          rawSegments.push(left);
+        }
+        rem = right;
+      } else {
+        if (rem.trim().length > 5) {
+          rawSegments.push(rem.trim().replace(/[,;]\s*$/, ""));
+        }
+        break;
+      }
+    }
   }
 
-  // Check if title or description itself is purely a legal conclusion
-  const isConclusion =
-    /\b(?:inconstitucional|violaci[oó]n\s+de\s+derechos|ilegalidad|vulneraci[oó]n|contraviene)\b/i.test(
-      description || title,
-    );
+  if (rawSegments.length === 0) {
+    rawSegments.push(fullDesc);
+  }
 
-  return [
-    {
-      text: description || title,
+  return rawSegments.map((segment) => {
+    const cleanedText = segment
+      .replace(
+        /^([,;\s]+|(?:y|o|e|pero|por\s+lo\s+que|por\s+lo\s+tanto|por\s+ende|en\s+consecuencia|asimismo|adem[aá]s|de\s+ah[ií]\s+que|lo\s+que|lo\s+cual)\s+)+/i,
+        "",
+      )
+      .replace(/[.;,]\s*$/, "")
+      .trim();
+
+    const text = cleanedText.length > 5 ? cleanedText : segment;
+    const isConclusion = LEGAL_CONCLUSION_RX.test(text);
+
+    return {
+      text,
       is_legal_conclusion: isConclusion,
       is_factual_assertion: !isConclusion,
-    },
-  ];
+    };
+  });
 }
 
 /**
@@ -228,11 +293,15 @@ export function evaluateClaimEntailment(claim: {
     if (prop.is_legal_conclusion) {
       // Check if the quote actually contains the legal conclusion
       const quoteHasRightsViolation =
-        /\b(?:inconstitucional|contraviene|vulnera|viola|derechos\s+humanos|ilegal|invalido)\b/i.test(
+        /\b(?:inconstitucional|contraviene|vulnera|viola|derechos\s+humanos|ilegal|invalido|indemnizaci[oó]n|suspender|desacato|sancionable|injustificado)\b/i.test(
           normQuote,
         );
 
-      if (quoteHasRightsViolation) {
+      const propTokens = normProp.split(" ").filter((t) => t.length > 3 && !SPANISH_STOPWORDS.has(t));
+      const matchingTokens = propTokens.filter((t) => normQuote.includes(t));
+      const matchRatio = propTokens.length > 0 ? matchingTokens.length / propTokens.length : 0;
+
+      if (quoteHasRightsViolation && (matchRatio >= 0.35 || normQuote.includes(normProp))) {
         propStatus = "ENTAILED";
         propReason = "Quote explicitly supports legal conclusion.";
       } else {
@@ -241,9 +310,13 @@ export function evaluateClaimEntailment(claim: {
           "Factual passage does not entail the asserted constitutional or rights violation conclusion.";
       }
     } else {
-      // Factual assertion entailment
-      // Check for core semantic alignment between passage and assertion
-      const propTokens = normProp.split(" ").filter((t) => t.length > 3);
+      // Factual assertion / holding / party proposition entailment
+      // Strip speech attribution prefix before tokenizing so core substantive tokens are tested
+      const cleanedNormProp = normProp.replace(
+        /^(?:el\s+quejoso|la\s+quejosa|la\s+parte\s+actora|el\s+actor|la\s+actora|la\s+demandada|el\s+demandado|el\s+tercero\s+interesado|el\s+ministerio\s+p[uú]blico|la\s+autoridad\s+responsable)\s+(?:argumenta|sostiene|alega|aduce|senala|señala|expone|refiere|afirma|solicita)\s+(?:que\s+)?/i,
+        "",
+      );
+      const propTokens = cleanedNormProp.split(" ").filter((t) => t.length > 2 && !SPANISH_STOPWORDS.has(t));
       const matchingTokens = propTokens.filter((t) => normQuote.includes(t));
       const matchRatio = propTokens.length > 0 ? matchingTokens.length / propTokens.length : 0;
 
@@ -276,12 +349,30 @@ export function evaluateClaimEntailment(claim: {
       } else if (assertsDetentionMonths && quoteProvesDetentionMonths) {
         propStatus = "ENTAILED";
         propReason = "Passage explicitly proves detention duration of approximately four months.";
-      } else if (matchRatio >= 0.4 || normQuote.includes(normProp) || normProp.includes(normQuote)) {
+      } else if (
+        matchRatio >= 0.4 ||
+        normQuote.includes(normProp) ||
+        normProp.includes(normQuote) ||
+        (cleanedNormProp.length > 10 && normQuote.includes(cleanedNormProp))
+      ) {
         propStatus = "ENTAILED";
         propReason = "Passage entails the asserted proposition.";
+      } else if (isPartyAllegation) {
+        // Party allegation grounding in case record
+        const quoteHasAllegationRecord =
+          /\b(?:agravio|agravios|alega|alegaci[oó]n|argumenta|demanda|recurso|apelaci[oó]n|quejoso|recurrente|pretensi[oó]n|respuesta)\b/i.test(
+            normQuote,
+          );
+        if (quoteHasAllegationRecord || matchRatio >= 0.25) {
+          propStatus = "ENTAILED";
+          propReason = "Party allegation grounded in case record.";
+        } else {
+          propStatus = "NOT_ENTAILED";
+          propReason = "Passage does not support this proposition (insufficient evidence grounding).";
+        }
       } else {
-        propStatus = "PARTIALLY_ENTAILED";
-        propReason = "Passage only partially matches the asserted proposition.";
+        propStatus = "NOT_ENTAILED";
+        propReason = "Passage does not support this proposition (insufficient evidence grounding).";
       }
     }
 
@@ -298,12 +389,8 @@ export function evaluateClaimEntailment(claim: {
   }
 
   // 4. Synthesize overall claim entailment and determine claim action
-  const hasEntailedFact = evaluatedProps.some((p) => p.is_factual_assertion && p.entailment_status === "ENTAILED");
-  const hasUnentailedConclusion = evaluatedProps.some(
-    (p) => p.is_legal_conclusion && p.entailment_status === "NOT_ENTAILED",
-  );
-  const allEntailed = evaluatedProps.every((p) => p.entailment_status === "ENTAILED");
-  const anyNotEntailed = evaluatedProps.some((p) => p.entailment_status === "NOT_ENTAILED");
+  const passedProps = evaluatedProps.filter((p) => p.entailment_status === "ENTAILED");
+  const failedProps = evaluatedProps.filter((p) => p.entailment_status !== "ENTAILED");
 
   let overallStatus: EntailmentStatus = "ENTAILED";
   let claimAction: ClaimAction = "KEEP";
@@ -312,41 +399,41 @@ export function evaluateClaimEntailment(claim: {
   let reason = "Claim fully entailed by cited evidence.";
   let reportable = true;
 
-  if (allEntailed) {
+  if (passedProps.length > 0 && failedProps.length === 0) {
+    // RULE: P1 supported + P2 supported → publish both
     if (isPartyAllegation) {
       overallStatus = "ENTAILED";
       claimAction = "RECLASSIFY";
       reason = "Verified party allegation grounded in case record.";
+      repairedClaim = title;
+      repairedDesc = desc;
       reportable = true;
     } else {
       overallStatus = "ENTAILED";
       claimAction = "KEEP";
-      reason = "Proposition and attribution fully entailed by cited passage.";
+      reason = "All atomic propositions independently entailed by cited evidence.";
+      repairedClaim = title;
+      repairedDesc = desc;
       reportable = true;
     }
-  } else if (hasEntailedFact && hasUnentailedConclusion) {
-    // Priority #2 Key Case: Factual premise is proven, but legal conclusion is unproven
-    // Repair: Keep the factual assertion, strip the unverified rights conclusion
+  } else if (passedProps.length > 0 && failedProps.length > 0) {
+    // RULE: P1 supported + P2 unsupported → publish P1 ONLY
+    // Do NOT discard a valid claim simply because another proposition in the same sentence fails.
+    // The final published text must be reconstructed ONLY from propositions that passed verification.
     overallStatus = "PARTIALLY_ENTAILED";
     claimAction = "REPAIR";
-    const factualProp = evaluatedProps.find((p) => p.is_factual_assertion)?.proposition_text || title;
     repairedClaim = title;
-    repairedDesc = `${factualProp}.`;
-    reason =
-      "Factual duration/event is entailed by cited passage; unverified constitutional conclusion was stripped.";
+    repairedDesc = formatReconstructedPropositions(passedProps.map((p) => p.proposition_text));
+    reason = `Atomic verification: ${passedProps.length} passed, ${failedProps.length} unsupported propositions removed.`;
     reportable = true;
-  } else if (anyNotEntailed && !hasEntailedFact) {
+  } else {
+    // RULE: P1 unsupported → quarantine/remove P1
     overallStatus = "NOT_ENTAILED";
     claimAction = "REMOVE";
-    reason = evaluatedProps.find((p) => p.entailment_status === "NOT_ENTAILED")?.entailment_reason || "Not entailed.";
+    repairedClaim = null;
+    repairedDesc = null;
+    reason = failedProps[0]?.entailment_reason || "No atomic propositions could be verified against cited evidence.";
     reportable = false;
-  } else {
-    overallStatus = "PARTIALLY_ENTAILED";
-    claimAction = "REPAIR";
-    repairedClaim = title;
-    repairedDesc = desc;
-    reason = "Claim adjusted to narrower supported formulation.";
-    reportable = true;
   }
 
   return {
@@ -364,5 +451,13 @@ export function evaluateClaimEntailment(claim: {
     repaired_description: repairedDesc,
     claim_action: claimAction,
     final_reportable: reportable,
+    stripped_propositions: failedProps.map((p) => p.proposition_text),
+    atomic_evaluation: {
+      total: evaluatedProps.length,
+      passed: passedProps.length,
+      failed: failedProps.length,
+      passed_texts: passedProps.map((p) => p.proposition_text),
+      failed_texts: failedProps.map((p) => p.proposition_text),
+    },
   };
 }
