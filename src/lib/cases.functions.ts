@@ -220,7 +220,11 @@ export const createCaseAndUpload = createServerFn({ method: "POST" })
     
     let derivedName = rawName;
     if (!derivedName && finalClientName) {
-      derivedName = `${finalClientName} — ${case_type ? case_type.charAt(0).toUpperCase() + case_type.slice(1) : "Caso Nuevo"}`;
+      derivedName = finalClientName;
+    }
+    const { cleanClientMatterName } = await import("@/lib/pdf/identity-resolver");
+    if (derivedName) {
+      derivedName = cleanClientMatterName(derivedName, case_type);
     }
 
     const isUserNamed = Boolean(derivedName.length > 0 && derivedName !== "Untitled Case");

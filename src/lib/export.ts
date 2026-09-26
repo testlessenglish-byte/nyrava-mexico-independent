@@ -1,6 +1,6 @@
 import { reportRenderTimestamp } from "./reporting/reviewed-sections";
 import { translateLegalTerm } from "./pdf/enum-translation";
-import { resolveReportIdentity } from "./pdf/identity-resolver";
+import { resolveReportIdentity, cleanClientMatterName, isUserInstructionOrPrompt } from "./pdf/identity-resolver";
 import { prepareCaseJsonExport } from "./reporting/case-json-export";
 import {documentPurposeSummary} from './reporting/document-purpose-summary';
 import {assertNarrativeExportReady} from './reporting/narrative-export-gate';
@@ -65,6 +65,24 @@ import { filterExecutiveDashboardEligible } from "@/lib/intelligence/judicial-hi
 // The structure, section order, and scoring formulas are locked; only bug
 // fixes, factual accuracy, citation, and formatting improvements are allowed.
 // See docs/RELEASE-REPORT-ENGINE-v1.0.md and docs/FREEZE.md.
+export function formatAnalysisDate(dateStr?: string): string {
+  if (!dateStr) return "25 de septiembre de 2026";
+  const months = [
+    "enero", "febrero", "marzo", "abril", "mayo", "junio",
+    "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"
+  ];
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateStr);
+  if (m) {
+    const year = m[1];
+    const monthIdx = parseInt(m[2], 10) - 1;
+    const day = parseInt(m[3], 10);
+    if (monthIdx >= 0 && monthIdx < 12) {
+      return `${day} de ${months[monthIdx]} de ${year}`;
+    }
+  }
+  return dateStr;
+}
+
 export const NYRAVA_REPORT_VERSION = "1.0.0";
 
 // Brand accent matching the Nyrava México approved design system
@@ -639,14 +657,15 @@ export class PdfBuilder {
   private finalPageCount: number | null = null;
 
   constructor(caseName: string, matterId?: string) {
-    this.matterId = matterId || caseName;
+    const cleanName = cleanClientMatterName(caseName);
+    this.matterId = matterId || cleanName;
     // @ts-ignore
     const JSPDF = typeof jsPDF === "function" ? jsPDF : jsPDF.jsPDF;
     this.doc = new JSPDF({ unit: "pt", format: "letter" }) as Pdf;
     this.pageW = this.doc.internal.pageSize.getWidth();
     this.pageH = this.doc.internal.pageSize.getHeight();
     this.y = this.margin;
-    this.caseName = caseName;
+    this.caseName = cleanName;
     // Wrap doc.text so EVERY string the PDF emits (including autoTable cells,
     // footers, splitTextToSize output) is ASCII-safe. This is the canonical
     // fix for the "£(" rendering bug — Unicode math symbols never reach the
@@ -851,6 +870,8 @@ export class PdfBuilder {
     reportTitle: string;
     caseName: string;
     client?: string;
+    description?: string;
+    factualDescription?: string;
     proceeding?: string;
     matterType?: string;
     court?: string;
@@ -916,12 +937,21 @@ export class PdfBuilder {
     // 4. Dynamic Matter Metadata (rendered directly on the cream background — NO WHITE BOX)
     const rawMatterId = opts.matterId || "No proporcionado";
     const cleanMatterId = rawMatterId.length > 36 ? rawMatterId.slice(0, 36) : rawMatterId;
+    const clientMatterName = cleanClientMatterName(opts.client || opts.caseName, opts.matterType);
+
+    // Resolve short factual description (factual only, NEVER user instructions/prompts)
+    const rawDesc = opts.description || opts.factualDescription;
+    const cleanDesc = rawDesc && !isUserInstructionOrPrompt(rawDesc)
+      ? rawDesc.trim().replace(/\s+/g, " ")
+      : (opts.matterType ? `Análisis de determinaciones y constancias procesales en materia ${opts.matterType}.` : "Análisis de determinaciones y constancias del expediente.");
+    const shortDesc = cleanDesc.length > 160 ? cleanDesc.slice(0, 157) + "..." : cleanDesc;
     const fields = [
-      { k: "CLIENTE", v: opts.client || opts.caseName || "Caso en identificación..." },
+      { k: "CLIENTE / ASUNTO", v: clientMatterName },
+      { k: "DESCRIPCIÓN", v: shortDesc },
       { k: "EXPEDIENTE", v: opts.caseNumber || "No proporcionado" },
       { k: "MATERIA", v: opts.matterType || "Familiar" },
       { k: "ÓRGANO JURISDICCIONAL", v: opts.court || "Juzgado de lo Familiar" },
-      { k: "FECHA DEL ANÁLISIS", v: opts.date || "25 de septiembre de 2026" },
+      { k: "FECHA DEL ANÁLISIS", v: formatAnalysisDate(opts.date) },
       { k: "NYRAVA MATTER ID", v: cleanMatterId },
     ];
 
@@ -932,19 +962,23 @@ export class PdfBuilder {
       this.doc.setTextColor(...ACCENT);
       this.doc.text(spaced(f.k), leftX, curY);
 
-      curY += 11;
+      curY += 10;
       this.doc.setFont("helvetica", "normal");
       this.doc.setFontSize(8.6);
       this.doc.setTextColor(...INK);
       const valLines = this.doc.splitTextToSize(f.v, metaW) as string[];
-      this.doc.text(valLines[0] ?? f.v, leftX, curY);
+      const linesToRender = valLines.slice(0, 2);
+      for (let li = 0; li < linesToRender.length; li++) {
+        this.doc.text(linesToRender[li], leftX, curY);
+        if (li < linesToRender.length - 1) curY += 9;
+      }
 
-      curY += 9;
+      curY += 8;
       this.doc.setDrawColor(...LINE);
       this.doc.setLineWidth(0.4);
       this.doc.line(leftX, curY, leftX + metaW, curY);
 
-      curY += 12;
+      curY += 10;
     }
 
     // 5. Bottom Confidential Badge & Indicators
@@ -2265,7 +2299,8 @@ function renderCover(
       ? asStr(currentJudgment.court,identity.court) : identity.court);
   b.premiumCover({
     reportTitle: "INFORME DE INTELIGENCIA JURÍDICA",
-    caseName: asStr(c.name, "Untitled Case"),
+    caseName: cleanClientMatterName(asStr(c.name, "Untitled Case"), identity.matterType),
+    description: identity.description,
     client: identity.client,
     proceeding: translateLegalTerm(identity.proceedingType),
     matterType: translateLegalTerm(identity.matterType),
@@ -2289,7 +2324,7 @@ function renderCover(
   b.doc.setTextColor(...ACCENT);
   b.doc.text(getReportTemplateLocale() === "es" ? "R E S U M E N   D E L   A S U N T O" : "E X E C U T I V E   D A S H B O A R D", b.margin, b.y);
   b.y += 18;
-  b.text(asStr(c.name, "Untitled Case"), { size: 20, bold: true, color: PRIMARY, gap: 4 });
+  b.text(getReportTemplateLocale() === "es" ? "Informe de Inteligencia Jurídica" : "Legal Intelligence Report", { size: 20, bold: true, color: PRIMARY, gap: 4 });
   b.doc.setDrawColor(...ACCENT);
   b.doc.setLineWidth(1.5);
   b.doc.line(b.margin, b.y, b.margin + 60, b.y);
@@ -2612,7 +2647,10 @@ function renderExecutive(b: PdfBuilder, data: CaseExportData, mode: ReportMode) 
   const objective = asObj(asObj(r.full_report).objective) as Record<string, unknown>;
   if (asStr(objective.answer)) {
     b.h2(execLocale === "en" ? "Direct Answer" : "Respuesta Directa");
-    b.text(asStr(objective.question), { size: 10, color: MUTED, gap: 4 });
+    const rawQ = asStr(objective.question);
+    if (rawQ && !isUserInstructionOrPrompt(rawQ)) {
+      b.text(rawQ, { size: 10, color: MUTED, gap: 4 });
+    }
     b.text(asStr(objective.answer), { size: 12, gap: 6 });
     const conf = asStr(objective.confidence);
     if (conf) {
@@ -3212,7 +3250,7 @@ function fallbackOverview(data: CaseExportData): string {
     .map((f) => asStr(f.title))
     .filter(Boolean);
   return [
-    `Caso: ${asStr(c.name, "Caso sin título")}.`,
+    `Asunto: ${cleanClientMatterName(asStr(c.name, "Caso en identificación"))}.`,
     docs.length
       ? `Documentos fuente revisados: ${docs.join(", ")}.`
       : "No se adjuntaron documentos fuente a esta exportación.",

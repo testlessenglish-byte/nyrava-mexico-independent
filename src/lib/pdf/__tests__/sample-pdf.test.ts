@@ -28,12 +28,14 @@ describe("Synthetic Sample Report Generation", () => {
     const unspaced = text.replace(/([A-ZÁÉÍÓÚÑ])\s(?=[A-ZÁÉÍÓÚÑ])/g, "$1");
 
     // Verify Page 1 metadata
+    expect(unspaced).toContain("CLIENTE / ASUNTO");
+    expect(unspaced).toContain("DESCRIPCIÓN");
     expect(text).toContain("ADR 6433/2022");
     expect(text).toContain("391d6d76-8f20-498c-b01a-8c831f29b9f1");
     expect(text).toContain("Lic. Roberto González M.");
 
     // Verify Page 2 Executive Snapshot
-    expect(text).toContain("Amparo Directo en Revisión 6433/2022");
+    expect(text).toContain("Informe de Inteligencia Jurídica");
     expect(text).toContain("Se revoca la sentencia recurrida");
     expect(text).toContain("discriminación al aplicar presunciones");
     expect(text).toContain("82 / 100");

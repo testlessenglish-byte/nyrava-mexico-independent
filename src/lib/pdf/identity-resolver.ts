@@ -16,11 +16,71 @@ function firstText(...values: unknown[]): string | undefined {
   return undefined;
 }
 
+/**
+ * Strips appended materia or case type suffix from a client or matter name.
+ * e.g. "New Family 1 - Familiar" -> "New Family 1"
+ * e.g. "Empresa ABC — Mercantil" -> "Empresa ABC"
+ */
+export function cleanClientMatterName(name?: string, materia?: string): string {
+  if (!name || typeof name !== "string") return "Caso en identificación...";
+  let cleaned = name.trim();
+  if (materia) {
+    const escMat = materia.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    cleaned = cleaned.replace(new RegExp(`\\s*[-—–/|]\\s*${escMat}\\b`, "i"), "").trim();
+  }
+  cleaned = cleaned.replace(/\s*[-—–/|]\s*(?:familiar|civil|penal|amparo|migratorio|inmigraci[oó]n|mercantil|laboral|fiscal|administrativo|agrario|ambiental|electoral|constitucional)\b/i, "").trim();
+  return cleaned || name.trim();
+}
+
+/**
+ * Checks if a string represents an internal user instruction or prompt
+ * rather than factual case description or metadata.
+ */
+export function isUserInstructionOrPrompt(text?: string): boolean {
+  if (!text || typeof text !== "string") return false;
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+
+  // Prefix checks for prompts or instructions
+  if (
+    /^(?:analiza|analice|analizar|revisa|revise|revisar|determina|determine|determinar|eval[uú]a|eval[uú]e|evaluar|busca|buscar|verifique|verificar|instrucci[oó]n(?:es)?|prompt|user\s+prompt|favor\s+de|se\s+solicita|pregunta(?:\s+jur[ií]dica)?|objetivo(?:\s+del\s+an[aá]lisis)?|note|nota)\b[:\s]/i.test(
+      trimmed,
+    )
+  ) {
+    return true;
+  }
+
+  // Imperative task requests directed to the system/AI
+  if (
+    /\b(?:por\s+favor\s+(?:analizar|revisar|verificar|determinar)|necesito\s+que|quiero\s+que|act[uú]a\s+como|eres\s+un|dar\s+prioridad\s+a|se\s+requiere\s+que\s+(?:el\s+sistema|la\s+ia|el\s+analista)|please\s+(?:analyze|review|check|verify)|act\s+as\s+a)\b/i.test(
+      trimmed,
+    )
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 export function resolveReportIdentity(caseData: Record<string, any>) {
   const metadata = asRecord(caseData.matter_metadata);
   const identity = asRecord(metadata.case_identity);
   const configuration = asRecord(metadata.case_configuration);
   const jurisdictionProfile = asRecord(caseData.jurisdiction_profile);
+
+  // Subject matter (materia): underlying materia when the vehicle is a
+  // constitutional remedy, otherwise the verified case type.
+  const rawMatterType = firstText(
+    caseData.materia,
+    caseData.underlying_materia,
+    identity.underlying_materia,
+    identity.effective_materia,
+    configuration.active_underlying_materia,
+    caseData.case_type,
+    configuration.active_case_type,
+    jurisdictionProfile.materia,
+  );
+  const matterType = rawMatterType ? cleanClientMatterName(rawMatterType) : undefined;
 
   // Safe extraction of the explicitly stored client
   const clientName = (caseData.client_name || caseData.account_client) as
@@ -28,7 +88,10 @@ export function resolveReportIdentity(caseData: Record<string, any>) {
     | undefined;
 
   // Do NOT fallback to finding "quejoso" or "actor" in parties list if client is missing!
-  const safeClient = clientName ? String(clientName).trim() : undefined;
+  const safeClient = clientName ? cleanClientMatterName(String(clientName).trim(), matterType) : undefined;
+
+  const rawMatterName = firstText(caseData.name, identity.case_display_name);
+  const safeMatterName = rawMatterName ? cleanClientMatterName(rawMatterName, matterType) : undefined;
 
   const caseNumber = String(
     firstText(
@@ -54,18 +117,16 @@ export function resolveReportIdentity(caseData: Record<string, any>) {
     configuration.active_case_type,
   );
 
-  // Subject matter (materia): underlying materia when the vehicle is a
-  // constitutional remedy, otherwise the verified case type.
-  const matterType = firstText(
-    caseData.materia,
-    caseData.underlying_materia,
-    identity.underlying_materia,
-    identity.effective_materia,
-    configuration.active_underlying_materia,
-    caseData.case_type,
-    configuration.active_case_type,
-    jurisdictionProfile.materia,
+  // Short factual description if supplied or reliably detected
+  const rawDesc = firstText(
+    caseData.description,
+    metadata.description,
+    identity.case_description,
+    identity.description,
   );
+  const factualDescription = rawDesc && !isUserInstructionOrPrompt(rawDesc)
+    ? rawDesc.trim().replace(/\s+/g, " ")
+    : undefined;
 
   // Jurisdictional body (órgano jurisdiccional).
   // When the SCJN issues a remand ruling, both the SCJN and the receiving
@@ -100,7 +161,8 @@ export function resolveReportIdentity(caseData: Record<string, any>) {
 
   // Generate safe filename
   const parts = [];
-  if (safeClient) parts.push(safeClient.replace(/[^a-zA-Z0-9]/g, "_"));
+  const clientOrName = safeClient || safeMatterName;
+  if (clientOrName) parts.push(clientOrName.replace(/[^a-zA-Z0-9]/g, "_"));
   parts.push(caseNumber.replace(/[^a-zA-Z0-9]/g, "_"));
   if (proceedingType) parts.push(proceedingType.replace(/[^a-zA-Z0-9]/g, "_"));
 
@@ -108,6 +170,9 @@ export function resolveReportIdentity(caseData: Record<string, any>) {
 
   return {
     client: safeClient,
+    matterName: safeMatterName,
+    clientOrMatter: safeClient || safeMatterName || "Caso en identificación...",
+    description: factualDescription,
     caseNumber,
     proceedingType,
     matterType,

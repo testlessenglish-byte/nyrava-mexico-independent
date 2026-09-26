@@ -3,7 +3,7 @@ export function documentPurposeSummary(raw:unknown,locale='es'):string[] {
   const scope=raw as Record<string,any>,en=locale==='en';
   const lines:string[]=[];
   if(scope.test_fixture===true)lines.push(en?'Test fixture — production verification requirements apply.':'Caso de prueba — se aplican los requisitos de verificación de producción.');
-  if(typeof scope.legal_question==='string' && scope.legal_question.trim())lines.push(`${en?'Legal question':'Pregunta jurídica'}: ${scope.legal_question}`);
+  // User prompts and instructions are internal control data only; NEVER print them in reports.
   for(const document of Array.isArray(scope.documents)?scope.documents:[]){
     const label=document.source_scope==='research'?(en?'Legal research / judgment analysis':'Investigación jurídica / análisis de sentencia'):
       document.source_scope==='declared_client_evidence'?(en?'Submitted evidence; connection declared, contents not presumed proven':'Evidencia presentada; vínculo declarado, contenido no presumido probado'):
