@@ -84,10 +84,10 @@ describe("Legal Analysis Types Feature Flags & Initial Launch Configuration", ()
     await expect(assertLegalAnalysisTypeEnabled("migratorio")).resolves.toBeUndefined();
 
     await expect(assertLegalAnalysisTypeEnabled("mercantil")).rejects.toThrow(
-      LEGAL_ANALYSIS_TYPE_DISABLED_MESSAGE_ES,
+      "Derecho Mercantil aún no está disponible para nuevos análisis.",
     );
-    await expect(assertLegalAnalysisTypeEnabled("laboral", undefined, "en")).rejects.toThrow(
-      LEGAL_ANALYSIS_TYPE_DISABLED_MESSAGE_EN,
+    await expect(assertLegalAnalysisTypeEnabled("mercantil", undefined, "en")).rejects.toThrow(
+      "Commercial Law is not currently available for new analyses.",
     );
   });
 });

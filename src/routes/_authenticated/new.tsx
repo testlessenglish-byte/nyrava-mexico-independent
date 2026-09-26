@@ -10,7 +10,6 @@ import { createCaseAndUpload, listGroqKeys } from "@/lib/cases.functions";
 import { listLegalAnalysisTypes } from "@/lib/legal-analysis-types.functions";
 import { toast } from "sonner";
 import { Upload, FileText, X, KeyRound, ShieldCheck } from "lucide-react";
-import { CASE_TYPE_SELECT_GROUPS } from "@/lib/intelligence/practice-areas";
 import { JURISDICTION_GROUPS } from "@/lib/intelligence/jurisdictions";
 import { IMMIGRATION_SUBTYPES } from "@/lib/jurisdiction/immigration";
 import {
@@ -61,11 +60,25 @@ function NewCasePage() {
     queryKey: ["legalAnalysisTypes"],
     queryFn: () => fetchLegalAnalysisTypes(),
   });
-  const defaultLaunchMaterias = new Set(["familiar", "civil", "penal", "migratorio"]);
-  const enabledMaterias = new Set(
-    (legalAnalysisTypes ?? []).filter((t) => t.enabled).map((t) => t.code),
-  );
-  const activeMateriaSet = enabledMaterias.size > 0 ? enabledMaterias : defaultLaunchMaterias;
+  const availableMaterias =
+    legalAnalysisTypes && legalAnalysisTypes.length > 0
+      ? legalAnalysisTypes.filter((t) => t.enabled)
+      : [
+          { code: "familiar", name_es: "Derecho Familiar", name_en: "Family Law", enabled: true },
+          { code: "civil", name_es: "Derecho Civil", name_en: "Civil Law", enabled: true },
+          {
+            code: "penal",
+            name_es: "Derecho Penal (Sistema Acusatorio, CNPP)",
+            name_en: "Criminal Law (Accusatory System, CNPP)",
+            enabled: true,
+          },
+          {
+            code: "migratorio",
+            name_es: "Derecho Migratorio, Refugio y Nacionalidad",
+            name_en: "Mexican Immigration, Refugee and Nationality Law",
+            enabled: true,
+          },
+        ];
 
   const nav = useNavigate();
   const uploadCase = useServerFn(createCaseAndUpload);
@@ -367,22 +380,10 @@ function NewCasePage() {
               <option value="" disabled>
                 {t("new.field.caseType.placeholder")}
               </option>
-              {CASE_TYPE_SELECT_GROUPS.map((g) => (
-                <optgroup key={g.group} label={g.group}>
-                  {g.options.map((opt) => {
-                    const isAvailable = activeMateriaSet.has(opt.value as any);
-                    return (
-                      <option key={opt.value} value={opt.value} disabled={!isAvailable}>
-                        {opt.label}
-                        {!isAvailable
-                          ? locale === "es"
-                            ? " — (Próximamente)"
-                            : " — (Coming Soon)"
-                          : ""}
-                      </option>
-                    );
-                  })}
-                </optgroup>
+              {availableMaterias.map((m) => (
+                <option key={m.code} value={m.code}>
+                  {locale === "es" ? m.name_es : m.name_en}
+                </option>
               ))}
             </select>
           </div>
@@ -418,15 +419,18 @@ function NewCasePage() {
                   onChange={(e) => setUnderlyingMateria(e.target.value)}
                   className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
                 >
-                  <option value="">Selecciona materia subyacente (opcional)</option>
-                  <option value="laboral">Laboral</option>
-                  <option value="civil">Civil</option>
-                  <option value="penal">Penal</option>
-                  <option value="mercantil">Mercantil</option>
-                  <option value="administrativo">Administrativo</option>
-                  <option value="familiar">Familiar</option>
-                  <option value="fiscal">Fiscal</option>
-                  <option value="agrario">Agrario</option>
+                  <option value="">
+                    {locale === "es"
+                      ? "Selecciona materia subyacente (opcional)"
+                      : "Select underlying practice area (optional)"}
+                  </option>
+                  {availableMaterias
+                    .filter((m) => m.code !== "amparo")
+                    .map((m) => (
+                      <option key={m.code} value={m.code}>
+                        {locale === "es" ? m.name_es : m.name_en}
+                      </option>
+                    ))}
                 </select>
               </div>
             </div>

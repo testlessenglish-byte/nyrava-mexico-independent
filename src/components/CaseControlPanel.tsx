@@ -3,7 +3,7 @@ import { CivilFamilyProcedureFields } from "./CivilFamilyProcedureFields";
 import { needsCivilFamilyProcedure } from "@/lib/legal/case-law-configuration";
 import { ApplicableLawStateField } from "./ApplicableLawStateField";
 import { useEffect, useRef, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Loader2, Play, RotateCw, Settings as SettingsIcon, ChevronDown, ChevronUp, FilePlus2, ShieldCheck, FastForward, Wrench, AlertTriangle } from "lucide-react";
@@ -18,7 +18,8 @@ import {
   PIPELINE_STAGES,
 } from "@/lib/cases.functions";
 import { AGENT_DEFINITIONS } from "@/lib/agents/types";
-import { CASE_TYPE_SELECT_OPTIONS } from "@/lib/intelligence/practice-areas";
+import { listLegalAnalysisTypes } from "@/lib/legal-analysis-types.functions";
+import { DEFAULT_LEGAL_ANALYSIS_TYPES } from "@/lib/legal-analysis-types";
 import { JURISDICTION_GROUPS } from "@/lib/intelligence/jurisdictions";
 import { CASE_ANALYSIS_MODE_SELECTABLE_OPTIONS } from "@/lib/intelligence/case-analysis-mode";
 import { getCaseConfiguration } from "@/lib/intelligence/case-configuration";
@@ -75,7 +76,16 @@ export function CaseControlPanel({
   const clearStuckFn = useServerFn(clearPipelineStuckState);
   const addFn = useServerFn(addEvidenceAndRerun);
   const finalizeFn = useServerFn(finalizeReportChangeLog);
-  const runStateFn = useServerFn(getCaseRunState);
+  const fetchLegalAnalysisTypes = useServerFn(listLegalAnalysisTypes);
+  const { data: legalAnalysisTypes } = useQuery({
+    queryKey: ["legalAnalysisTypes"],
+    queryFn: () => fetchLegalAnalysisTypes(),
+  });
+  const availableMaterias = (legalAnalysisTypes && legalAnalysisTypes.length > 0
+    ? legalAnalysisTypes
+    : DEFAULT_LEGAL_ANALYSIS_TYPES
+  ).filter((t) => t.enabled);
+
   const fileRef = useRef<HTMLInputElement | null>(null);
   const cancelWaitRef = useRef(false);
   const [addBusy, setAddBusy] = useState(false);
@@ -616,7 +626,16 @@ function CollapsedCaseSettings({
               className="w-full rounded-lg border border-border bg-background px-2.5 py-2 text-sm disabled:opacity-50"
             >
               {!ct && <option value="" disabled>{t("caseSettings.caseType.unclassified")}</option>}
-              {CASE_TYPE_SELECT_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+              {ct && !availableMaterias.some((m) => m.code === ct) && (
+                <option value={ct} disabled>
+                  {ct} (Histórico)
+                </option>
+              )}
+              {availableMaterias.map((m) => (
+                <option key={m.code} value={m.code}>
+                  {locale === "es" ? m.name_es : m.name_en}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -645,15 +664,18 @@ function CollapsedCaseSettings({
                   disabled={disabled}
                   className="w-full rounded-lg border border-border bg-background px-2.5 py-2 text-sm disabled:opacity-50"
                 >
-                  <option value="">Selecciona materia subyacente</option>
-                  <option value="laboral">Laboral</option>
-                  <option value="civil">Civil</option>
-                  <option value="penal">Penal</option>
-                  <option value="mercantil">Mercantil</option>
-                  <option value="administrativo">Administrativo</option>
-                  <option value="familiar">Familiar</option>
-                  <option value="fiscal">Fiscal</option>
-                  <option value="agrario">Agrario</option>
+                  <option value="">
+                    {locale === "es"
+                      ? "Selecciona materia subyacente (opcional)"
+                      : "Select underlying practice area (optional)"}
+                  </option>
+                  {availableMaterias
+                    .filter((m) => m.code !== "amparo")
+                    .map((m) => (
+                      <option key={m.code} value={m.code}>
+                        {locale === "es" ? m.name_es : m.name_en}
+                      </option>
+                    ))}
                 </select>
               </div>
             </>

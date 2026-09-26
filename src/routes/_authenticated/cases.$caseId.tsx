@@ -92,7 +92,8 @@ import { CaseControlPanel } from "@/components/CaseControlPanel";
 import { MultiAgentPanel } from "@/components/MultiAgentPanel";
 import { ParityBadge } from "@/components/ParityBadge";
 import { ClaimBadge } from "@/components/ClaimBadge";
-import { CASE_TYPE_SELECT_OPTIONS } from "@/lib/intelligence/practice-areas";
+import { listLegalAnalysisTypes } from "@/lib/legal-analysis-types.functions";
+import { DEFAULT_LEGAL_ANALYSIS_TYPES } from "@/lib/legal-analysis-types";
 import { MX_PARTY_ROLES, mxProfileOrNull, mxRoleLabel } from "@/lib/execution/mx-pipeline";
 import {
   getCanonicalCounts,
@@ -1007,11 +1008,16 @@ function CaseSettingsCard({
   invalidate: () => void;
 }) {
   const updateFn = useServerFn(updateCaseSettings);
-  // "" (not a stale English default like "general_civil") means the case
-  // carries no recognized Mexican materia yet — CASE_TYPE_SELECT_OPTIONS
-  // only lists the 13 real materias, so any other fallback value would not
-  // match an <option>, leaving the browser to silently highlight whichever
-  // option happens to be first (Penal) while state stays out of sync.
+  const fetchLegalAnalysisTypes = useServerFn(listLegalAnalysisTypes);
+  const { data: legalAnalysisTypes } = useQuery({
+    queryKey: ["legalAnalysisTypes"],
+    queryFn: () => fetchLegalAnalysisTypes(),
+  });
+  const availableMaterias = (legalAnalysisTypes && legalAnalysisTypes.length > 0
+    ? legalAnalysisTypes
+    : DEFAULT_LEGAL_ANALYSIS_TYPES
+  ).filter((t) => t.enabled);
+
   const [ct, setCt] = useState<string>(caseType ?? "");
   const [mode, setMode] = useState<string>(analysisMode || "balanced");
   useEffect(() => {
@@ -1066,9 +1072,14 @@ function CaseSettingsCard({
               {L("Sin clasificar — selecciona la materia", "Unclassified — select the practice area")}
             </option>
           )}
-          {CASE_TYPE_SELECT_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
+          {ct && !availableMaterias.some((m) => m.code === ct) && (
+            <option value={ct} disabled>
+              {ct} (Histórico)
+            </option>
+          )}
+          {availableMaterias.map((m) => (
+            <option key={m.code} value={m.code}>
+              {CUR_LOCALE === "es" ? m.name_es : m.name_en}
             </option>
           ))}
         </select>

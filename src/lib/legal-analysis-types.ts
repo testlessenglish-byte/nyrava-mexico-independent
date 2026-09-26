@@ -6,12 +6,34 @@ import {
 } from "./jurisdiction/mexico-types";
 
 export const LEGAL_ANALYSIS_TYPE_DISABLED_MESSAGE_ES =
-  "Este tipo de análisis jurídico aún no está disponible en Nyrava México.";
+  "Este tipo de análisis jurídico aún no está disponible para nuevos análisis.";
 export const LEGAL_ANALYSIS_TYPE_DISABLED_MESSAGE_EN =
-  "This legal analysis type is not currently available in Nyrava México.";
+  "This legal analysis type is not currently available for new analyses.";
 
-export function getLegalAnalysisTypeDisabledMessage(locale?: string): string {
-  return locale?.startsWith("en")
+export function getLegalAnalysisTypeDisabledMessage(
+  materiaOrLocale?: string | null,
+  maybeLocale?: string,
+): string {
+  let materiaCode: MexicanCaseType | undefined;
+  let locale = maybeLocale;
+  if (materiaOrLocale === "es" || materiaOrLocale === "en") {
+    locale = materiaOrLocale;
+  } else if (materiaOrLocale) {
+    const norm = materiaOrLocale.toLowerCase().trim();
+    if (isMexicanCaseType(norm)) {
+      materiaCode = norm;
+    }
+  }
+
+  const isEn = Boolean(locale?.startsWith("en"));
+  if (materiaCode && MX_CASE_TYPE_LABELS[materiaCode]) {
+    const labels = MX_CASE_TYPE_LABELS[materiaCode];
+    return isEn
+      ? `${labels.en} is not currently available for new analyses.`
+      : `${labels.es} aún no está disponible para nuevos análisis.`;
+  }
+
+  return isEn
     ? LEGAL_ANALYSIS_TYPE_DISABLED_MESSAGE_EN
     : LEGAL_ANALYSIS_TYPE_DISABLED_MESSAGE_ES;
 }
@@ -290,6 +312,18 @@ export async function assertLegalAnalysisTypeEnabled(
 ): Promise<void> {
   const enabled = await isLegalAnalysisTypeEnabled(materiaCode, dbClient);
   if (!enabled) {
-    throw new Error(getLegalAnalysisTypeDisabledMessage(locale));
+    throw new Error(getLegalAnalysisTypeDisabledMessage(materiaCode, locale));
   }
 }
+
+/**
+ * Returns only the currently enabled legal analysis types for subscribers.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function getEnabledLegalAnalysisTypes(
+  dbClient?: any,
+): Promise<LegalAnalysisTypeConfig[]> {
+  const types = await getLegalAnalysisTypes(dbClient);
+  return types.filter((t) => t.enabled);
+}
+

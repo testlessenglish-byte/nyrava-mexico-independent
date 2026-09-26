@@ -165,9 +165,41 @@ async function _runPipelineForCase(
   // Authoritative Configuration Validation & Execution Snapshot
   const { data: fullCaseRow } = await (supabase as any)
     .from("cases")
-    .select("id,case_type,jurisdiction,analysis_mode,case_analysis_mode,procedural_vehicle,underlying_materia,matter_metadata")
+    .select("id,case_type,jurisdiction,analysis_mode,case_analysis_mode,procedural_vehicle,underlying_materia,matter_metadata,report_language")
     .eq("id", caseId)
     .maybeSingle();
+
+  if (fullCaseRow?.case_type) {
+    const { isLegalAnalysisTypeEnabled, getLegalAnalysisTypeDisabledMessage } =
+      await import("@/lib/legal-analysis-types");
+    const isEnabled = await isLegalAnalysisTypeEnabled(fullCaseRow.case_type, supabase);
+    if (!isEnabled) {
+      const msg = getLegalAnalysisTypeDisabledMessage(
+        fullCaseRow.case_type,
+        (fullCaseRow as any)?.report_language ?? "es",
+      );
+      await (supabase as any)
+        .from("cases")
+        .update({
+          status: "failed",
+          status_message: msg,
+          error: msg,
+          next_stage: null,
+          worker_lease_until: null,
+        })
+        .eq("id", caseId);
+      trace("pipeline.disabled_materia_blocked", {
+        case_type: fullCaseRow.case_type,
+        error: msg,
+      });
+      return {
+        ok: false,
+        completedStages: 0,
+        failedAt: "materia_availability_gate",
+        warnings: [{ key: "materia_availability_gate", error: msg }],
+      };
+    }
+  }
 
   const {
     validateConfigurationForExecution,
@@ -1026,7 +1058,44 @@ async function _runPipelineForCase(
         persisted: detection.detected,
         source: detection.source,
       });
-    } catch (e) {
+      if (detection.caseType) {
+        const { isLegalAnalysisTypeEnabled, getLegalAnalysisTypeDisabledMessage } =
+          await import("./legal-analysis-types");
+        const isEnabled = await isLegalAnalysisTypeEnabled(detection.caseType, supabase);
+        if (!isEnabled) {
+          const msg = getLegalAnalysisTypeDisabledMessage(
+            detection.caseType,
+            (fullCaseRow as any)?.report_language ?? "es",
+          );
+          await (supabase as any)
+            .from("cases")
+            .update({
+              status: "failed",
+              status_message: msg,
+              error: msg,
+              next_stage: null,
+              worker_lease_until: null,
+            })
+            .eq("id", caseId);
+          trace("pipeline.disabled_materia_blocked_by_classifier", {
+            case_type: detection.caseType,
+            error: msg,
+          });
+          return {
+            ok: false,
+            completedStages: 0,
+            failedAt: "materia_availability_gate",
+            warnings: [{ key: "materia_availability_gate", error: msg }],
+          };
+        }
+      }
+    } catch (e: any) {
+      if (
+        e?.message &&
+        (e.message.includes("no está disponible") || e.message.includes("not currently available"))
+      ) {
+        throw e;
+      }
       console.warn("[mx-auto-detect] failed", e);
     }
   }
@@ -1115,6 +1184,37 @@ async function _runPipelineForCase(
     const { isUsableForLegalReasoning } = await import("./intelligence/case-identity");
     const mxIdentity = await resolveCaseIdentity(supabase, caseId);
     const mxCaseType = isUsableForLegalReasoning(mxIdentity) ? mxIdentity.caseType : null;
+    if (mxCaseType) {
+      const { isLegalAnalysisTypeEnabled, getLegalAnalysisTypeDisabledMessage } =
+        await import("./legal-analysis-types");
+      const isEnabled = await isLegalAnalysisTypeEnabled(mxCaseType, supabase);
+      if (!isEnabled) {
+        const msg = getLegalAnalysisTypeDisabledMessage(
+          mxCaseType,
+          (mxCaseRow as any)?.report_language ?? "es",
+        );
+        await (supabase as any)
+          .from("cases")
+          .update({
+            status: "failed",
+            status_message: msg,
+            error: msg,
+            next_stage: null,
+            worker_lease_until: null,
+          })
+          .eq("id", caseId);
+        trace("pipeline.disabled_materia_blocked", {
+          case_type: mxCaseType,
+          error: msg,
+        });
+        return {
+          ok: false,
+          completedStages: 0,
+          failedAt: "materia_availability_gate",
+          warnings: [{ key: "materia_availability_gate", error: msg }],
+        };
+      }
+    }
     // Case name is the only signal used to detect a segunda instancia
     // (apelación) proceeding — see effectiveMxProfile in mx-pipeline.ts.
     const mxCaseName = (mxCaseRow as { name?: string | null } | null)?.name ?? null;

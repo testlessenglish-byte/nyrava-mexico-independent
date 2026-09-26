@@ -1306,6 +1306,11 @@ export const resumeFullPipelineStep = createServerFn({ method: "POST" })
     if (caseErr) throw new Error(caseErr.message);
     if (!caseRow) throw new Error("Case not found");
 
+    if (caseRow.case_type) {
+      const { assertLegalAnalysisTypeEnabled } = await import("@/lib/legal-analysis-types");
+      await assertLegalAnalysisTypeEnabled(caseRow.case_type, supabase);
+    }
+
     const leaseUntil = caseRow.worker_lease_until
       ? new Date(caseRow.worker_lease_until as string).getTime()
       : 0;
@@ -3169,6 +3174,14 @@ export const updateCaseSettings = createServerFn({ method: "POST" })
     if ((before.worker_lease_until && new Date(before.worker_lease_until).getTime() > Date.now()) || ["queued", "running", "extracting", "analyzing", "agents_running", "ocr", "scoring", "reporting", "generating_report", "intelligence_running", "extraction_running", "extraction_complete", "analyzers_running", "analyzers_complete"].includes(before.status ?? "")) throw new Error("Stop the active analysis before changing case settings.");
     const previousMode = (before?.analysis_mode as string | null) ?? null;
     const previousCaseType = (before?.case_type as string | null) ?? null;
+    if (data.case_type && data.case_type !== previousCaseType) {
+      const { assertLegalAnalysisTypeEnabled } = await import("@/lib/legal-analysis-types");
+      await assertLegalAnalysisTypeEnabled(data.case_type, supabase);
+    }
+    if (data.underlying_materia && data.underlying_materia !== (before?.underlying_materia as string | null)) {
+      const { assertLegalAnalysisTypeEnabled } = await import("@/lib/legal-analysis-types");
+      await assertLegalAnalysisTypeEnabled(data.underlying_materia, supabase);
+    }
     const previousCaseAnalysisMode = (before?.case_analysis_mode as string | null) ?? "ongoing";
     const modeChanged = data.analysis_mode !== undefined && data.analysis_mode !== previousMode;
     // Case Analysis Mode (case-analysis-mode.ts) changes the OBJECTIVE every
