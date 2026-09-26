@@ -583,7 +583,7 @@ export const shareSocialDocument=createServerFn({method:"POST"})
 const resourceSearchInput=z.object({
   query:z.string().trim().max(200).optional(),state:z.string().trim().max(10).optional(),municipality:z.string().trim().max(120).optional(),
   latitude:z.number().min(-90).max(90).optional(),longitude:z.number().min(-180).max(180).optional(),radiusKm:z.number().positive().max(1000).optional(),
-  service:z.string().trim().max(100).optional(),urgency:z.enum(["standard","urgent","emergency"]).optional(),
+  service:z.string().trim().max(100).optional(),urgency:z.enum(["low","normal","high","urgent"]).optional(),
   population:z.string().trim().max(100).optional(),language:z.string().trim().max(80).optional(),
   costType:z.enum(["free","sliding_scale","paid","public_coverage","unknown"]).optional(),availability:z.string().trim().max(60).optional(),
 });
@@ -604,7 +604,7 @@ export const searchResourceNetwork=createServerFn({method:"GET"})
 
 export const findResourcesForSocialCase=createServerFn({method:"GET"})
   .middleware([requireSupabaseAuth])
-  .inputValidator((d:unknown)=>z.object({caseId:uuid,service:z.string().trim().max(100).optional(),urgency:z.enum(["standard","urgent","emergency"]).optional()}).parse(d))
+  .inputValidator((d:unknown)=>z.object({caseId:uuid,service:z.string().trim().max(100).optional(),urgency:z.enum(["low","normal","high","urgent"]).optional()}).parse(d))
   .handler(async({data,context})=>{
     const {supabase}=ctx(context);
     const {data:c,error:caseError}=await supabase.from("social_cases").select("id,org_id,service_areas,risk_level,person_id,family_id").eq("id",data.caseId).single();fail(caseError);
@@ -612,7 +612,7 @@ export const findResourcesForSocialCase=createServerFn({method:"GET"})
     if(personError&&personError.code!=="PGRST116")fail(personError);
     const location=(person?.current_location??{}) as Record<string,unknown>;
     const service=data.service||c.service_areas?.[0]||undefined;
-    const urgency=data.urgency||(c.risk_level==="critical"?"emergency":c.risk_level==="high"?"urgent":"standard");
+    const urgency=data.urgency||(c.risk_level==="critical"?"urgent":c.risk_level==="high"?"high":"normal");
     const {data:rows,error}=await supabase.rpc("search_resource_network",{
       p_query:null,p_state:typeof location.state_code==="string"?location.state_code:null,
       p_municipality:typeof location.municipality==="string"?location.municipality:null,
@@ -1189,7 +1189,7 @@ export const openCareCaseFromIntake=createServerFn({method:"POST"})
   .inputValidator((d:unknown)=>z.object({
     intakeId:uuid,
     caseType:z.enum(["individual","minor_child","family"]),
-    priority:z.enum(["standard","urgent","emergency"]).default("standard"),
+    priority:z.enum(["low","normal","high","urgent"]).default("normal"),
     assignedUserId:uuid.optional(),
   }).parse(d))
   .handler(async({data,context})=>{
@@ -1206,7 +1206,7 @@ export const updateCareCaseState=createServerFn({method:"POST"})
   .inputValidator((d:unknown)=>z.object({
     caseId:uuid,
     status:z.enum(["intake","assessment","active","monitoring","pending_referral","reopened"]),
-    priority:z.enum(["standard","urgent","emergency"]),
+    priority:z.enum(["low","normal","high","urgent"]),
     reason:z.string().trim().min(5).max(2000),
   }).parse(d))
   .handler(async({data,context})=>{

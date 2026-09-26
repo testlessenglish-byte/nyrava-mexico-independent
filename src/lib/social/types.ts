@@ -56,7 +56,7 @@ export const socialCaseInput = z.object({
   familyId: z.string().uuid().optional(),
   assignedUserId: z.string().uuid().optional(),
   caseType: z.enum(["individual","minor_child","family"]),
-  priority: z.enum(["standard","urgent","emergency"]).default("standard"),
+  priority: z.enum(["low","normal","high","urgent"]).default("normal"),
 }).refine((v) => Boolean(v.personId || v.newClientName), {
   message: "Select an existing client or enter a new client legal name",
 });
