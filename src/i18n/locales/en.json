@@ -1381,7 +1381,7 @@
   "new.field.description": "Description",
   "new.field.files": "Evidence files",
   "new.field.jurisdiction": "Jurisdiction",
-  "new.field.jurisdiction.auto": "Auto-detect from documents",
+  "new.field.jurisdiction.auto": "Unresolved (requires case-specific evidence)",
   "new.field.jurisdiction.hint": "Court competence is separate from applicable law. Federal law can apply in local courts; a federal forum does not automatically mean amparo procedure.",
   "new.field.mode": "Analysis mode",
   "new.field.mode.hint": "Controls how strictly Nyrava filters AI-generated content. Strict keeps only items with verifiable evidence; Exploratory shows AI theories with a tag.",
