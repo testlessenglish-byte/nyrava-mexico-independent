@@ -2,6 +2,8 @@ import { DocumentAnalysisPurposeFields } from "@/components/DocumentAnalysisPurp
 import { DocumentPurposeEditor } from "@/components/DocumentPurposeEditor";
 import { LegalScopeSummary } from "@/components/reports/LegalScopeSummary";
 import { ReportRecovery } from "@/components/ReportRecovery";
+import { ReportDownloadsCard } from "@/components/reports/ReportDownloadsCard";
+import { useRoles } from "@/hooks/use-roles";
 const AGENT_LABELS: Record<string, string> = {
   search_warrant_arrest_legality: "Legalidad de cateo y arresto",
   sentencing_analysis: "An�lisis de sentencia",
@@ -181,6 +183,7 @@ import {
   Building2,
   ListChecks,
   CalendarDays,
+  Clock,
   Mail,
   ChevronDown,
 } from "lucide-react";
@@ -363,6 +366,14 @@ function Workspace() {
     },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : L("Falló la síntesis de estrategia", "Strategy failed")),
   });
+
+  const { isAdmin, isSuperAdmin, roles } = useRoles();
+  const isPrivileged =
+    isAdmin ||
+    isSuperAdmin ||
+    roles.some((r) =>
+      ["admin", "super_admin", "platform_admin", "support"].includes(r as string),
+    );
 
   if (isLoading) return <div className="p-10 text-muted-foreground">{L("Cargando…", "Loading…")}</div>;
   if (!data?.case) return <div className="p-10">{L("Caso no encontrado.", "Case not found.")}</div>;
@@ -588,7 +599,21 @@ function Workspace() {
             ) : (
               <Loader2 className="h-4 w-4 animate-spin text-accent" />
             )}
-            <span className="flex-1">{c.status_message ?? t(`cases.status.${c.status}`)}</span>
+            <span className="flex-1">
+              {(() => {
+                const rawMsg = c.status_message ?? t(`cases.status.${c.status}`);
+                if (isPrivileged) return rawMsg;
+                if (
+                  rawMsg.includes("gate:") ||
+                  rawMsg.includes("exception") ||
+                  rawMsg.includes("Error:") ||
+                  rawMsg.includes("unresolved")
+                ) {
+                  return t("cases.status.inReview", "Verificando información del expediente...");
+                }
+                return rawMsg;
+              })()}
+            </span>
             {running && <InlineCancelButton caseId={c.id} invalidate={invalidate} />}
           </div>
           {running && (
@@ -596,7 +621,20 @@ function Workspace() {
               <div className="h-full bg-accent transition-all" style={{ width: `${c.progress}%` }} />
             </div>
           )}
-          {c.error && <div className="mt-2 text-xs text-destructive">{c.error}</div>}
+          {c.error && (
+            <div className="mt-2 text-xs">
+              {isPrivileged ? (
+                <span className="font-mono text-destructive">{c.error}</span>
+              ) : (
+                <span className="text-muted-foreground">
+                  {t(
+                    "cases.error.subscriberSafe",
+                    "No pudimos completar el análisis del expediente. Por favor reintente o contacte a soporte si el problema persiste.",
+                  )}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -628,86 +666,34 @@ function Workspace() {
           {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
           <MatterMetadataCard metadata={(c as any).matter_metadata ?? null} />
 
-          <div className="rounded-xl border border-border bg-card p-4">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              {t("caseWorkspace.downloads")}
-            </h2>
-            {reportBlocked && (
-              <div className="mt-2.5 mb-1 rounded-lg border border-destructive/40 bg-destructive/10 p-2.5 text-xs text-destructive">
-                <div className="flex items-center gap-1.5 font-bold">
-                  <AlertCircle className="h-4 w-4 shrink-0" />
-                  <span>EVIDENCE VERIFICATION FAILED — DO NOT FILE AS-IS</span>
-                </div>
-                <p className="mt-1 opacity-90">
-                  {reportBlockReasons.length > 0
-                    ? reportBlockReasons.join("; ")
-                    : "Certain assertions or sources require attorney review. Report is downloadable below."}
-                </p>
-              </div>
-            )}
-            <div className="mt-3 space-y-2">
-              <DownloadBtn
-                icon={FileDown}
-                label={t("caseWorkspace.downloadPdf")}
-                disabled={!hasReport}
-                onClick={async () => {
-                  const { downloadPdf } = await import("@/lib/export");
-                  await downloadPdf(await buildFreshExportData(), c.name);
-                  void logReportExport({
-                    data: { caseId: c.id, format: "pdf", caseName: c.name },
-                  }).catch(() => {});
-                }}
-              />
-
-              <DownloadBtn
-                icon={FileJson}
-                label={t("caseWorkspace.downloadJson")}
-                disabled={false}
-                onClick={async () => {
-                  const { downloadJson } = await import("@/lib/export");
-                  await downloadJson(await buildFreshExportData(), c.name);
-                  void logReportExport({
-                    data: { caseId: c.id, format: "json", caseName: c.name },
-                  }).catch(() => {});
-                }}
-              />
-            </div>
-            {reportBlocked && (
-              <div className="mt-3 rounded border border-red-500/50 bg-red-500/10 px-3 py-2 text-xs text-red-300">
-                <div className="font-semibold">{t("caseWorkspace.reportBlocked")}</div>
-                <ReportRecovery caseId={c.id} reasons={reportBlockReasons} busy={running} />
-                <p className="mt-1 opacity-80">{t("caseWorkspace.reportBlocked.json")}</p>
-              </div>
-            )}
-            {hasReport && qualityGate && typeof qualityGate.score === "number" && (
-              <div
-                className={`mt-3 rounded border px-3 py-2 text-xs ${
-                  qualityGate.passed
-                    ? "border-emerald-500/40 bg-emerald-500/5 text-emerald-300"
-                    : "border-amber-500/40 bg-amber-500/5 text-amber-300"
-                }`}
-              >
-                <div className="font-semibold">
-                  {t("caseWorkspace.qualityGate.label")}: {qualityGate.score}/100
-                </div>
-                {!qualityGate.passed && (
-                  <>
-                    <p className="mt-1 opacity-80">{t("caseWorkspace.qualityGate.notPassed")}</p>
-                    {(qualityGate.critical_issues?.length ?? 0) > 0 && (
-                      <ul className="mt-1 list-disc pl-4">
-                        {qualityGate.critical_issues!.map((issue, i) => (
-                          <li key={i}>{issue}</li>
-                        ))}
-                      </ul>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
-            {!reportBlocked && !hasReport && (
-              <p className="mt-2 text-xs text-muted-foreground">{t("caseWorkspace.noReportHint")}</p>
-            )}
-          </div>
+          <ReportDownloadsCard
+            caseId={c.id}
+            caseName={c.name}
+            hasReport={hasReport}
+            isBlocked={reportBlocked}
+            qualityBlockReasons={reportBlockReasons}
+            qualityGate={qualityGate}
+            releaseDecision={(report as any)?.full_report?.release_decision ?? (reportBlocked ? "BLOCK" : "PASS")}
+            releaseWarnings={(report as any)?.full_report?.release_warnings ?? []}
+            executionId={(c as any).execution_id ?? (report as any)?.execution_id ?? null}
+            pipelineStage={c.status}
+            busy={running}
+            rawError={c.error}
+            onDownloadPdf={async () => {
+              const { downloadPdf } = await import("@/lib/export");
+              await downloadPdf(await buildFreshExportData(), c.name);
+              void logReportExport({
+                data: { caseId: c.id, format: "pdf", caseName: c.name },
+              }).catch(() => {});
+            }}
+            onDownloadJson={async () => {
+              const { downloadJson } = await import("@/lib/export");
+              await downloadJson(await buildFreshExportData(), c.name);
+              void logReportExport({
+                data: { caseId: c.id, format: "json", caseName: c.name },
+              }).catch(() => {});
+            }}
+          />
 
           <div className="rounded-xl border border-border bg-card p-4">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -3209,6 +3195,14 @@ function ReportTab({
     banner?: string | null;
   } | null;
 
+  const { isAdmin, isSuperAdmin, roles } = useRoles();
+  const isPrivileged =
+    isAdmin ||
+    isSuperAdmin ||
+    roles.some((role) =>
+      ["admin", "super_admin", "platform_admin", "support"].includes(role as string),
+    );
+
   return (
     <div className="space-y-6">
       <LegalScopeSummary fullReport={r.full_report} />
@@ -3234,19 +3228,29 @@ function ReportTab({
         </div>
       )}
       {qualityBlocked && (
-        <div className="rounded-lg border border-red-500/50 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-          <div className="font-semibold">{L("Control de calidad no superado — informe marcado como borrador", "Quality Gate Failed — Report Flagged as Draft")}</div>
-          <ul className="mt-1 list-disc pl-5">
-            {qualityBlockReasons.map((reason, i) => (
-              <li key={i}>{reason}</li>
-            ))}
-          </ul>
-          <p className="mt-2 text-xs opacity-80">
+        <div className="rounded-lg border border-[#C5A880]/40 bg-[#FAF4EB]/80 dark:bg-[#132B21]/20 dark:border-[#C5A880]/30 px-4 py-3 text-sm">
+          <div className="flex items-center gap-2 font-medium text-foreground">
+            <Clock className="h-4 w-4 text-accent shrink-0" />
+            <span>{L("Informe en revisión", "Report in Review")}</span>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
             {L(
-              "Resuelve los puntos anteriores (vuelve a extraer los documentos fallidos o ejecuta de nuevo analizadores/agentes para que cada hallazgo tenga cita con documento, página y fragmento) antes de tratar este informe como definitivo.",
-              "Resolve the issues above (re-run extraction on failed documents, or re-run analyzers/agents so every finding carries a doc + page + quote citation) before treating this report as final.",
+              "Nyrava está verificando la información del expediente antes de liberar la versión final.",
+              "Nyrava is verifying case information before releasing the final version.",
             )}
           </p>
+          {isPrivileged && (
+            <div className="mt-3 border-t border-border/50 pt-2 text-xs font-mono text-muted-foreground">
+              <p className="font-semibold text-destructive">
+                {L("Control de calidad (Admin):", "Quality Gate Reasons (Admin):")}
+              </p>
+              <ul className="mt-1 list-disc pl-5 space-y-0.5">
+                {qualityBlockReasons.map((reason, i) => (
+                  <li key={i}>{reason}</li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
       {caseId && <ReportHistoryPanel caseId={caseId} currentVersion={version ?? 1} />}

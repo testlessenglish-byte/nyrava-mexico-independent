@@ -7,6 +7,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { FileText, FileDown, FileJson, ExternalLink, AlertTriangle, AlertCircle } from "lucide-react";
+import { ReportDownloadsCard } from "@/components/reports/ReportDownloadsCard";
+import { useRoles } from "@/hooks/use-roles";
 import { getCase } from "@/lib/cases.functions";
 import { CasePicker, useActiveCase } from "@/components/modules/CasePicker";
 import { ModuleHeader, ModuleEmpty, SuppressedNotice } from "@/components/modules/SuppressedNotice";
@@ -49,6 +51,13 @@ const SUPPRESSION_REASON_KEYS: Record<string, string> = {
 
 function ReportsPage() {
   const { t, locale } = useI18n();
+  const { isAdmin, isSuperAdmin, roles } = useRoles();
+  const isPrivileged =
+    isAdmin ||
+    isSuperAdmin ||
+    roles.some((r) =>
+      ["admin", "super_admin", "platform_admin", "support"].includes(r as string),
+    );
   const { cases, activeId, isLoading } = useActiveCase();
   const [selected, setSelected] = useState<string | null>(null);
   const caseId = selected ?? activeId;
@@ -167,7 +176,7 @@ function ReportsPage() {
                         {t("reports.generatedAt", {
                           date: new Date(report.updated_at ?? report.created_at).toLocaleString(locale),
                         })}
-                        {(report as { execution_id?: string | null }).execution_id ? (
+                        {isPrivileged && (report as { execution_id?: string | null }).execution_id ? (
                           <>
                             {" · "}
                             <span className="font-mono">
@@ -188,7 +197,7 @@ function ReportsPage() {
                       {t("reports.openWorkspace")} <ExternalLink className="h-3 w-3" />
                     </Link>
                   </div>
-                  {Object.keys(engines).length > 0 ? (
+                  {isPrivileged && Object.keys(engines).length > 0 ? (
                     <div className="mt-3 flex flex-wrap gap-1.5">
                       {Object.entries(engines).map(([k, v]) => (
                         <span
@@ -214,62 +223,41 @@ function ReportsPage() {
                 {scoresSuppressed ? <SuppressedNotice title={t("reports.notice.scoresSuppressed")} /> : null}
                 {motionsSuppressed ? <SuppressedNotice title={t("reports.notice.motionsSuppressed")} /> : null}
 
-                {Boolean(report?.quality_blocked || contractError) && (
-                  <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-destructive">
-                    <div className="flex items-center gap-2 font-bold text-sm">
-                      <AlertTriangle className="h-5 w-5 text-destructive shrink-0" />
-                      <span>EVIDENCE VERIFICATION FAILED — DO NOT FILE AS-IS</span>
-                    </div>
-                    <p className="mt-1 text-xs opacity-90">
-                      {Array.isArray(report?.quality_block_reasons) && report.quality_block_reasons.length > 0
-                        ? report.quality_block_reasons.join("; ")
-                        : contractError || "Certain assertions or sources could not be fully reconciled with available evidence. The analytical report is downloadable below for attorney verification."}
-                    </p>
-                  </div>
-                )}
+                <ReportDownloadsCard
+                  caseId={caseId}
+                  caseName={name}
+                  hasReport={Boolean(report)}
+                  isBlocked={Boolean(report?.quality_blocked || contractError)}
+                  qualityBlockReasons={
+                    Array.isArray(report?.quality_block_reasons)
+                      ? (report.quality_block_reasons as string[])
+                      : []
+                  }
+                  releaseDecision={
+                    (report?.full_report as any)?.release_decision ??
+                    (report?.quality_blocked || contractError ? "BLOCK" : "PASS")
+                  }
+                  releaseWarnings={(report?.full_report as any)?.release_warnings ?? []}
+                  contractError={contractError}
+                  executionId={(report as any)?.execution_id ?? null}
+                  onDownloadPdf={() =>
+                    run(async () => {
+                      const { downloadPdf } = await import("@/lib/export");
+                      return downloadPdf(await freshExportData(), name);
+                    }, "reports.export.pdf")
+                  }
+                  onDownloadJson={() =>
+                    run(async () => {
+                      const { downloadJson } = await import("@/lib/export");
+                      return downloadJson(await freshExportData(), name);
+                    }, "reports.export.json")
+                  }
+                />
 
-                {Boolean(!report?.quality_blocked && !contractError && ((report?.full_report as any)?.release_decision === "PASS_WITH_WARNINGS" || (report?.full_report as any)?.release_warnings?.length > 0)) && (
-                  <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-amber-700 dark:text-amber-300">
-                    <div className="flex items-center gap-2 font-semibold text-sm">
-                      <AlertCircle className="h-5 w-5 text-amber-500 shrink-0" />
-                      <span>RELEASED WITH WARNINGS</span>
-                    </div>
-                    <p className="mt-1 text-xs opacity-90">
-                      {((report?.full_report as any)?.release_warnings || []).join("; ")}
-                    </p>
-                  </div>
-                )}
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <button
-                    onClick={() =>
-                      run(async () => {
-                        const { downloadPdf } = await import("@/lib/export");
-                        return downloadPdf(await freshExportData(), name);
-                      }, "reports.export.pdf")
-                    }
-                    className="flex items-center justify-center gap-2 rounded-lg border border-border bg-card p-4 hover:bg-card/80"
-                  >
-                    <FileDown className="h-5 w-5 text-primary" />
-                    <span className="text-sm font-medium">{t("reports.export.pdf")}</span>
-                  </button>
-
-                  <button
-                    onClick={() =>
-                      run(async () => {
-                        const { downloadJson } = await import("@/lib/export");
-                        return downloadJson(await freshExportData(), name);
-                      }, "reports.export.json")
-                    }
-                    className="flex items-center justify-center gap-2 rounded-lg border border-border bg-card p-4 hover:bg-card/80"
-                  >
-                    <FileJson className="h-5 w-5 text-primary" />
-                    <span className="text-sm font-medium">{t("reports.export.json")}</span>
-                  </button>
-                </div>
-
-                {(() => {
-                  const fs = (report?.full_report as any)?.findings_summary as
+                {isPrivileged && (
+                  <>
+                    {(() => {
+                      const fs = (report?.full_report as any)?.findings_summary as
                     | {
                         total_generated?: number;
                         displayed?: number;
@@ -449,6 +437,8 @@ function ReportsPage() {
                     </div>
                   );
                 })()}
+                  </>
+                )}
 
                 {finalPayload && <CanonicalReportFindings payload={finalPayload} />}
 
