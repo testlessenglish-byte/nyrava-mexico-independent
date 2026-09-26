@@ -1381,7 +1381,7 @@
   "new.field.description": "Descripción",
   "new.field.files": "Archivos de evidencia",
   "new.field.jurisdiction": "Jurisdicción",
-  "new.field.jurisdiction.auto": "Pendiente (requiere evidencia del caso)",
+  "new.field.jurisdiction.auto": "Auto-detectar desde los documentos",
   "new.field.jurisdiction.hint": "La competencia del tribunal es independiente de la ley aplicable. La ley federal puede aplicarse en tribunales locales; el fuero federal no implica por sí solo un amparo.",
   "new.field.mode": "Modo de análisis",
   "new.field.mode.hint": "Controla con qué rigor Nyrava filtra el contenido generado por IA. Estricto conserva solo lo verificable con evidencia; Exploratorio muestra teorías de IA con una etiqueta.",

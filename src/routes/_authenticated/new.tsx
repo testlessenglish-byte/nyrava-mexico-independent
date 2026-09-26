@@ -1,7 +1,7 @@
 import { DocumentAnalysisPurposeFields, MatterAnalysisFields } from "@/components/DocumentAnalysisPurposeFields";
 import { CivilFamilyProcedureFields } from "@/components/CivilFamilyProcedureFields";
 import { needsCivilFamilyProcedure } from "@/lib/legal/case-law-configuration";
-import { ApplicableLawStateField } from "@/components/ApplicableLawStateField";
+
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -104,7 +104,7 @@ function NewCasePage() {
   const [immigrationCondition, setImmigrationCondition] = useState("");
   const [immigrationBenefit, setImmigrationBenefit] = useState("");
   const [jurisdiction, setJurisdiction] = useState<string>("");
-  const [applicableLawState, setApplicableLawState] = useState("");
+
   const [proceedingStartedOn, setProceedingStartedOn] = useState("");
   const [civilFamilyProceeding, setCivilFamilyProceeding] = useState("");
   const [showManualSubtype, setShowManualSubtype] = useState(false);
@@ -186,8 +186,12 @@ function NewCasePage() {
         fd.append("underlying_materia", underlyingMateria);
       }
     }
-    if (jurisdiction) fd.append("jurisdiction", jurisdiction);
-    if (applicableLawState) fd.append("applicable_law_state", applicableLawState);
+    if (jurisdiction) {
+      fd.append("jurisdiction", jurisdiction);
+      if (jurisdiction !== "federal" && jurisdiction !== "municipal") {
+        fd.append("applicable_law_state", jurisdiction);
+      }
+    }
     if (needsCivilFamilyProcedure(caseType, caseType === "amparo" ? underlyingMateria : null)) {
       fd.append("proceeding_started_on", proceedingStartedOn);
       fd.append("civil_family_proceeding", civilFamilyProceeding);
@@ -534,27 +538,7 @@ function NewCasePage() {
                     </label>
                   </div>
 
-                  <div>
-                    <label className="text-xs font-medium">
-                      {locale === "es" ? "Jurisdicción (override manual)" : "Jurisdiction (manual override)"}
-                    </label>
-                    <select
-                      value={jurisdiction}
-                      onChange={(e) => setJurisdiction(e.target.value)}
-                      className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-                    >
-                      <option value="">{locale === "es" ? "Auto-detectar (Federal por defecto)" : "Auto-detect (Federal default)"}</option>
-                      {JURISDICTION_GROUPS.map((g) => (
-                        <optgroup key={g.level} label={g.label}>
-                          {g.options.map((opt) => (
-                            <option key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </option>
-                          ))}
-                        </optgroup>
-                      ))}
-                    </select>
-                  </div>
+
                 </div>
               </details>
             </div>
@@ -591,7 +575,7 @@ function NewCasePage() {
 
         <div className="mt-8 space-y-4 border-t border-border pt-6">
           {needsCivilFamilyProcedure(caseType, caseType === "amparo" ? underlyingMateria : null) && <CivilFamilyProcedureFields startedOn={proceedingStartedOn} proceeding={civilFamilyProceeding} onStartedOnChange={setProceedingStartedOn} onProceedingChange={setCivilFamilyProceeding} locale={locale} />}
-          {caseType !== "migratorio" && <ApplicableLawStateField value={applicableLawState} onChange={setApplicableLawState} locale={locale} />}
+
           <SectionLabel>{t("new.section.analysis")}</SectionLabel>
 
           <div className="rounded-xl border border-primary/25 bg-primary/5 p-4">
