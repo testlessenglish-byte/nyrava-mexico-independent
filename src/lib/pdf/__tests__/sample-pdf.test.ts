@@ -58,4 +58,22 @@ describe("Synthetic Sample Report Generation", () => {
     expect(text).toContain("Motor de Inteligencia v1.0.0");
     expect(text).toContain("Este informe fue elaborado mediante el sistema Nyrava Intelligence");
   }, 30000);
+
+  it("does not trigger CONTENT_OUTSIDE_PRINTABLE_BOUNDS on 12-page report closingPage", async () => {
+    const { PdfBuilder } = await import("../../export");
+    const b = new PdfBuilder("Test 12-Page Case", "TEST-MATTER-12");
+    // Simulate 11 pages of content
+    for (let p = 2; p <= 11; p++) {
+      b.pageBreak();
+      b.text(`Page ${p} interior content`, { size: 10 });
+    }
+    // Page 12: closing page
+    b.closingPage({ generatedAt: "2026-09-25T20:00:00.000Z" });
+    // finalizeLayout runs auditPdfLayout and assertPdfLayout
+    expect(() =>
+      b.finalizeLayout({ parity: "ABC", ess: "HIGH", generatedAt: "2026-09-25T20:00:00.000Z" }),
+    ).not.toThrow();
+    expect(b.finalPageCount).toBe(12);
+  }, 30000);
 });
+

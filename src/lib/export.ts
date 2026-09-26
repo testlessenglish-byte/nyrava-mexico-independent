@@ -2192,11 +2192,12 @@ export class PdfBuilder {
       ly += 13;
     }
 
-    // Subtle end watermark at bottom
+    // Subtle end watermark below disclaimer box within printable bounds
+    const watermarkY = Math.min(yy + boxH + 24, this.printableBottom - 10);
     this.doc.setFont("helvetica", "bold");
     this.doc.setFontSize(7.5);
     this.doc.setTextColor(...ACCENT);
-    this.doc.text(spaced("FIN DEL INFORME · DOCUMENTO AUDITADO"), cx, this.pageH - 48, { align: "center" });
+    this.doc.text(spaced("FIN DEL INFORME · DOCUMENTO AUDITADO"), cx, watermarkY, { align: "center" });
   }
 
   async save(filename: string, meta: { parity: string; ess: string; generatedAt: string } | null = null, validateOnly = false, internalPreflight = false) {
