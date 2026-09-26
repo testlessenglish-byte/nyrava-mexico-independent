@@ -76,6 +76,7 @@ import { Route as AuthenticatedAdminAiProvidersRouteImport } from './routes/_aut
 import { Route as AuthenticatedAdminBetaRouteImport } from './routes/_authenticated/admin.beta'
 import { Route as AuthenticatedAdminBillingRouteImport } from './routes/_authenticated/admin.billing'
 import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin.feedback'
+import { Route as AuthenticatedAdminLegalAnalysisTypesRouteImport } from './routes/_authenticated/admin.legal-analysis-types'
 import { Route as AuthenticatedAdminLegalCoverageRouteImport } from './routes/_authenticated/admin.legal-coverage'
 import { Route as AuthenticatedAdminLegalKnowledgeRouteImport } from './routes/_authenticated/admin.legal-knowledge'
 import { Route as AuthenticatedAdminMessagesRouteImport } from './routes/_authenticated/admin.messages'
@@ -435,6 +436,12 @@ const AuthenticatedAdminFeedbackRoute =
     path: '/feedback',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminLegalAnalysisTypesRoute =
+  AuthenticatedAdminLegalAnalysisTypesRouteImport.update({
+    id: '/legal-analysis-types',
+    path: '/legal-analysis-types',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminLegalCoverageRoute =
   AuthenticatedAdminLegalCoverageRouteImport.update({
     id: '/legal-coverage',
@@ -611,6 +618,7 @@ export interface FileRoutesByFullPath {
   '/admin/beta': typeof AuthenticatedAdminBetaRoute
   '/admin/billing': typeof AuthenticatedAdminBillingRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
+  '/admin/legal-analysis-types': typeof AuthenticatedAdminLegalAnalysisTypesRoute
   '/admin/legal-coverage': typeof AuthenticatedAdminLegalCoverageRoute
   '/admin/legal-knowledge': typeof AuthenticatedAdminLegalKnowledgeRoute
   '/admin/messages': typeof AuthenticatedAdminMessagesRoute
@@ -696,6 +704,7 @@ export interface FileRoutesByTo {
   '/admin/beta': typeof AuthenticatedAdminBetaRoute
   '/admin/billing': typeof AuthenticatedAdminBillingRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
+  '/admin/legal-analysis-types': typeof AuthenticatedAdminLegalAnalysisTypesRoute
   '/admin/legal-coverage': typeof AuthenticatedAdminLegalCoverageRoute
   '/admin/legal-knowledge': typeof AuthenticatedAdminLegalKnowledgeRoute
   '/admin/messages': typeof AuthenticatedAdminMessagesRoute
@@ -785,6 +794,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/beta': typeof AuthenticatedAdminBetaRoute
   '/_authenticated/admin/billing': typeof AuthenticatedAdminBillingRoute
   '/_authenticated/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
+  '/_authenticated/admin/legal-analysis-types': typeof AuthenticatedAdminLegalAnalysisTypesRoute
   '/_authenticated/admin/legal-coverage': typeof AuthenticatedAdminLegalCoverageRoute
   '/_authenticated/admin/legal-knowledge': typeof AuthenticatedAdminLegalKnowledgeRoute
   '/_authenticated/admin/messages': typeof AuthenticatedAdminMessagesRoute
@@ -874,6 +884,7 @@ export interface FileRouteTypes {
     | '/admin/beta'
     | '/admin/billing'
     | '/admin/feedback'
+    | '/admin/legal-analysis-types'
     | '/admin/legal-coverage'
     | '/admin/legal-knowledge'
     | '/admin/messages'
@@ -959,6 +970,7 @@ export interface FileRouteTypes {
     | '/admin/beta'
     | '/admin/billing'
     | '/admin/feedback'
+    | '/admin/legal-analysis-types'
     | '/admin/legal-coverage'
     | '/admin/legal-knowledge'
     | '/admin/messages'
@@ -1047,6 +1059,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/beta'
     | '/_authenticated/admin/billing'
     | '/_authenticated/admin/feedback'
+    | '/_authenticated/admin/legal-analysis-types'
     | '/_authenticated/admin/legal-coverage'
     | '/_authenticated/admin/legal-knowledge'
     | '/_authenticated/admin/messages'
@@ -1583,6 +1596,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminFeedbackRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/legal-analysis-types': {
+      id: '/_authenticated/admin/legal-analysis-types'
+      path: '/legal-analysis-types'
+      fullPath: '/admin/legal-analysis-types'
+      preLoaderRoute: typeof AuthenticatedAdminLegalAnalysisTypesRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/legal-coverage': {
       id: '/_authenticated/admin/legal-coverage'
       path: '/legal-coverage'
@@ -1724,6 +1744,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminBetaRoute: typeof AuthenticatedAdminBetaRoute
   AuthenticatedAdminBillingRoute: typeof AuthenticatedAdminBillingRoute
   AuthenticatedAdminFeedbackRoute: typeof AuthenticatedAdminFeedbackRoute
+  AuthenticatedAdminLegalAnalysisTypesRoute: typeof AuthenticatedAdminLegalAnalysisTypesRoute
   AuthenticatedAdminLegalCoverageRoute: typeof AuthenticatedAdminLegalCoverageRoute
   AuthenticatedAdminLegalKnowledgeRoute: typeof AuthenticatedAdminLegalKnowledgeRoute
   AuthenticatedAdminMessagesRoute: typeof AuthenticatedAdminMessagesRoute
@@ -1739,6 +1760,8 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminBetaRoute: AuthenticatedAdminBetaRoute,
   AuthenticatedAdminBillingRoute: AuthenticatedAdminBillingRoute,
   AuthenticatedAdminFeedbackRoute: AuthenticatedAdminFeedbackRoute,
+  AuthenticatedAdminLegalAnalysisTypesRoute:
+    AuthenticatedAdminLegalAnalysisTypesRoute,
   AuthenticatedAdminLegalCoverageRoute: AuthenticatedAdminLegalCoverageRoute,
   AuthenticatedAdminLegalKnowledgeRoute: AuthenticatedAdminLegalKnowledgeRoute,
   AuthenticatedAdminMessagesRoute: AuthenticatedAdminMessagesRoute,

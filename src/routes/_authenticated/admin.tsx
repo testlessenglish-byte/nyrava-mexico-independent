@@ -37,7 +37,7 @@ import {
   Trash2,
   UserPlus,
   Inbox,
-
+  Scale,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin")({
@@ -182,6 +182,12 @@ function AdminDashboard() {
             <Inbox className="h-3.5 w-3.5" /> Messages →
           </Link>
 
+          <Link
+            to="/admin/legal-analysis-types"
+            className="flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20 sm:text-sm"
+          >
+            <Scale className="h-3.5 w-3.5" /> Tipos de Análisis Jurídico →
+          </Link>
           <Link
             to="/admin/legal-coverage"
             className="flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20 sm:text-sm"

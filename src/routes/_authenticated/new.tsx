@@ -7,6 +7,7 @@ import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { createCaseAndUpload, listGroqKeys } from "@/lib/cases.functions";
+import { listLegalAnalysisTypes } from "@/lib/legal-analysis-types.functions";
 import { toast } from "sonner";
 import { Upload, FileText, X, KeyRound, ShieldCheck } from "lucide-react";
 import { CASE_TYPE_SELECT_GROUPS } from "@/lib/intelligence/practice-areas";
@@ -54,6 +55,17 @@ function NewCasePage() {
     import("@/lib/clients.functions").then((m) => m.listClients()),
   );
   const { data: clientsList } = useQuery({ queryKey: ["clients"], queryFn: () => fetchClients() });
+
+  const fetchLegalAnalysisTypes = useServerFn(listLegalAnalysisTypes);
+  const { data: legalAnalysisTypes } = useQuery({
+    queryKey: ["legalAnalysisTypes"],
+    queryFn: () => fetchLegalAnalysisTypes(),
+  });
+  const defaultLaunchMaterias = new Set(["familiar", "civil", "penal", "migratorio"]);
+  const enabledMaterias = new Set(
+    (legalAnalysisTypes ?? []).filter((t) => t.enabled).map((t) => t.code),
+  );
+  const activeMateriaSet = enabledMaterias.size > 0 ? enabledMaterias : defaultLaunchMaterias;
 
   const nav = useNavigate();
   const uploadCase = useServerFn(createCaseAndUpload);
@@ -357,11 +369,19 @@ function NewCasePage() {
               </option>
               {CASE_TYPE_SELECT_GROUPS.map((g) => (
                 <optgroup key={g.group} label={g.group}>
-                  {g.options.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
+                  {g.options.map((opt) => {
+                    const isAvailable = activeMateriaSet.has(opt.value as any);
+                    return (
+                      <option key={opt.value} value={opt.value} disabled={!isAvailable}>
+                        {opt.label}
+                        {!isAvailable
+                          ? locale === "es"
+                            ? " — (Próximamente)"
+                            : " — (Coming Soon)"
+                          : ""}
+                      </option>
+                    );
+                  })}
                 </optgroup>
               ))}
             </select>

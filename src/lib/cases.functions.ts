@@ -46,7 +46,7 @@ function getAdminClient(): Db {
   });
 }
 
-async function getAuthedContext(context: AuthContext, label: string) {
+export async function getAuthedContext(context: AuthContext, label: string) {
   let supabase: Db;
   let userId: string;
 
@@ -118,7 +118,11 @@ export const createCaseAndUpload = createServerFn({ method: "POST" })
     }
     const analysis_mode = rawMode;
     const allowedCaseTypes = new Set<string>(CASE_TYPE_VALUES);
-    const rawCaseType = String(data.get("case_type") ?? "").toLowerCase();
+    const rawCaseType = String(data.get("case_type") ?? "").toLowerCase().trim();
+    if (rawCaseType) {
+      const { assertLegalAnalysisTypeEnabled } = await import("@/lib/legal-analysis-types");
+      await assertLegalAnalysisTypeEnabled(rawCaseType, supabase);
+    }
     const case_type = allowedCaseTypes.has(rawCaseType) ? rawCaseType : null;
     const allowedJurisdictions = new Set<string>(JURISDICTION_VALUES);
     const rawJurisdiction = String(data.get("jurisdiction") ?? "");
@@ -1037,19 +1041,24 @@ export const queueCaseForPipeline = createServerFn({ method: "POST" })
     const admin = getAdminClient();
     let { data: existing, error: readErr } = await (supabase as any)
       .from("cases")
-      .select("status, worker_lease_until, cancel_requested")
+      .select("status, worker_lease_until, cancel_requested, case_type")
       .eq("id", data.caseId)
       .maybeSingle();
     if (readErr) {
       const adminRead = await (admin as any)
         .from("cases")
-        .select("status, worker_lease_until, cancel_requested")
+        .select("status, worker_lease_until, cancel_requested, case_type")
         .eq("id", data.caseId)
         .maybeSingle();
       if (adminRead.error) throw new Error(adminRead.error.message);
       existing = adminRead.data;
     }
     if (!existing) throw new Error("Case not found");
+
+    if (existing.case_type) {
+      const { assertLegalAnalysisTypeEnabled } = await import("@/lib/legal-analysis-types");
+      await assertLegalAnalysisTypeEnabled(existing.case_type, supabase);
+    }
 
     const leaseUntil = existing.worker_lease_until
       ? new Date(existing.worker_lease_until).getTime()
