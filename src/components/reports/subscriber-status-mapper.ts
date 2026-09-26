@@ -24,6 +24,8 @@ export interface SubscriberStatusView {
   statusMessage?: string;
   description: string;
   canDownloadPdf: boolean;
+  downloadButtonLabel?: string;
+  isDraftReview?: boolean;
   isRetryable: boolean;
 }
 
@@ -104,8 +106,12 @@ export function mapInternalToSubscriberStatus(input: ReportStatusInput): Subscri
       type: "in_review",
       title: "DESCARGAS",
       statusMessage: "Informe en revisión",
-      description: "Nyrava está verificando la información del expediente antes de liberar la versión final.",
-      canDownloadPdf: false,
+      description: hasReport
+        ? "El informe requiere revisión antes de su aprobación definitiva. Puede descargar el borrador para su inspección técnica."
+        : "Nyrava está verificando la información del expediente antes de generar el informe.",
+      canDownloadPdf: Boolean(hasReport),
+      downloadButtonLabel: hasReport ? "Descargar borrador para revisión" : undefined,
+      isDraftReview: Boolean(hasReport),
       isRetryable: true,
     };
   }
@@ -117,6 +123,8 @@ export function mapInternalToSubscriberStatus(input: ReportStatusInput): Subscri
     statusMessage: undefined,
     description: "",
     canDownloadPdf: true,
+    downloadButtonLabel: "Descargar informe final",
+    isDraftReview: false,
     isRetryable: false,
   };
 }

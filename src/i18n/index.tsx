@@ -66,7 +66,7 @@ function warnMissingKey(key: string, locale: Locale, hasFallback: boolean) {
 type I18nCtx = {
   locale: Locale;
   setLocale: (l: Locale) => void;
-  t: (key: string, params?: Record<string, string | number>) => string;
+  t: (key: string, paramsOrDefault?: Record<string, string | number> | string, params?: Record<string, string | number>) => string;
   /** Split a pipe-delimited value (features list, etc.) after translation. */
   tList: (key: string) => string[];
 };
@@ -99,7 +99,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   }, [locale]);
 
   const t = useCallback(
-    (key: string, params?: Record<string, string | number>) => {
+    (key: string, paramsOrDefault?: Record<string, string | number> | string, params?: Record<string, string | number>) => {
       // Legal terminology is locked and shared across locales.
       if (LEGAL_TERMS[key] != null) return LEGAL_TERMS[key];
       const dict = DICTS[locale] ?? DICTS[DEFAULT_LOCALE];
@@ -111,8 +111,10 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       if (import.meta.env.DEV && own == null) {
         warnMissingKey(key, locale, fallback != null);
       }
-      const value = own ?? fallback ?? key;
-      return format(value, params);
+      const defaultStr = typeof paramsOrDefault === "string" ? paramsOrDefault : undefined;
+      const actualParams = typeof paramsOrDefault === "object" ? paramsOrDefault : params;
+      const value = own ?? fallback ?? defaultStr ?? key;
+      return format(value, actualParams);
     },
     [locale],
   );

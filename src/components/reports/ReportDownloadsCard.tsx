@@ -155,7 +155,7 @@ export function ReportDownloadsCard({
       </h2>
 
       {/* 1. SUBSCRIBER VIEW: PASSED / READY */}
-      {subscriberStatus.type === "ready" && (
+      {subscriberStatus.type === "ready" && subscriberStatus.canDownloadPdf && (
         <div className="space-y-2">
           <Button
             data-testid="download-pdf-button"
@@ -167,7 +167,7 @@ export function ReportDownloadsCard({
             <span>
               {downloadingPdf
                 ? t("common.downloading", "Descargando...")
-                : t("caseWorkspace.downloadPdf", "Descargar PDF")}
+                : (subscriberStatus.downloadButtonLabel || t("caseWorkspace.downloadFinalReport", "Descargar informe final"))}
             </span>
           </Button>
         </div>
@@ -221,18 +221,25 @@ export function ReportDownloadsCard({
             </Button>
           </div>
 
-          {/* Explicitly disabled PDF button as per download rule */}
-          <div className="pt-1 border-t border-border/40">
-            <Button
-              data-testid="download-pdf-button-disabled"
-              disabled
-              variant="outline"
-              className="w-full opacity-50 cursor-not-allowed text-xs flex items-center justify-center gap-2"
-            >
-              <FileDown className="h-3.5 w-3.5" />
-              <span>{t("caseWorkspace.downloadPdf", "Descargar PDF")}</span>
-            </Button>
-          </div>
+          {/* If a generated report exists requiring review, provide draft download button */}
+          {subscriberStatus.canDownloadPdf && (
+            <div className="pt-2 border-t border-border/40">
+              <Button
+                data-testid="download-review-draft-button"
+                variant="outline"
+                className="w-full border-accent/40 bg-accent/10 hover:bg-accent/20 text-accent-foreground text-xs flex items-center justify-center gap-2 font-medium"
+                disabled={downloadingPdf}
+                onClick={handleDownloadPdf}
+              >
+                <FileDown className="h-3.5 w-3.5 text-accent" />
+                <span>
+                  {downloadingPdf
+                    ? t("common.downloading", "Descargando...")
+                    : (subscriberStatus.downloadButtonLabel || t("caseWorkspace.downloadReviewDraft", "Descargar borrador para revisión"))}
+                </span>
+              </Button>
+            </div>
+          )}
         </div>
       )}
 

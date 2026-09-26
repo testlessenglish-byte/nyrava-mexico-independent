@@ -37,10 +37,12 @@ describe("Subscriber Download Area Cleanup — Presentation Mapper", () => {
     expect(result.title).toBe("DESCARGAS");
     expect(result.statusMessage).toBeUndefined();
     expect(result.canDownloadPdf).toBe(true);
+    expect(result.downloadButtonLabel).toBe("Descargar informe final");
+    expect(result.isDraftReview).toBe(false);
     expect(result.isRetryable).toBe(false);
   });
 
-  it("Scenario 2: Report Blocked with internal gate errors — maps to calm 'Informe en revisión'", () => {
+  it("Scenario 2: PDF exists + BLOCKED — allows draft download with 'Descargar borrador para revisión'", () => {
     const input: ReportStatusInput = {
       hasReport: true,
       isBlocked: true,
@@ -54,10 +56,10 @@ describe("Subscriber Download Area Cleanup — Presentation Mapper", () => {
     expect(result.type).toBe("in_review");
     expect(result.title).toBe("DESCARGAS");
     expect(result.statusMessage).toBe("Informe en revisión");
-    expect(result.description).toBe(
-      "Nyrava está verificando la información del expediente antes de liberar la versión final.",
-    );
-    expect(result.canDownloadPdf).toBe(false);
+    expect(result.description).toContain("Puede descargar el borrador para su inspección técnica.");
+    expect(result.canDownloadPdf).toBe(true);
+    expect(result.downloadButtonLabel).toBe("Descargar borrador para revisión");
+    expect(result.isDraftReview).toBe(true);
     expect(result.isRetryable).toBe(true);
 
     // Verify subscriber message contains NO raw gate names or internal strings
@@ -65,6 +67,22 @@ describe("Subscriber Download Area Cleanup — Presentation Mapper", () => {
     expect(result.description).not.toContain("gate:");
     expect(result.description).not.toContain("unresolved");
     expect(result.description).not.toContain("citation failure");
+  });
+
+  it("Scenario 2b: No PDF + BLOCKED — no PDF button, shows 'Informe en revisión' and retry options", () => {
+    const input: ReportStatusInput = {
+      hasReport: false,
+      isBlocked: true,
+      releaseDecision: "BLOCK",
+      qualityBlockReasons: ["citation verification unresolved"],
+    };
+    const result = mapInternalToSubscriberStatus(input);
+    expect(result.type).toBe("in_review");
+    expect(result.title).toBe("DESCARGAS");
+    expect(result.statusMessage).toBe("Informe en revisión");
+    expect(result.canDownloadPdf).toBe(false);
+    expect(result.downloadButtonLabel).toBeUndefined();
+    expect(result.isRetryable).toBe(true);
   });
 
   it("Scenario 3: Provider timeout / API failure — maps to friendly retry message", () => {
@@ -107,6 +125,10 @@ describe("Subscriber Download Area Cleanup — Codebase Invariants", () => {
     expect(downloadsCardSrc).toContain("isPrivileged");
     expect(downloadsCardSrc).toContain("admin-download-json-button");
     expect(downloadsCardSrc).toContain("Vista técnica (Admin / Soporte)");
+
+    // Both final and draft review download buttons exist for appropriate states
+    expect(downloadsCardSrc).toContain("download-pdf-button");
+    expect(downloadsCardSrc).toContain("download-review-draft-button");
 
     // No screaming red banners in component
     expect(downloadsCardSrc).not.toContain("EVIDENCE VERIFICATION FAILED — DO NOT FILE AS-IS");

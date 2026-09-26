@@ -655,10 +655,12 @@ export class PdfBuilder {
   private layoutPages: PdfLayoutPage[] = [{ contentMarks: 0, maxContentY: 0 }];
   private layoutIssues: PdfLayoutIssue[] = [];
   private finalPageCount: number | null = null;
+  isDraftReview: boolean = false;
 
-  constructor(caseName: string, matterId?: string) {
+  constructor(caseName: string, matterId?: string, isDraftReview = false) {
     const cleanName = cleanClientMatterName(caseName);
     this.matterId = matterId || cleanName;
+    this.isDraftReview = Boolean(isDraftReview);
     // @ts-ignore
     const JSPDF = typeof jsPDF === "function" ? jsPDF : jsPDF.jsPDF;
     this.doc = new JSPDF({ unit: "pt", format: "letter" }) as Pdf;
@@ -985,19 +987,29 @@ export class PdfBuilder {
     curY += 4;
     this.doc.setDrawColor(...ACCENT);
     this.doc.setLineWidth(0.6);
-    this.doc.roundedRect(leftX, curY, 88, 14, 2.5, 2.5, "S");
+    const badgeW = this.isDraftReview ? 150 : 88;
+    this.doc.roundedRect(leftX, curY, badgeW, 14, 2.5, 2.5, "S");
     this.doc.setFont("helvetica", "bold");
     this.doc.setFontSize(6.8);
     this.doc.setTextColor(...ACCENT);
-    this.doc.text(spaced("CONFIDENCIAL"), leftX + 44, curY + 9.5, { align: "center" });
+    const badgeText = this.isDraftReview
+      ? spaced("BORRADOR — REQUIERE REVISIÓN")
+      : spaced("CONFIDENCIAL");
+    this.doc.text(badgeText, leftX + badgeW / 2, curY + 9.5, { align: "center" });
 
     curY += 22;
     this.doc.setFont("helvetica", "italic");
     this.doc.setFontSize(7.2);
     this.doc.setTextColor(...MUTED);
-    this.doc.text("Sustentado en evidencia. Citas auditadas.", leftX, curY);
-    curY += 9.5;
-    this.doc.text("Diseñado para trabajo de inteligencia jurídica sensible.", leftX, curY);
+    if (this.isDraftReview) {
+      this.doc.text("Borrador técnico sujeto a revisión. No constituye informe final.", leftX, curY);
+      curY += 9.5;
+      this.doc.text("Verifique todos los hallazgos y constancias antes de su uso.", leftX, curY);
+    } else {
+      this.doc.text("Sustentado en evidencia. Citas auditadas.", leftX, curY);
+      curY += 9.5;
+      this.doc.text("Diseñado para trabajo de inteligencia jurídica sensible.", leftX, curY);
+    }
   }
 
   // Grid of compact stat cards (replaces the old plain label/value rows on
@@ -2028,10 +2040,15 @@ export class PdfBuilder {
       this.doc.setTextColor(...ACCENT_SOFT);
       this.doc.text("INTELIGENCIA JURÍDICA AVANZADA", textX, markCy + 8);
 
-      // Section identity in center if known
+      // Section identity in center if known (or draft review banner)
       const startsHere = this.sectionStarts.get(i);
       const currentSecTitle = startsHere ? startsHere.title : (lastSection || this.currentSection);
-      if (currentSecTitle) {
+      if (this.isDraftReview) {
+        this.doc.setFont("helvetica", "bold");
+        this.doc.setFontSize(7.5);
+        this.doc.setTextColor(...ACCENT_SOFT);
+        this.doc.text("BORRADOR — REQUIERE REVISIÓN", this.pageW / 2, markCy + 2.5, { align: "center" });
+      } else if (currentSecTitle) {
         this.doc.setFont("helvetica", "bold");
         this.doc.setFontSize(7.5);
         this.doc.setTextColor(255, 255, 255);
@@ -2108,10 +2125,18 @@ export class PdfBuilder {
       this.doc.text(`${pageWord} ${i} / ${pageCount}`, this.pageW - this.margin, this.pageH - 30, {
         align: "right",
       });
-      if (LEGAL_MODE)
+      if (this.isDraftReview) {
+        this.doc.setFont("helvetica", "bold");
+        this.doc.setFontSize(7.7);
+        this.doc.setTextColor(...ACCENT);
+        this.doc.text("BORRADOR — REQUIERE REVISIÓN · Trabajo Jurídico", this.pageW / 2, this.pageH - 30, {
+          align: "center",
+        });
+      } else if (LEGAL_MODE) {
         this.doc.text("Confidencial · Trabajo Jurídico", this.pageW / 2, this.pageH - 30, {
           align: "center",
         });
+      }
       if (meta && _citationMode === "audit") {
         this.doc.setFontSize(7);
         const stamp = `parity ${meta.parity}  ·  ESS ${meta.ess}  ·  ${meta.generatedAt}  ·  NYRAVA v${NYRAVA_REPORT_VERSION}`;
@@ -2231,7 +2256,10 @@ export class PdfBuilder {
     this.doc.setFont("helvetica", "bold");
     this.doc.setFontSize(7.5);
     this.doc.setTextColor(...ACCENT);
-    this.doc.text(spaced("FIN DEL INFORME · DOCUMENTO AUDITADO"), cx, watermarkY, { align: "center" });
+    const endWatermark = this.isDraftReview
+      ? spaced("FIN DEL BORRADOR · REQUIERE REVISIÓN")
+      : spaced("FIN DEL INFORME · DOCUMENTO AUDITADO");
+    this.doc.text(endWatermark, cx, watermarkY, { align: "center" });
   }
 
   async save(filename: string, meta: { parity: string; ess: string; generatedAt: string } | null = null, validateOnly = false, internalPreflight = false) {
@@ -2324,7 +2352,10 @@ function renderCover(
   b.doc.setTextColor(...ACCENT);
   b.doc.text(getReportTemplateLocale() === "es" ? "R E S U M E N   D E L   A S U N T O" : "E X E C U T I V E   D A S H B O A R D", b.margin, b.y);
   b.y += 18;
-  b.text(getReportTemplateLocale() === "es" ? "Informe de Inteligencia Jurídica" : "Legal Intelligence Report", { size: 20, bold: true, color: PRIMARY, gap: 4 });
+  const dashboardTitle = b.isDraftReview
+    ? (getReportTemplateLocale() === "es" ? "Borrador de Inteligencia Jurídica" : "Legal Intelligence Draft")
+    : (getReportTemplateLocale() === "es" ? "Informe de Inteligencia Jurídica" : "Legal Intelligence Report");
+  b.text(dashboardTitle, { size: 20, bold: true, color: PRIMARY, gap: 4 });
   b.doc.setDrawColor(...ACCENT);
   b.doc.setLineWidth(1.5);
   b.doc.line(b.margin, b.y, b.margin + 60, b.y);
@@ -5452,10 +5483,14 @@ async function renderPdf(
   // the check belongs at the point of action, not just upstream.
   // When report failed release verification, proceed in VERIFICATION_FAILED mode instead of aborting export.
   const isVerificationFailed = isVerificationFailedInitial;
-  if (isVerificationFailed) {
+  const releaseDecision = asStr(asObj(data.report).release_decision || (data as any)?.full_report?.release_decision);
+  const reportStatus = asStr(asObj(data.report).status);
+  const isDraftReview = isQualityBlocked || isVerificationFailedInitial || releaseDecision === "BLOCK" || reportStatus === "needs_revision";
+
+  if (isVerificationFailed || isDraftReview) {
     const rObj = asObj(data.report);
     rObj.verification_status = "VERIFICATION_FAILED";
-    rObj.verification_banner = "EVIDENCE VERIFICATION FAILED — DO NOT FILE AS-IS";
+    rObj.verification_banner = "BORRADOR — REQUIERE REVISIÓN";
   }
   // Attorney mode (default): inline "[DOC N p.M]" citations become numbered
   // footnotes resolved to real document titles, collected in an Evidence
@@ -5474,7 +5509,7 @@ async function renderPdf(
   data = sweepReportForPdfPublication(data);
   primeCitationFootnotes(data);
 
-  const b = new PdfBuilder(name, deriveMatterId(data));
+  const b = new PdfBuilder(name, deriveMatterId(data), isDraftReview);
   await b.loadLogo();
   const reportRow = (data.report ?? {}) as Record<string, unknown>;
 
