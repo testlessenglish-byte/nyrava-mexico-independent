@@ -167,7 +167,7 @@ describe("Priority #1 & #2 Release Invariant — Citation Verification and Claim
     expect(result.locationsAudit.quarantined_claims).toEqual([{ id: "finding-2", title: "Violación inexistente" }]);
   });
 
-  it("resolveFinalReleaseDecision never independently blocks report when other verified content exists", () => {
+  it("resolveFinalReleaseDecision blocks unresolved published citations even when other verified content exists", () => {
     const report = {
       quality_blocked: false,
       full_report: {
@@ -183,10 +183,10 @@ describe("Priority #1 & #2 Release Invariant — Citation Verification and Claim
       warnings: [],
     });
 
-    expect(release.released).toBe(true);
-    expect(release.decision).toBe("PASS_WITH_WARNINGS");
-    expect(release.quality_blocked).toBe(false);
-    expect(release.warnings).toContain("Cita 24: no se pudo verificar la cita literal en el documento y la página indicados.");
-    expect(release.errors).not.toContain("Cita 24: no se pudo verificar la cita literal en el documento y la página indicados.");
+    expect(release.released).toBe(false);
+    expect(release.decision).toBe("BLOCKED");
+    expect(release.quality_blocked).toBe(true);
+    expect(release.warnings).not.toContain("Cita 24: no se pudo verificar la cita literal en el documento y la página indicados.");
+    expect(release.errors).toContain("Cita 24: no se pudo verificar la cita literal en el documento y la página indicados.");
   });
 });

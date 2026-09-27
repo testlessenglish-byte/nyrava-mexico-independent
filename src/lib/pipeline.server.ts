@@ -1,3 +1,4 @@
+import { civilSpecialistInstructions } from './civil/elements-matrix';
 // Server-only extraction of the full-pipeline runner so it can be invoked
 // both from an authenticated server function (user click) and from the
 // background worker route (cron / queue drain) with an admin client.
@@ -3572,8 +3573,7 @@ ${AGENT_JH_INSTRUCTIONS}
   {
     type: "contract_analysis_ambiguity",
     category: "contract_analysis_ambiguity",
-    system:
-      "You are a Mexican civil-contract investigator. Examine every contrato in the corpus for its constitutive elements (consentimiento, objeto, forma — arts. 1794-1859 Código Civil), identify obligaciones de dar/hacer/no hacer and their plazos/condiciones, and flag any cláusula ambigua (susceptible de dos o más interpretaciones razonables) that could produce a dispute over its meaning, applying the interpretation rules of arts. 1851-1857 (la intención de los contratantes prevalece sobre el sentido literal cuando las palabras parecieren contrarias a ella). Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    system: civilSpecialistInstructions("contract_analysis_ambiguity"),
     prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
 { "summary": string, "confidence": number (0-1),
   "findings": [ { "title": string, "issue_type": "elemento_constitutivo_faltante"|"clausula_ambigua"|"obligacion_no_definida"|"condicion_o_plazo_indeterminado", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
@@ -3581,8 +3581,7 @@ ${AGENT_JH_INSTRUCTIONS}
   {
     type: "liability_damages_assessment",
     category: "liability_damages_assessment",
-    system:
-      "You are a Mexican civil-liability and damages investigator. Determine whether the facts support responsabilidad civil subjetiva (culpa o negligencia, arts. 1910 CCF) or responsabilidad civil objetiva (riesgo creado, art. 1913 CCF), identify the nexo causal between the hecho ilícito and the harm, and quantify — where the corpus supports it — daño material, daño moral (art. 1916), and daños y perjuicios (arts. 2108-2110: daño emergente y lucro cesante), citing the specific figures or valuation evidence found. Do not invent a dollar/peso amount not supported by the corpus. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    system: civilSpecialistInstructions("liability_damages_assessment"),
     prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
 { "summary": string, "confidence": number (0-1),
   "findings": [ { "title": string, "liability_basis": "responsabilidad_subjetiva"|"responsabilidad_objetiva"|"incumplimiento_contractual", "damage_type": "dano_material"|"dano_moral"|"dano_emergente"|"lucro_cesante"|"no_cuantificado", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
@@ -3590,8 +3589,7 @@ ${AGENT_JH_INSTRUCTIONS}
   {
     type: "payment_insurance_analysis",
     category: "payment_insurance_analysis",
-    system:
-      "You are a Mexican payment-history and insurance-coverage investigator. Examine the corpus for evidence of pagos realizados, mora en el cumplimiento (art. 2104 CCF) and its consequences, and — where a póliza de seguro is present — the coverage it provides, any exclusión aplicable, and whether the siniestro was reported within the plazo required by the Ley Sobre el Contrato de Seguro. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    system: civilSpecialistInstructions("payment_insurance_analysis"),
     prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
 { "summary": string, "confidence": number (0-1),
   "findings": [ { "title": string, "issue_type": "mora_en_el_pago"|"pago_no_documentado"|"cobertura_de_seguro"|"exclusion_de_poliza"|"siniestro_extemporaneo", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
@@ -3599,8 +3597,7 @@ ${AGENT_JH_INSTRUCTIONS}
   {
     type: "statute_of_limitations_analysis",
     category: "statute_of_limitations_analysis",
-    system:
-      "You are a Mexican civil statute-of-limitations investigator. Determine the applicable plazo de prescripción (positiva or negativa, arts. 1135-1180 CCF — general 10 años for acciones reales, shorter terms for acciones personales specific to the obligation type) or caducidad, identify the hecho generador that started the term running, and assess whether the action was filed within it or whether an interrupción/suspensión (reconocimiento de la deuda, demanda judicial, arts. 1168-1176) applies. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    system: civilSpecialistInstructions("statute_of_limitations_analysis"),
     prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
 { "summary": string, "confidence": number (0-1),
   "findings": [ { "title": string, "limitation_type": "prescripcion_positiva"|"prescripcion_negativa"|"caducidad", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
@@ -3608,8 +3605,7 @@ ${AGENT_JH_INSTRUCTIONS}
   {
     type: "settlement_opportunity_analyzer",
     category: "settlement_opportunity_analyzer",
-    system:
-      "You are a Mexican civil-settlement (convenio judicial / transacción) opportunity investigator. Examine the strength of each side's position as reflected in the corpus and identify whether a convenio judicial (art. 2944 CCF — transacción) is realistic, what terms would be defensible for each party, and any procedural incentive to settle (costas, tiempo estimado de litigio, riesgo probatorio). Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    system: civilSpecialistInstructions("settlement_opportunity_analyzer"),
     prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
 { "summary": string, "confidence": number (0-1),
   "findings": [ { "title": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
@@ -4880,6 +4876,10 @@ export async function runAgents(args: {
             defaultCategory: agent.category,
             items: findingsForNormalize,
           });
+          if (area === 'civil') for (const row of normalizedRows) {
+            const original = findingsForNormalize.find((f: any) => f.title === row.title);
+            if (original) row.metadata = { ...(row.metadata ?? {}), civil_issue: original.civil_issue, civil_element: original.civil_element } as any;
+          }
           const allowedRows = normalizedRows.filter(
             (row) =>
               isFindingAllowed(area, row.source_module ?? `agent:${agent.type}`, activeDomains) &&
@@ -6878,6 +6878,7 @@ ${corpus.slice(0, s(160000))}${resolutivoAnchorBlock}${penalDispositionAnchorBlo
   );
 
   const systemInstruction =
+    (reportUnderlyingMateria === 'civil' ? civilSpecialistInstructions('report_composition') + '\n' : '') +
     `${mexicoLock(reportLocaleForNotice)}\n` +
     (reportCaseStateUpdateNotice
       ? `${reportCaseStateUpdateNotice}\nThe findings below already reflect reconciliation — write ONE unified, internally-consistent report. Never frame any section as "based on the recent clarification" versus "the original analysis"; write as a single, freshly re-analyzed case throughout, including the executive summary, procedural analysis, recommendations, and Attorney Work Product.\n`

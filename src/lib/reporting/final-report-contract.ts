@@ -1,4 +1,6 @@
 import { assessCase, subscriberAssessment } from './qualitative-assessment';
+import { prepareCivilReport, auditCivilReport } from '../civil/report-contract';
+import { auditReportCitationIntegrity, canonicalizeReportCitations } from './citation-integrity';
 import { withReviewedSections } from "./reviewed-sections";
 import type { CaseExportData } from "../export";
 import { validateMigratorioPreRelease } from './migratorio-pre-release';
@@ -109,6 +111,7 @@ export function composeFinalReportPayload(input: CaseExportData): FinalReportPay
   const integrity = quarantineDispositionConflicts(input, originalFull.migratorio_disposition, currentNumbers);
   const data = relocateReportReferences(structuredClone(integrity.data),arr(originalFull.pre_release_source_pages) as any,
     input.documents.map((d,i)=>({document_id:String(d.id),doc_n:Number(d.doc_n??i+1)}))) as FinalReportPayload;
+  prepareCivilReport(data);
   const report = obj(data.report), full = obj(report.full_report), c = obj(data.case);
   const stored = obj(full.report_governance);
   const governance = resolveReportGovernance({
@@ -320,6 +323,7 @@ export function composeFinalReportPayload(input: CaseExportData): FinalReportPay
     caseType: c.case_type, jurisdiction: c.jurisdiction,
     missingDocuments: arr(report.missing_evidence_struct).map(m => String(m.item ?? "")).filter(Boolean),
     capability, governance,
+    civilRuleContext: full.civil_rule_context,
   };
   const finding_cards = findings.map(f => ({ finding: f, source_count: canonicalSourceCount(f.evidence_refs), details: buildFindingWorkProduct(f, context) }));
   const snapshot = buildCaseSnapshot(findings, context);
@@ -414,7 +418,12 @@ export function composeFinalReportPayload(input: CaseExportData): FinalReportPay
 }
 
 function assessmentPresentation(payload: FinalReportPayload): FinalReportPayload {
-  payload.report!.full_report!.case_assessment = assessCase(payload.report, payload.findings);
+  payload = canonicalizeReportCitations(payload);
+  const citationAudit = auditReportCitationIntegrity(payload);
+  const full = obj(payload.report!.full_report);
+  full.assessment_limitations = { ...obj(full.assessment_limitations), material_citations_unresolved: citationAudit.unresolved.length > 0 };
+  full.case_assessment = assessCase(payload.report, payload.findings);
+  payload.report!.full_report = full;
   return subscriberAssessment(payload);
 }
 
@@ -555,6 +564,8 @@ export function validateFinalReportContract(payload: FinalReportPayload, capabil
   if (restricted && !rules.verificationStepsOnly) violations.push("verificationStepsOnly");
   const sourceReview = validateMigratorioPreRelease(payload);
   violations.push(...sourceReview.errors);
+  violations.push(...auditReportCitationIntegrity(payload).errors);
+  violations.push(...auditCivilReport(payload).errors, ...arr(obj(payload.report?.full_report).civil_quality?.errors).map(String));
   return { ok: violations.length === 0, blocking_errors: violations, checked_rules: rules, source_review: sourceReview,
     violation_paths, inspected_nodes, validation_stage: view.render_output ? "after_renderer_transforms" : "after_section_transforms" };
 }

@@ -1,4 +1,5 @@
 import type { MexicanCaseType } from "./mexico-types";
+import { civilSpecialistScope } from '../civil/issue-contract';
 
 export type SpecialistLawScopeInput = {
   /** Court/territorial metadata is retained but never used as governing law. */
@@ -236,6 +237,9 @@ export function specialistLawScopeDecision(
   }
 
   const isMigratorio = input.caseType === "migratorio";
+  if (input.caseType === 'civil' && MATERIA_SPECIALIST_MAP[cleanAgent] === 'civil') {
+    return civilSpecialistScope(cleanAgent, input.documents ?? []);
+  }
 
   // 1. Constitutional controversy analysis (Article 105 CPEUM only)
   if (cleanAgent === "constitutional_controversy_analysis") {

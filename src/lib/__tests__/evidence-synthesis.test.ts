@@ -79,20 +79,22 @@ describe("synthesizeEvidence", () => {
     expect(s.narrative).toContain("una sola fuente");
   });
 
-  it("describes complementary legal acts across documents", () => {
+  it("does not infer a Civil legal sequence without established issue applicability", () => {
     const s = synthesizeEvidence([
       { canonical_source_id: "source-7", name: "Contrato.pdf", weight: w(3, "Documento Privado"), quotes: ["se obliga a pagar la renta mensual"] },
       { canonical_source_id: "source-8", name: "Recibo de pago.pdf", weight: w(3, "Registro Contable"), quotes: ["comprobante de pago recibido de conformidad"] },
     ], { caseType: "civil" })!;
-    expect(s.lines.join(" ")).toContain("Documentos complementarios");
+    expect(s.lines.join(" ")).not.toContain("Documentos complementarios");
+    expect(s.docs.flatMap(d => d.facts).some(f => f.act === 'pago_reconocido')).toBe(true);
   });
 
-  it("flags an obligation with no evidence of fulfilment", () => {
+  it("does not infer nonfulfilment from generic Civil corpus absence", () => {
     const s = synthesizeEvidence([
       { canonical_source_id: "source-9", name: "Convenio.pdf", weight: w(3, "Documento Privado"), quotes: ["el deudor se obliga a pagar $10,000.00 MXN"] },
       { canonical_source_id: "source-10", name: "Demanda.pdf", weight: w(2, "Documento Sin Clasificar"), quotes: ["el deudor se obliga a pagar $10,000 MXN"] },
     ], { caseType: "civil" })!;
-    expect(s.lines.join(" ")).toContain("Ninguno de los documentos citados acredita el cumplimiento");
+    expect(s.lines.join(" ")).not.toContain("Ninguno de los documentos citados acredita el cumplimiento");
+    expect(s.docs.flatMap(d => d.facts).some(f => f.act === 'obligacion_creada')).toBe(true);
   });
 
   it("never claims corroboration when the quotes yield no comparable facts", () => {

@@ -1,3 +1,4 @@
+import { civilPresentation } from './civil/presentation';
 import { assessCase, assessmentLabels } from "./reporting/qualitative-assessment";
 import { reportRenderTimestamp } from "./reporting/reviewed-sections";
 import { translateLegalTerm } from "./pdf/enum-translation";
@@ -294,7 +295,7 @@ function footnoteFor(refs: Array<{ docN: string; page: string }>): number {
   const label = refs.map((r) => {
     const passages = _annexCitations.filter(c => Number(c.doc_n) === Number(r.docN) &&
       Number(c.page ?? c.page_number) === Number(r.page)).map(c => formatPdfSourceQuote(asStr(c.quote))).filter(Boolean);
-    if (!passages.length) return citeLabel(r.docN, r.page) + '\n“Cita documental referenciada en el texto”';
+    if (!passages.length) return citeLabel(r.docN, r.page) + '\nReferencia localizada; transcripción/verificación pendiente';
     return citeLabel(r.docN, r.page) + '\n' + [...new Set(passages)].map(q => `“${q}”`).join('\n');
   }).join("\n\n");
   const n = _footnotes.length + 1;
@@ -2630,6 +2631,7 @@ function renderExecutive(b: PdfBuilder, data: CaseExportData, mode: ReportMode) 
       ? `Reviewed ${data.documents.length} uploaded source document(s). A judgment's account of other records does not mean those records were independently reviewed. No quantitative scores or new legal remedies are issued in this documentary review.`
       : `Se revisaron ${data.documents.length} documento(s) fuente cargado(s). La referencia de una sentencia a otras constancias no significa que éstas se hayan revisado de forma independiente. Esta revisión documental no emite puntajes cuantitativos ni recomienda nuevos medios de defensa.`,
       { size: 10, gap: 8 });
+    renderCivilContext(b, data);
     return;
   }
   // Goal-first block — the report answers the attorney's primary question
@@ -2698,6 +2700,7 @@ function renderExecutive(b: PdfBuilder, data: CaseExportData, mode: ReportMode) 
   }
 
   renderAnalysisStatus(b, data);
+  renderCivilContext(b, data);
 }
 
 // The "money page." Ranked motions, immediate next actions, top strategic
@@ -3458,6 +3461,18 @@ function renderAnalysisStatus(b: PdfBuilder, data: CaseExportData) {
   b.statusBanner(labels.caseStrengthTitle, labels.caseStrength, PRIMARY);
   b.text(labels.explanation, { size: 9, color: MUTED, gap: 6 });
   b.table([[labels.title, getReportTemplateLocale() === 'en' ? 'Status' : 'Estado']], labels.rows);
+}
+
+function renderCivilContext(b: PdfBuilder, data: CaseExportData) {
+  const view = civilPresentation(data.report, getReportTemplateLocale());
+  if (!view) return;
+  b.h2(view.title);
+  b.table([[view.title, getReportTemplateLocale() === 'en' ? 'Status' : 'Estado']], view.contextRows);
+  b.h2(view.elementsTitle);
+  for (const e of view.elements) {
+    b.h3(e.issue + ' — ' + e.element + ': ' + e.status);
+    b.text([e.reason, e.authority, e.evidence, e.gaps, e.availability].filter(Boolean).join('\n'), { size: 9, gap: 6 });
+  }
 }
 
 function renderScorecard(b: PdfBuilder, data: CaseExportData) {

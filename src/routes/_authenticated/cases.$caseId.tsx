@@ -1,3 +1,4 @@
+import { CivilAnalysisPanel } from '@/components/CivilAnalysisPanel';
 import { subscriberAssessment } from "@/lib/reporting/qualitative-assessment";
 import { CaseStrengthCard } from "@/components/CaseStrengthCard";
 import { DocumentAnalysisPurposeFields } from "@/components/DocumentAnalysisPurposeFields";
@@ -3008,6 +3009,7 @@ function ReportTab({
         </Panel>
       )}
       <CaseStrengthCard report={r} language={L("es", "en")} coverage />
+      <CivilAnalysisPanel report={r} language={L("es", "en")} />
 
       {nextActions.length > 0 && (
         <Panel title={L("Siguientes acciones recomendadas", "Recommended Next Actions")} subtitle={L("Priorizadas", "Prioritized")}>

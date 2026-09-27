@@ -327,6 +327,7 @@ export function synthesizeEvidence(
     graph?: DocumentGraph;
     findingTitle?: string;
     caseType?: string | null;
+    civilRuleContext?: Record<string, any>;
     /** Optional jurisdiction signals; absent → universal fallback. */
     jurisdiction?: JurisdictionSignals;
     /** Reference date used only for temporal validity of authority. */
@@ -335,7 +336,7 @@ export function synthesizeEvidence(
 ): EvidenceSynthesis | null {
 
   if (!docsIn.length) return null;
-  const lexicon = resolveActLexicon(opts.caseType);
+  const lexicon = resolveActLexicon(opts.caseType, opts.civilRuleContext);
   const bySource = new Map<string, SynthesisDoc>();
   for (const source of docsIn) {
     // Missing identity is not an independent document.
@@ -346,6 +347,12 @@ export function synthesizeEvidence(
   }
   if (!bySource.size) return null;
   const docs = resolveDocs([...bySource.values()], opts.caseType);
+  if (opts.caseType === 'civil' && opts.civilRuleContext) for (const d of docs) {
+    for (const rule of lexicon.acts) {
+      const match = rule.re.exec(normalizeText(d.quotes.join('\n')));
+      if (match && !d.facts.some(f => f.act === rule.act)) d.facts.push({ kind: 'act', key: `act:${rule.act}`, act: rule.act, display: rule.label, raw: match[0] });
+    }
+  }
   const { agreements, conflicts } = compareFacts(docs);
   const lines: string[] = [];
 

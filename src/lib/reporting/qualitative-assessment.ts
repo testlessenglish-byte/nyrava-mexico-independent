@@ -47,7 +47,11 @@ export function assessCase(report: unknown, findings?: unknown[]): CaseAssessmen
   const materialGaps = gaps.filter(g => g.material === true || ['critical', 'high'].includes(g.severity));
   const contested = arr(r.contradictions_struct).some(c => c.quote_verified === true && c.resolved !== true);
   const ess = obj(obj(full.validation).evidence_sufficiency);
-  const insufficient = !verified.length || ['minimal', 'low'].includes(ess.level ?? ess.bin);
+  const limitations = obj(full.assessment_limitations);
+  const insufficient = !verified.length || ['minimal', 'low'].includes(ess.level ?? ess.bin) ||
+    limitations.material_authority_unresolved === true || limitations.material_citations_unresolved === true ||
+    limitations.underlying_record_absent === true || limitations.corpus_coverage_insufficient === true ||
+    limitations.material_elements_unresolved === true;
   let state: CaseStrengthState = !report ? 'NOT_ASSESSED' : insufficient ? 'INSUFFICIENT_EVIDENCE' : 'NOT_ASSESSED';
   if (!insufficient) {
     if ((support.length && contrary.length) || ((support.length || contrary.length) && (materialGaps.length || contested))) state = 'MIXED_OR_CONTESTED';
