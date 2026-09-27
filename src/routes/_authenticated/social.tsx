@@ -1,3 +1,4 @@
+import { socialCasePriorityOptions } from "@/lib/social/priorities";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -206,7 +207,7 @@ function SocialCarePage(){
   const [caseDraft,setCaseDraft]=useState({
     programId:"",personId:"",newClientName:"",familyId:"",assignedUserId:"",
     caseType:"individual" as "individual"|"minor_child"|"family",
-    priority:"standard" as "standard"|"urgent"|"emergency",
+    priority:"normal" as "low"|"normal"|"high"|"urgent",
   });
   const duplicates=useMutation({
     mutationFn:()=>duplicateFn({data:{orgId:resolvedOrg,name:person.legalName,phone:person.telephone||undefined,email:person.email||undefined,limit:10}}),
@@ -226,7 +227,7 @@ function SocialCarePage(){
     }}),
     onSuccess:(row:any)=>{
       toast.success(es?`Caso ${row.case_number} abierto y asignado`:`Case ${row.case_number} opened and assigned`);
-      setCaseModalOpen(false);setCaseDraft({...caseDraft,personId:"",newClientName:"",familyId:"",assignedUserId:"",priority:"standard"});
+      setCaseModalOpen(false);setCaseDraft({...caseDraft,personId:"",newClientName:"",familyId:"",assignedUserId:"",priority:"normal"});
       void qc.invalidateQueries({queryKey:["social-workspace"]});setSelectedCaseId(row.id);
     },
     onError:(e:unknown)=>toast.error(errorMessage(e)),
@@ -426,9 +427,9 @@ function OpenAndAssignCaseModal({open,es,draft,setDraft,programs,people,families
         <label className="text-xs font-medium text-muted-foreground">{es?"Asignado a":"Assigned to"}<select value={draft.assignedUserId} onChange={e=>setDraft({...draft,assignedUserId:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="">{es?"Seleccione integrante del equipo":"Select team member"}</option>{activeMembers.map((m:any)=><option key={m.user_id} value={m.user_id}>{m.user_id===currentUserId?(es?"Yo":"Me"):m.name}{m.title?` — ${m.title}`:""} · {memberRoleLabel(m.role,es)}</option>)}</select></label>
         <label className="text-xs font-medium text-muted-foreground">{es?"Tipo de caso":"Case type"}<select value={draft.caseType} onChange={e=>setDraft({...draft,caseType:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="individual">{es?"Individual":"Individual"}</option><option value="minor_child">{es?"Menor / protección infantil":"Minor / Child"}</option><option value="family">{es?"Familia":"Family"}</option></select></label>
         {draft.caseType==="family"&&<label className="text-xs font-medium text-muted-foreground">{es?"Familia vinculada (opcional)":"Linked family (optional)"}<select value={draft.familyId} onChange={e=>setDraft({...draft,familyId:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="">—</option>{families.map((x:any)=><option key={x.id} value={x.id}>{x.family_number} · {x.family_name}</option>)}</select></label>}
-        <label className="text-xs font-medium text-muted-foreground">{es?"Prioridad":"Priority"}<select value={draft.priority} onChange={e=>setDraft({...draft,priority:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="standard">{es?"Estándar":"Standard"}</option><option value="urgent">{es?"Urgente":"Urgent"}</option><option value="emergency">{es?"Emergencia":"Emergency"}</option></select></label>
+        <label className="text-xs font-medium text-muted-foreground">{es?"Prioridad":"Priority"}<select value={draft.priority} onChange={e=>setDraft({...draft,priority:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">{socialCasePriorityOptions(es).map(({value,label})=><option key={value} value={value}>{label}</option>)}</select></label>
       </div>
-      {draft.priority==="emergency"&&<div className="mt-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{es?"Emergencia crea alertas y una tarea de respuesta inmediata. Nyrava no sustituye a los servicios de emergencia.":"Emergency creates alerts and an immediate-response task. Nyrava does not replace emergency services."}</div>}
+      {draft.priority==="urgent"&&<div className="mt-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{es?"La prioridad urgente requiere atención inmediata. Nyrava no sustituye a los servicios de emergencia.":"Urgent priority requires immediate attention. Nyrava does not replace emergency services."}</div>}
       <div className="mt-5 flex justify-end gap-3"><button type="button" onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm">{es?"Cancelar":"Cancel"}</button><button type="button" disabled={pending||!programs.length||!validClient||!validAssignee} onClick={onSubmit} className="rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">{pending&&<Loader2 className="mr-2 inline h-4 w-4 animate-spin"/>}{es?"Abrir y asignar":"Open and assign"}</button></div>
     </section>
   </div>;
