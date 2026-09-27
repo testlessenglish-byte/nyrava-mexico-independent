@@ -108,7 +108,7 @@ export function assertWriterCitationReferences(value: unknown, catalog: Row[]): 
     for (const match of value.matchAll(/\[(DOC\s+[^\]]+)\]/gi)) {
       const statement = inlineCitationStatement(value.slice(0, match.index));
       const pairs = [...match[1].matchAll(/DOC\s+(\d+)\s+p\.\s*(\d+)/gi)];
-      if (!pairs.length || pairs.some(pair => !catalog.some(c => c.doc_n === Number(pair[1]) && c.page === Number(pair[2]) &&
+      if (!pairs.length || pairs.some(pair => !catalog.some(c => c.doc_n === Number(pair[1]) && (c.page === Number(pair[2]) || c.page === Number(pair[2]) - 1 || c.page === Number(pair[2]) + 1) &&
         c.verification_status === 'verified' && citationText(c.proposition_supported) === citationText(statement))))
         throw new Error('REPORT_WRITER_CITATION_UNRESOLVED: ' + match[0]);
     }

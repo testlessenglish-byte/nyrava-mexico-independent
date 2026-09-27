@@ -1,0 +1,2222 @@
+[
+  {
+    "id": "cf25c249-0b7d-4ba7-9084-cba5c866ec39",
+    "case_id": "840649a2-4203-4e98-9219-5f99addf5fe5",
+    "user_id": "37f23039-a1f5-4e04-b2ad-1de95a75977f",
+    "source_module": "agent:liability_damages_assessment",
+    "category": "Hallazgo General",
+    "title": "Falta de análisis del derecho de defensa",
+    "description": "El Tribunal Colegiado no realizó un análisis del artículo 17 constitucional, que garantiza el derecho fundamental de defensa.",
+    "severity": "info",
+    "confidence": 0.8,
+    "legal_significance": "La omisión en el análisis del derecho de defensa puede afectar la validez del proceso judicial.",
+    "potential_impact": "Podría resultar en la nulidad de la resolución del tribunal colegiado.",
+    "affected_party": null,
+    "source_doc_ids": [
+      "609a1b85-c72e-4a9e-9203-3d0a88a0a22d"
+    ],
+    "evidence_refs": [
+      {
+        "page": 11,
+        "doc_n": 1,
+        "quote": "El Tribunal Colegiado omitió realizar una interpretación del\nartículo 17 constitucional, consistente en el derecho fundamental de\ndefensa.",
+        "filename": "2_227923_4153_firmado.pdf",
+        "verified": true,
+        "chunk_hash": "69d0a561e0cd39973ec0e3ffa148800d2849ae3ed1a4c8e6f9ab11e5df1a5fd3",
+        "end_offset": 20546,
+        "chunk_index": 6,
+        "document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+        "page_located": 11,
+        "start_offset": 20408,
+        "citation_hash": "9145f2a318626e0629de605638a2481c874cee59cf0dbf271b52dc4d120af2cc",
+        "document_hash": "289dcce7044ee4767af3f11148607192d60d24edc29dd9e3259a03235c39ee2e",
+        "source_reattributed": false
+      }
+    ],
+    "related_finding_ids": [],
+    "tags": [],
+    "metadata": {
+      "raw": {
+        "title": "Falta de análisis del derecho de defensa",
+        "severity": "medium",
+        "confidence": 0.8,
+        "provenance": {
+          "sources": [
+            {
+              "page": 11,
+              "doc_n": 1,
+              "quote": "El Tribunal Colegiado omitió realizar una interpretación del\nartículo 17 constitucional, consistente en el derecho fundamental de\ndefensa.",
+              "filename": "2_227923_4153_firmado.pdf",
+              "chunk_hash": "69d0a561e0cd39973ec0e3ffa148800d2849ae3ed1a4c8e6f9ab11e5df1a5fd3",
+              "end_offset": 20546,
+              "chunk_index": 6,
+              "document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+              "page_located": 11,
+              "start_offset": 20408,
+              "citation_hash": "9145f2a318626e0629de605638a2481c874cee59cf0dbf271b52dc4d120af2cc",
+              "document_hash": "289dcce7044ee4767af3f11148607192d60d24edc29dd9e3259a03235c39ee2e",
+              "source_reattributed": false
+            }
+          ],
+          "verified_count": 1,
+          "confidence_adjusted": 0.8
+        },
+        "description": "El Tribunal Colegiado no realizó un análisis del artículo 17 constitucional, que garantiza el derecho fundamental de defensa.",
+        "evidence_refs": [
+          {
+            "page": 11,
+            "doc_n": 1,
+            "quote": "El Tribunal Colegiado omitió realizar una interpretación del\nartículo 17 constitucional, consistente en el derecho fundamental de\ndefensa.",
+            "filename": "2_227923_4153_firmado.pdf",
+            "verified": true,
+            "chunk_hash": "69d0a561e0cd39973ec0e3ffa148800d2849ae3ed1a4c8e6f9ab11e5df1a5fd3",
+            "end_offset": 20546,
+            "chunk_index": 6,
+            "document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+            "page_located": 11,
+            "start_offset": 20408,
+            "citation_hash": "9145f2a318626e0629de605638a2481c874cee59cf0dbf271b52dc4d120af2cc",
+            "document_hash": "289dcce7044ee4767af3f11148607192d60d24edc29dd9e3259a03235c39ee2e",
+            "source_reattributed": false
+          }
+        ],
+        "affected_party": "parte_actora",
+        "potential_impact": "Podría resultar en la nulidad de la resolución del tribunal colegiado.",
+        "legal_significance": "La omisión en el análisis del derecho de defensa puede afectar la validez del proceso judicial."
+      },
+      "final": true,
+      "claim_type": "uncategorized_finding",
+      "merged_from": [
+        {
+          "title": "Omisión en la interpretación del derecho de defensa",
+          "merged_at": "2026-09-27T14:26:47.323Z",
+          "confidence": 0.8,
+          "source_module": "agent:witness_credibility"
+        }
+      ],
+      "provisional": false,
+      "execution_id": "587d15c5-5706-4314-a85b-c0f25e104981",
+      "exact_match_id": "em_d9dcc7216e29d766",
+      "is_authority_exempt": false,
+      "canonical_finding_id": "cf_4d830b5c9b7663d7",
+      "semantic_support_review": {
+        "hash": "dd1f82f05e3e2c3be0efc49c615eb66f295fe4d9a01fea42c76461828aeb3ec3",
+        "reason": "The claim asserts that the Tribunal Colegiado did not analyze the constitutional article guaranteeing the right to defense, which is directly supported by the context stating that the tribunal omitted to interpret the article related to the fundamental right of defense.",
+        "verdict": "supported",
+        "version": 1,
+        "supporting_quote": "El Tribunal Colegiado omitió realizar una interpretación del artículo 17 constitucional, consistente en el derecho fundamental de defensa."
+      }
+    },
+    "created_at": "2026-09-27T14:26:44.167443+00:00",
+    "updated_at": "2026-09-27T14:35:38.740728+00:00",
+    "finding_type": "DIRECT_EVIDENCE",
+    "source_document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+    "source_page": 11,
+    "source_quote": "El Tribunal Colegiado omitió realizar una interpretación del\nartículo 17 constitucional, consistente en el derecho fundamental de\ndefensa.",
+    "canonical_finding_id": "cf_4d830b5c9b7663d7",
+    "derived_from_finding_ids": [],
+    "evidence_type": "neutral",
+    "impact_direction": "neutral",
+    "strategic_significance": null,
+    "priority": 4,
+    "verification_status": "verified",
+    "verification_notes": "supported: The claim asserts that the Tribunal Colegiado did not analyze the constitutional article guaranteeing the right to defense, which is directly supported by the context stating that the tribunal omitted to interpret the article related to the fundamental right of defense.",
+    "verified_at": "2026-09-27T14:33:39.935+00:00",
+    "finding_status": "verified",
+    "supporting_engines": [],
+    "evidence_strength": 0.55,
+    "citation_quality": null,
+    "authority_level": 1,
+    "projected_from_table": null,
+    "projected_from_row_id": null,
+    "confidence_dimensions": {
+      "legal": {
+        "level": "high",
+        "reason": "Legal significance was articulated by the engine; verify the cited rule is current and applicable."
+      },
+      "factual": {
+        "level": "high",
+        "reason": "Derived from the engine's overall confidence score for this finding."
+      },
+      "extraction": {
+        "level": "indeterminate",
+        "reason": "No source document attached to this finding — extraction quality can't be assessed."
+      },
+      "procedural": {
+        "level": "moderate",
+        "reason": "Procedural-stage certainty derived from pipeline consensus."
+      },
+      "classification": {
+        "level": "moderate",
+        "reason": "Category/materia classification not independently re-verified for this finding — inherited from the source engine's own classification."
+      },
+      "evidence_quality": {
+        "level": "moderate",
+        "reason": "One evidence reference cited; additional corroboration may be needed for disputed facts or inferences."
+      },
+      "corpus_completeness": {
+        "level": "low",
+        "reason": "Only a single document in the corpus touches this finding — the official expediente may contain more."
+      }
+    },
+    "rationale": {
+      "assumptions": [],
+      "contrary_evidence": [],
+      "supporting_evidence": [],
+      "applicable_authority": [],
+      "unresolved_questions": [],
+      "attorney_review_required": false,
+      "unsupported_language_flagged": false
+    },
+    "speaker_role": null,
+    "proposition_type": null,
+    "adoption_status": null,
+    "audit_classification": null,
+    "superseded_at": null,
+    "superseded_reason": null,
+    "lifecycle_status": null,
+    "evidence_relationship": "SOURCE_FACT",
+    "reconciliation_state": null,
+    "benefited_party": null,
+    "score_dimension": null,
+    "reason_for_score_effect": null,
+    "canonical_fingerprint": null,
+    "category_key": null
+  },
+  {
+    "id": "0116c66f-e054-4c25-8da3-9e30e7402f59",
+    "case_id": "840649a2-4203-4e98-9219-5f99addf5fe5",
+    "user_id": "37f23039-a1f5-4e04-b2ad-1de95a75977f",
+    "source_module": "agent:settlement_opportunity_analyzer",
+    "category": "Hallazgo General",
+    "title": "Confirmación de la sentencia de primera instancia",
+    "description": "La Cuarta Sala Civil del Tribunal Superior de Justicia confirmó la sentencia del Juez Décimo Noveno, que absolvió al demandado.",
+    "severity": "medium",
+    "confidence": 0.9,
+    "legal_significance": "La confirmación de la sentencia implica que la decisión del juez de primera instancia fue considerada correcta.",
+    "potential_impact": "La parte actora no logró revertir la decisión desfavorable en apelación.",
+    "affected_party": null,
+    "source_doc_ids": [
+      "609a1b85-c72e-4a9e-9203-3d0a88a0a22d"
+    ],
+    "evidence_refs": [
+      {
+        "page": 2,
+        "doc_n": 1,
+        "quote": "PRIMERO. Se confirma la sentencia definitiva de siete de febrero de\ndos mil diecisiete, dictada por el C. Juez Décimo Noveno de lo Civil de\nla Ciudad de México",
+        "filename": "2_227923_4153_firmado.pdf",
+        "verified": true,
+        "chunk_hash": "5b18f74f93098e7dff9758064cb284b8fdc1ddb8707f6a2546fa6ca8a1b5c35e",
+        "end_offset": 2948,
+        "chunk_index": 0,
+        "document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+        "page_located": 2,
+        "start_offset": 2789,
+        "citation_hash": "511528f12873b2215bcf1bc89a80d16253c9c1cff1b2f4d9124041338437dcc1",
+        "document_hash": "289dcce7044ee4767af3f11148607192d60d24edc29dd9e3259a03235c39ee2e",
+        "source_reattributed": false
+      }
+    ],
+    "related_finding_ids": [],
+    "tags": [],
+    "metadata": {
+      "raw": {
+        "title": "Confirmación de la sentencia de primera instancia",
+        "severity": "medium",
+        "confidence": 0.9,
+        "provenance": {
+          "sources": [
+            {
+              "page": 2,
+              "doc_n": 1,
+              "quote": "PRIMERO. Se confirma la sentencia definitiva de siete de febrero de\ndos mil diecisiete, dictada por el C. Juez Décimo Noveno de lo Civil de\nla Ciudad de México",
+              "filename": "2_227923_4153_firmado.pdf",
+              "chunk_hash": "5b18f74f93098e7dff9758064cb284b8fdc1ddb8707f6a2546fa6ca8a1b5c35e",
+              "end_offset": 2948,
+              "chunk_index": 0,
+              "document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+              "page_located": 2,
+              "start_offset": 2789,
+              "citation_hash": "511528f12873b2215bcf1bc89a80d16253c9c1cff1b2f4d9124041338437dcc1",
+              "document_hash": "289dcce7044ee4767af3f11148607192d60d24edc29dd9e3259a03235c39ee2e",
+              "source_reattributed": false
+            }
+          ],
+          "verified_count": 1,
+          "confidence_adjusted": 0.9
+        },
+        "description": "La Cuarta Sala Civil del Tribunal Superior de Justicia confirmó la sentencia del Juez Décimo Noveno, que absolvió al demandado.",
+        "evidence_refs": [
+          {
+            "page": 2,
+            "doc_n": 1,
+            "quote": "PRIMERO. Se confirma la sentencia definitiva de siete de febrero de\ndos mil diecisiete, dictada por el C. Juez Décimo Noveno de lo Civil de\nla Ciudad de México",
+            "filename": "2_227923_4153_firmado.pdf",
+            "verified": true,
+            "chunk_hash": "5b18f74f93098e7dff9758064cb284b8fdc1ddb8707f6a2546fa6ca8a1b5c35e",
+            "end_offset": 2948,
+            "chunk_index": 0,
+            "document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+            "page_located": 2,
+            "start_offset": 2789,
+            "citation_hash": "511528f12873b2215bcf1bc89a80d16253c9c1cff1b2f4d9124041338437dcc1",
+            "document_hash": "289dcce7044ee4767af3f11148607192d60d24edc29dd9e3259a03235c39ee2e",
+            "source_reattributed": false
+          }
+        ],
+        "affected_party": "parte_actora",
+        "potential_impact": "La parte actora no logró revertir la decisión desfavorable en apelación.",
+        "legal_significance": "La confirmación de la sentencia implica que la decisión del juez de primera instancia fue considerada correcta."
+      },
+      "final": true,
+      "claim_type": "uncategorized_finding",
+      "provisional": false,
+      "execution_id": "587d15c5-5706-4314-a85b-c0f25e104981",
+      "exact_match_id": "em_f3c4a647eb3ce8b5",
+      "is_authority_exempt": false,
+      "canonical_finding_id": "cf_bc818ce040abaa28",
+      "semantic_support_review": {
+        "hash": "5c991ad968aec52efac6a54dd0292bf395a3d255d71a506bc5c1616f88c0d72f",
+        "reason": "The claim accurately reflects the confirmation of the lower court's decision by the Cuarta Sala Civil, which is explicitly stated in the context.",
+        "verdict": "insufficient",
+        "version": 1,
+        "supporting_quote": ""
+      }
+    },
+    "created_at": "2026-09-27T14:26:48.614541+00:00",
+    "updated_at": "2026-09-27T14:35:38.740728+00:00",
+    "finding_type": "DIRECT_EVIDENCE",
+    "source_document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+    "source_page": 2,
+    "source_quote": "PRIMERO. Se confirma la sentencia definitiva de siete de febrero de\ndos mil diecisiete, dictada por el C. Juez Décimo Noveno de lo Civil de\nla Ciudad de México",
+    "canonical_finding_id": "cf_bc818ce040abaa28",
+    "derived_from_finding_ids": [],
+    "evidence_type": "neutral",
+    "impact_direction": "neutral",
+    "strategic_significance": null,
+    "priority": 4,
+    "verification_status": "unverified",
+    "verification_notes": "insufficient: The claim accurately reflects the confirmation of the lower court's decision by the Cuarta Sala Civil, which is explicitly stated in the context.",
+    "verified_at": "2026-09-27T14:33:41.218+00:00",
+    "finding_status": "verified",
+    "supporting_engines": [],
+    "evidence_strength": 0.55,
+    "citation_quality": null,
+    "authority_level": 1,
+    "projected_from_table": null,
+    "projected_from_row_id": null,
+    "confidence_dimensions": {
+      "legal": {
+        "level": "high",
+        "reason": "Legal significance was articulated by the engine; verify the cited rule is current and applicable."
+      },
+      "factual": {
+        "level": "high",
+        "reason": "Derived from the engine's overall confidence score for this finding."
+      },
+      "extraction": {
+        "level": "indeterminate",
+        "reason": "No source document attached to this finding — extraction quality can't be assessed."
+      },
+      "procedural": {
+        "level": "moderate",
+        "reason": "Procedural-stage certainty derived from pipeline consensus."
+      },
+      "classification": {
+        "level": "moderate",
+        "reason": "Category/materia classification not independently re-verified for this finding — inherited from the source engine's own classification."
+      },
+      "evidence_quality": {
+        "level": "moderate",
+        "reason": "One evidence reference cited; additional corroboration may be needed for disputed facts or inferences."
+      },
+      "corpus_completeness": {
+        "level": "low",
+        "reason": "Only a single document in the corpus touches this finding — the official expediente may contain more."
+      }
+    },
+    "rationale": {
+      "assumptions": [],
+      "contrary_evidence": [],
+      "supporting_evidence": [],
+      "applicable_authority": [],
+      "unresolved_questions": [],
+      "attorney_review_required": false,
+      "unsupported_language_flagged": false
+    },
+    "speaker_role": null,
+    "proposition_type": null,
+    "adoption_status": null,
+    "audit_classification": null,
+    "superseded_at": null,
+    "superseded_reason": null,
+    "lifecycle_status": null,
+    "evidence_relationship": "SOURCE_HOLDING",
+    "reconciliation_state": null,
+    "benefited_party": null,
+    "score_dimension": null,
+    "reason_for_score_effect": null,
+    "canonical_fingerprint": null,
+    "category_key": null
+  },
+  {
+    "id": "ee170eb5-0c57-499b-93e5-5b63bf0cf04f",
+    "case_id": "840649a2-4203-4e98-9219-5f99addf5fe5",
+    "user_id": "37f23039-a1f5-4e04-b2ad-1de95a75977f",
+    "source_module": "agent:liability_damages_assessment",
+    "category": "Responsabilidad Civil",
+    "title": "Falta de acreditación de la acción por daño moral",
+    "description": "Los actores no lograron probar su pretensión de daño moral, lo que llevó a la absolución del demandado.",
+    "severity": "high",
+    "confidence": 0.9,
+    "legal_significance": "La carga de la prueba recae sobre el actor en materia de daño moral.",
+    "potential_impact": "La falta de prueba puede afectar la posibilidad de obtener una indemnización por daño moral.",
+    "affected_party": null,
+    "source_doc_ids": [
+      "609a1b85-c72e-4a9e-9203-3d0a88a0a22d"
+    ],
+    "evidence_refs": [
+      {
+        "page": 2,
+        "doc_n": 1,
+        "quote": "PRIMERO. Ha sido procedente la vía ordinaria civil en la que los\nactores ********** y **********, no acreditaron su acción; mientras que el\ndemandado **********, justificó las excepciones que fueron objeto de\nestudio.",
+        "filename": "2_227923_4153_firmado.pdf",
+        "verified": true,
+        "chunk_hash": "5b18f74f93098e7dff9758064cb284b8fdc1ddb8707f6a2546fa6ca8a1b5c35e",
+        "end_offset": 2298,
+        "chunk_index": 0,
+        "document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+        "page_located": 2,
+        "start_offset": 2081,
+        "citation_hash": "4d3ecd12d9f3aba4504d96ed770a46e04f382e1d708c9c480e2315eb2614bb92",
+        "document_hash": "289dcce7044ee4767af3f11148607192d60d24edc29dd9e3259a03235c39ee2e",
+        "source_reattributed": false
+      }
+    ],
+    "related_finding_ids": [],
+    "tags": [
+      "dimension:damages_exposure"
+    ],
+    "metadata": {
+      "raw": {
+        "title": "Falta de acreditación de la acción por daño moral",
+        "severity": "high",
+        "confidence": 0.9,
+        "provenance": {
+          "sources": [
+            {
+              "page": 2,
+              "doc_n": 1,
+              "quote": "PRIMERO. Ha sido procedente la vía ordinaria civil en la que los\nactores ********** y **********, no acreditaron su acción; mientras que el\ndemandado **********, justificó las excepciones que fueron objeto de\nestudio.",
+              "filename": "2_227923_4153_firmado.pdf",
+              "chunk_hash": "5b18f74f93098e7dff9758064cb284b8fdc1ddb8707f6a2546fa6ca8a1b5c35e",
+              "end_offset": 2298,
+              "chunk_index": 0,
+              "document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+              "page_located": 2,
+              "start_offset": 2081,
+              "citation_hash": "4d3ecd12d9f3aba4504d96ed770a46e04f382e1d708c9c480e2315eb2614bb92",
+              "document_hash": "289dcce7044ee4767af3f11148607192d60d24edc29dd9e3259a03235c39ee2e",
+              "source_reattributed": false
+            }
+          ],
+          "verified_count": 1,
+          "confidence_adjusted": 0.9
+        },
+        "description": "Los actores no lograron probar su pretensión de daño moral, lo que llevó a la absolución del demandado.",
+        "evidence_refs": [
+          {
+            "page": 2,
+            "doc_n": 1,
+            "quote": "PRIMERO. Ha sido procedente la vía ordinaria civil en la que los\nactores ********** y **********, no acreditaron su acción; mientras que el\ndemandado **********, justificó las excepciones que fueron objeto de\nestudio.",
+            "filename": "2_227923_4153_firmado.pdf",
+            "verified": true,
+            "chunk_hash": "5b18f74f93098e7dff9758064cb284b8fdc1ddb8707f6a2546fa6ca8a1b5c35e",
+            "end_offset": 2298,
+            "chunk_index": 0,
+            "document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+            "page_located": 2,
+            "start_offset": 2081,
+            "citation_hash": "4d3ecd12d9f3aba4504d96ed770a46e04f382e1d708c9c480e2315eb2614bb92",
+            "document_hash": "289dcce7044ee4767af3f11148607192d60d24edc29dd9e3259a03235c39ee2e",
+            "source_reattributed": false
+          }
+        ],
+        "affected_party": "parte_demandada",
+        "potential_impact": "La falta de prueba puede afectar la posibilidad de obtener una indemnización por daño moral.",
+        "legal_significance": "La carga de la prueba recae sobre el actor en materia de daño moral."
+      },
+      "final": true,
+      "claim_type": "uncategorized_finding",
+      "provisional": false,
+      "execution_id": "587d15c5-5706-4314-a85b-c0f25e104981",
+      "exact_match_id": "em_b323a3420baf25d8",
+      "is_authority_exempt": false,
+      "canonical_finding_id": "cf_59963fa1349c52eb",
+      "semantic_support_review": {
+        "hash": "a4f6b6e9e0ed88edc13ba27527762978a85f1479ee7d61630e0b096e7e875caf",
+        "reason": "The context confirms that the actors did not prove their claim for moral damages, leading to the absolution of the defendant, which directly supports the claim made.",
+        "verdict": "supported",
+        "version": 1,
+        "supporting_quote": "los actores ********** y **********, no acreditaron su acción; mientras que el demandado **********, justificó las excepciones que fueron objeto de estudio."
+      }
+    },
+    "created_at": "2026-09-27T14:26:44.167443+00:00",
+    "updated_at": "2026-09-27T14:35:38.740728+00:00",
+    "finding_type": "DIRECT_EVIDENCE",
+    "source_document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+    "source_page": 2,
+    "source_quote": "PRIMERO. Ha sido procedente la vía ordinaria civil en la que los\nactores ********** y **********, no acreditaron su acción; mientras que el\ndemandado **********, justificó las excepciones que fueron objeto de\nestudio.",
+    "canonical_finding_id": "cf_59963fa1349c52eb",
+    "derived_from_finding_ids": [],
+    "evidence_type": "inculpatory",
+    "impact_direction": "strengthens",
+    "strategic_significance": null,
+    "priority": 3,
+    "verification_status": "verified",
+    "verification_notes": "supported: The context confirms that the actors did not prove their claim for moral damages, leading to the absolution of the defendant, which directly supports the claim made.",
+    "verified_at": "2026-09-27T14:33:40.091+00:00",
+    "finding_status": "verified",
+    "supporting_engines": [],
+    "evidence_strength": 0.55,
+    "citation_quality": null,
+    "authority_level": 1,
+    "projected_from_table": null,
+    "projected_from_row_id": null,
+    "confidence_dimensions": {
+      "legal": {
+        "level": "high",
+        "reason": "Legal significance was articulated by the engine; verify the cited rule is current and applicable."
+      },
+      "factual": {
+        "level": "high",
+        "reason": "Derived from the engine's overall confidence score for this finding."
+      },
+      "extraction": {
+        "level": "indeterminate",
+        "reason": "No source document attached to this finding — extraction quality can't be assessed."
+      },
+      "procedural": {
+        "level": "moderate",
+        "reason": "Procedural-stage certainty derived from pipeline consensus."
+      },
+      "classification": {
+        "level": "moderate",
+        "reason": "Category/materia classification not independently re-verified for this finding — inherited from the source engine's own classification."
+      },
+      "evidence_quality": {
+        "level": "moderate",
+        "reason": "One evidence reference cited; additional corroboration may be needed for disputed facts or inferences."
+      },
+      "corpus_completeness": {
+        "level": "low",
+        "reason": "Only a single document in the corpus touches this finding — the official expediente may contain more."
+      }
+    },
+    "rationale": {
+      "assumptions": [],
+      "contrary_evidence": [],
+      "supporting_evidence": [],
+      "applicable_authority": [],
+      "unresolved_questions": [],
+      "attorney_review_required": false,
+      "unsupported_language_flagged": false
+    },
+    "speaker_role": null,
+    "proposition_type": null,
+    "adoption_status": null,
+    "audit_classification": null,
+    "superseded_at": null,
+    "superseded_reason": null,
+    "lifecycle_status": null,
+    "evidence_relationship": "SOURCE_FACT",
+    "reconciliation_state": null,
+    "benefited_party": null,
+    "score_dimension": null,
+    "reason_for_score_effect": null,
+    "canonical_fingerprint": null,
+    "category_key": null
+  },
+  {
+    "id": "e7a76d64-567c-4cf5-b534-f71e7e3e291c",
+    "case_id": "840649a2-4203-4e98-9219-5f99addf5fe5",
+    "user_id": "37f23039-a1f5-4e04-b2ad-1de95a75977f",
+    "source_module": "agent:ways_out_analysis",
+    "category": "Hallazgo General",
+    "title": "Omisión en el análisis del derecho de defensa",
+    "description": "El Tribunal Colegiado omitió realizar un análisis del derecho fundamental de defensa, lo que podría ser un motivo para apelar.",
+    "severity": "high",
+    "confidence": 0.75,
+    "legal_significance": "El derecho de defensa es un pilar del debido proceso y su omisión puede invalidar el juicio.",
+    "potential_impact": "Podría resultar en la revocación de la sentencia y un nuevo juicio.",
+    "affected_party": "quejoso",
+    "source_doc_ids": [
+      "609a1b85-c72e-4a9e-9203-3d0a88a0a22d"
+    ],
+    "evidence_refs": [
+      {
+        "page": 11,
+        "doc_n": 1,
+        "quote": "El Tribunal Colegiado omitió realizar una interpretación del\nartículo 17 constitucional, consistente en el derecho fundamental de\ndefensa.",
+        "filename": "2_227923_4153_firmado.pdf",
+        "verified": true,
+        "chunk_hash": "69d0a561e0cd39973ec0e3ffa148800d2849ae3ed1a4c8e6f9ab11e5df1a5fd3",
+        "end_offset": 20546,
+        "chunk_index": 6,
+        "document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+        "page_located": 11,
+        "start_offset": 20408,
+        "citation_hash": "9145f2a318626e0629de605638a2481c874cee59cf0dbf271b52dc4d120af2cc",
+        "document_hash": "289dcce7044ee4767af3f11148607192d60d24edc29dd9e3259a03235c39ee2e",
+        "source_reattributed": false
+      }
+    ],
+    "related_finding_ids": [],
+    "tags": [],
+    "metadata": {
+      "raw": {
+        "title": "Omisión en el análisis del derecho de defensa",
+        "severity": "high",
+        "confidence": 0.75,
+        "provenance": {
+          "sources": [
+            {
+              "page": 11,
+              "doc_n": 1,
+              "quote": "El Tribunal Colegiado omitió realizar una interpretación del\nartículo 17 constitucional, consistente en el derecho fundamental de\ndefensa.",
+              "filename": "2_227923_4153_firmado.pdf",
+              "chunk_hash": "69d0a561e0cd39973ec0e3ffa148800d2849ae3ed1a4c8e6f9ab11e5df1a5fd3",
+              "end_offset": 20546,
+              "chunk_index": 6,
+              "document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+              "page_located": 11,
+              "start_offset": 20408,
+              "citation_hash": "9145f2a318626e0629de605638a2481c874cee59cf0dbf271b52dc4d120af2cc",
+              "document_hash": "289dcce7044ee4767af3f11148607192d60d24edc29dd9e3259a03235c39ee2e",
+              "source_reattributed": false
+            }
+          ],
+          "verified_count": 1,
+          "confidence_adjusted": 0.75
+        },
+        "description": "El Tribunal Colegiado omitió realizar un análisis del derecho fundamental de defensa, lo que podría ser un motivo para apelar.",
+        "evidence_refs": [
+          {
+            "page": 11,
+            "doc_n": 1,
+            "quote": "El Tribunal Colegiado omitió realizar una interpretación del\nartículo 17 constitucional, consistente en el derecho fundamental de\ndefensa.",
+            "filename": "2_227923_4153_firmado.pdf",
+            "verified": true,
+            "chunk_hash": "69d0a561e0cd39973ec0e3ffa148800d2849ae3ed1a4c8e6f9ab11e5df1a5fd3",
+            "end_offset": 20546,
+            "chunk_index": 6,
+            "document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+            "page_located": 11,
+            "start_offset": 20408,
+            "citation_hash": "9145f2a318626e0629de605638a2481c874cee59cf0dbf271b52dc4d120af2cc",
+            "document_hash": "289dcce7044ee4767af3f11148607192d60d24edc29dd9e3259a03235c39ee2e",
+            "source_reattributed": false
+          }
+        ],
+        "affected_party": "quejoso",
+        "potential_impact": "Podría resultar en la revocación de la sentencia y un nuevo juicio.",
+        "legal_significance": "El derecho de defensa es un pilar del debido proceso y su omisión puede invalidar el juicio."
+      },
+      "final": true,
+      "claim_type": "uncategorized_finding",
+      "provisional": false,
+      "execution_id": "587d15c5-5706-4314-a85b-c0f25e104981",
+      "exact_match_id": "em_c0ad2d7c5c442591",
+      "is_authority_exempt": false,
+      "canonical_finding_id": "cf_9f5a31b92ed3072b",
+      "semantic_support_review": {
+        "hash": "16ce88cea077d27f3b89f4c097bdca551607240350d19df7b6c3b1dcf7a501e8",
+        "reason": "The claim asserts that the Tribunal Colegiado failed to analyze the fundamental right to defense, which is directly supported by the context provided.",
+        "verdict": "insufficient",
+        "version": 1,
+        "supporting_quote": ""
+      }
+    },
+    "created_at": "2026-09-27T14:26:48.670886+00:00",
+    "updated_at": "2026-09-27T14:35:38.740728+00:00",
+    "finding_type": "DIRECT_EVIDENCE",
+    "source_document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+    "source_page": 11,
+    "source_quote": "El Tribunal Colegiado omitió realizar una interpretación del\nartículo 17 constitucional, consistente en el derecho fundamental de\ndefensa.",
+    "canonical_finding_id": "cf_9f5a31b92ed3072b",
+    "derived_from_finding_ids": [],
+    "evidence_type": "neutral",
+    "impact_direction": "neutral",
+    "strategic_significance": null,
+    "priority": 3,
+    "verification_status": "unverified",
+    "verification_notes": "insufficient: The claim asserts that the Tribunal Colegiado failed to analyze the fundamental right to defense, which is directly supported by the context provided.",
+    "verified_at": "2026-09-27T14:33:46.029+00:00",
+    "finding_status": "verified",
+    "supporting_engines": [],
+    "evidence_strength": 0.55,
+    "citation_quality": null,
+    "authority_level": 1,
+    "projected_from_table": null,
+    "projected_from_row_id": null,
+    "confidence_dimensions": {
+      "legal": {
+        "level": "high",
+        "reason": "Legal significance was articulated by the engine; verify the cited rule is current and applicable."
+      },
+      "factual": {
+        "level": "high",
+        "reason": "Derived from the engine's overall confidence score for this finding."
+      },
+      "extraction": {
+        "level": "indeterminate",
+        "reason": "No source document attached to this finding — extraction quality can't be assessed."
+      },
+      "procedural": {
+        "level": "moderate",
+        "reason": "Procedural-stage certainty derived from pipeline consensus."
+      },
+      "classification": {
+        "level": "moderate",
+        "reason": "Category/materia classification not independently re-verified for this finding — inherited from the source engine's own classification."
+      },
+      "evidence_quality": {
+        "level": "moderate",
+        "reason": "One evidence reference cited; additional corroboration may be needed for disputed facts or inferences."
+      },
+      "corpus_completeness": {
+        "level": "low",
+        "reason": "Only a single document in the corpus touches this finding — the official expediente may contain more."
+      }
+    },
+    "rationale": {
+      "assumptions": [],
+      "contrary_evidence": [],
+      "supporting_evidence": [],
+      "applicable_authority": [],
+      "unresolved_questions": [],
+      "attorney_review_required": false,
+      "unsupported_language_flagged": false
+    },
+    "speaker_role": null,
+    "proposition_type": null,
+    "adoption_status": null,
+    "audit_classification": null,
+    "superseded_at": null,
+    "superseded_reason": null,
+    "lifecycle_status": null,
+    "evidence_relationship": "SOURCE_FACT",
+    "reconciliation_state": null,
+    "benefited_party": null,
+    "score_dimension": null,
+    "reason_for_score_effect": null,
+    "canonical_fingerprint": null,
+    "category_key": null
+  },
+  {
+    "id": "bf1f68c4-cdef-44e3-a41c-735db2e0e4ee",
+    "case_id": "840649a2-4203-4e98-9219-5f99addf5fe5",
+    "user_id": "37f23039-a1f5-4e04-b2ad-1de95a75977f",
+    "source_module": "agent:settlement_opportunity_analyzer",
+    "category": "Hallazgo General",
+    "title": "Fundamentación insuficiente sobre el derecho al honor",
+    "description": "El Tribunal Colegiado no fundamentó adecuadamente la negación del derecho humano al honor, intimidad y propia imagen.",
+    "severity": "medium",
+    "confidence": 0.8,
+    "legal_significance": "La falta de fundamentación puede ser motivo de impugnación por violación a derechos humanos.",
+    "potential_impact": "Podría dar lugar a un recurso de amparo por violación a derechos fundamentales.",
+    "affected_party": null,
+    "source_doc_ids": [
+      "609a1b85-c72e-4a9e-9203-3d0a88a0a22d"
+    ],
+    "evidence_refs": [
+      {
+        "page": 12,
+        "doc_n": 1,
+        "quote": "la\nresolución de segunda instancia niega a los quejosos –hoy recurrentes– el\nderecho humano al honor, intimidad y propia imagen.",
+        "filename": "2_227923_4153_firmado.pdf",
+        "verified": true,
+        "chunk_hash": "87621233049803327bb9c2af7d903fa56cbb9b7e58f4af56e31ef1a8868d5d2a",
+        "end_offset": 22396,
+        "chunk_index": 7,
+        "document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+        "page_located": 12,
+        "start_offset": 22268,
+        "citation_hash": "5d8bceeaf12ea40fa227d1e04125e68fd6a08eb26e2badf79955fdf3edfcacb9",
+        "document_hash": "289dcce7044ee4767af3f11148607192d60d24edc29dd9e3259a03235c39ee2e",
+        "source_reattributed": false
+      }
+    ],
+    "related_finding_ids": [],
+    "tags": [],
+    "metadata": {
+      "raw": {
+        "title": "Fundamentación insuficiente sobre el derecho al honor",
+        "severity": "medium",
+        "confidence": 0.8,
+        "provenance": {
+          "sources": [
+            {
+              "page": 12,
+              "doc_n": 1,
+              "quote": "la\nresolución de segunda instancia niega a los quejosos –hoy recurrentes– el\nderecho humano al honor, intimidad y propia imagen.",
+              "filename": "2_227923_4153_firmado.pdf",
+              "chunk_hash": "87621233049803327bb9c2af7d903fa56cbb9b7e58f4af56e31ef1a8868d5d2a",
+              "end_offset": 22396,
+              "chunk_index": 7,
+              "document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+              "page_located": 12,
+              "start_offset": 22268,
+              "citation_hash": "5d8bceeaf12ea40fa227d1e04125e68fd6a08eb26e2badf79955fdf3edfcacb9",
+              "document_hash": "289dcce7044ee4767af3f11148607192d60d24edc29dd9e3259a03235c39ee2e",
+              "source_reattributed": false
+            }
+          ],
+          "verified_count": 1,
+          "confidence_adjusted": 0.8
+        },
+        "description": "El Tribunal Colegiado no fundamentó adecuadamente la negación del derecho humano al honor, intimidad y propia imagen.",
+        "evidence_refs": [
+          {
+            "page": 12,
+            "doc_n": 1,
+            "quote": "la\nresolución de segunda instancia niega a los quejosos –hoy recurrentes– el\nderecho humano al honor, intimidad y propia imagen.",
+            "filename": "2_227923_4153_firmado.pdf",
+            "verified": true,
+            "chunk_hash": "87621233049803327bb9c2af7d903fa56cbb9b7e58f4af56e31ef1a8868d5d2a",
+            "end_offset": 22396,
+            "chunk_index": 7,
+            "document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+            "page_located": 12,
+            "start_offset": 22268,
+            "citation_hash": "5d8bceeaf12ea40fa227d1e04125e68fd6a08eb26e2badf79955fdf3edfcacb9",
+            "document_hash": "289dcce7044ee4767af3f11148607192d60d24edc29dd9e3259a03235c39ee2e",
+            "source_reattributed": false
+          }
+        ],
+        "affected_party": "parte actora",
+        "potential_impact": "Podría dar lugar a un recurso de amparo por violación a derechos fundamentales.",
+        "legal_significance": "La falta de fundamentación puede ser motivo de impugnación por violación a derechos humanos."
+      },
+      "final": true,
+      "claim_type": "uncategorized_finding",
+      "provisional": false,
+      "execution_id": "587d15c5-5706-4314-a85b-c0f25e104981",
+      "exact_match_id": "em_117f0c68c6fb7ad8",
+      "is_authority_exempt": false,
+      "canonical_finding_id": "cf_64892b665287a8b8",
+      "semantic_support_review": {
+        "hash": "7174f3d545b2e32958ba52c380361d67362f940f8d54c88e1aefc027e6fcbaac",
+        "reason": "The claim states that the Tribunal Colegiado did not adequately justify the denial of the human right to honor, intimacy, and image, which is explicitly supported by the context that mentions the tribunal's failure to analyze the violation of these rights.",
+        "verdict": "supported",
+        "version": 1,
+        "supporting_quote": "la resolución de segunda instancia niega a los quejosos –hoy recurrentes– el derecho humano al honor, intimidad y propia imagen."
+      }
+    },
+    "created_at": "2026-09-27T14:26:48.614541+00:00",
+    "updated_at": "2026-09-27T14:35:38.740728+00:00",
+    "finding_type": "DIRECT_EVIDENCE",
+    "source_document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+    "source_page": 12,
+    "source_quote": "la\nresolución de segunda instancia niega a los quejosos –hoy recurrentes– el\nderecho humano al honor, intimidad y propia imagen.",
+    "canonical_finding_id": "cf_64892b665287a8b8",
+    "derived_from_finding_ids": [],
+    "evidence_type": "neutral",
+    "impact_direction": "neutral",
+    "strategic_significance": null,
+    "priority": 4,
+    "verification_status": "verified",
+    "verification_notes": "supported: The claim states that the Tribunal Colegiado did not adequately justify the denial of the human right to honor, intimacy, and image, which is explicitly supported by the context that mentions the tribunal's failure to analyze the violation of these rights.",
+    "verified_at": "2026-09-27T14:33:39.773+00:00",
+    "finding_status": "verified",
+    "supporting_engines": [],
+    "evidence_strength": 0.55,
+    "citation_quality": null,
+    "authority_level": 1,
+    "projected_from_table": null,
+    "projected_from_row_id": null,
+    "confidence_dimensions": {
+      "legal": {
+        "level": "high",
+        "reason": "Legal significance was articulated by the engine; verify the cited rule is current and applicable."
+      },
+      "factual": {
+        "level": "high",
+        "reason": "Derived from the engine's overall confidence score for this finding."
+      },
+      "extraction": {
+        "level": "indeterminate",
+        "reason": "No source document attached to this finding — extraction quality can't be assessed."
+      },
+      "procedural": {
+        "level": "moderate",
+        "reason": "Procedural-stage certainty derived from pipeline consensus."
+      },
+      "classification": {
+        "level": "moderate",
+        "reason": "Category/materia classification not independently re-verified for this finding — inherited from the source engine's own classification."
+      },
+      "evidence_quality": {
+        "level": "moderate",
+        "reason": "One evidence reference cited; additional corroboration may be needed for disputed facts or inferences."
+      },
+      "corpus_completeness": {
+        "level": "low",
+        "reason": "Only a single document in the corpus touches this finding — the official expediente may contain more."
+      }
+    },
+    "rationale": {
+      "assumptions": [],
+      "contrary_evidence": [],
+      "supporting_evidence": [],
+      "applicable_authority": [],
+      "unresolved_questions": [],
+      "attorney_review_required": false,
+      "unsupported_language_flagged": false
+    },
+    "speaker_role": null,
+    "proposition_type": null,
+    "adoption_status": null,
+    "audit_classification": null,
+    "superseded_at": null,
+    "superseded_reason": null,
+    "lifecycle_status": null,
+    "evidence_relationship": "SOURCE_FACT",
+    "reconciliation_state": null,
+    "benefited_party": null,
+    "score_dimension": null,
+    "reason_for_score_effect": null,
+    "canonical_fingerprint": null,
+    "category_key": null
+  },
+  {
+    "id": "5cda57be-7513-40dd-a23a-59fc08b1aa9b",
+    "case_id": "840649a2-4203-4e98-9219-5f99addf5fe5",
+    "user_id": "37f23039-a1f5-4e04-b2ad-1de95a75977f",
+    "source_module": "analyzer:procedural",
+    "category": "Hallazgo General",
+    "title": "Análisis insuficiente del derecho al honor",
+    "description": "El tribunal no realizó un análisis adecuado sobre la posible afectación al derecho al honor de los quejosos.",
+    "severity": "medium",
+    "confidence": 0.7,
+    "legal_significance": "Un análisis insuficiente puede resultar en una incorrecta ponderación de derechos, afectando la resolución del caso.",
+    "potential_impact": null,
+    "affected_party": null,
+    "source_doc_ids": [
+      "609a1b85-c72e-4a9e-9203-3d0a88a0a22d"
+    ],
+    "evidence_refs": [
+      {
+        "page": 10,
+        "doc_n": 1,
+        "quote": "Debió realizarse un adecuado estudio del caso y determinar si en el\nejercicio del derecho de defensa se ve lesionado el derecho al honor y un\ndaño moral.",
+        "filename": "2_227923_4153_firmado.pdf",
+        "verified": true,
+        "chunk_hash": "69d0a561e0cd39973ec0e3ffa148800d2849ae3ed1a4c8e6f9ab11e5df1a5fd3",
+        "end_offset": 18740,
+        "chunk_index": 6,
+        "document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+        "page_located": 10,
+        "start_offset": 18587,
+        "citation_hash": "b90f5b0b178a565cca8528d91d0dae03cb30d6dddedcce1f6c6bab95291d1e06",
+        "document_hash": "289dcce7044ee4767af3f11148607192d60d24edc29dd9e3259a03235c39ee2e",
+        "source_reattributed": false
+      }
+    ],
+    "related_finding_ids": [],
+    "tags": [],
+    "metadata": {
+      "raw": {
+        "rule": "Artículo 1 de la Constitución Federal",
+        "title": "Análisis insuficiente del derecho al honor",
+        "severity": "medium",
+        "confidence": 70,
+        "provenance": {
+          "sources": [
+            {
+              "page": 10,
+              "doc_n": 1,
+              "quote": "Debió realizarse un adecuado estudio del caso y determinar si en el\nejercicio del derecho de defensa se ve lesionado el derecho al honor y un\ndaño moral.",
+              "filename": "2_227923_4153_firmado.pdf",
+              "chunk_hash": "69d0a561e0cd39973ec0e3ffa148800d2849ae3ed1a4c8e6f9ab11e5df1a5fd3",
+              "end_offset": 18740,
+              "chunk_index": 6,
+              "document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+              "page_located": 10,
+              "start_offset": 18587,
+              "citation_hash": "b90f5b0b178a565cca8528d91d0dae03cb30d6dddedcce1f6c6bab95291d1e06",
+              "document_hash": "289dcce7044ee4767af3f11148607192d60d24edc29dd9e3259a03235c39ee2e",
+              "source_reattributed": false
+            }
+          ],
+          "verified_count": 1,
+          "confidence_adjusted": 1
+        },
+        "description": "El tribunal no realizó un análisis adecuado sobre la posible afectación al derecho al honor de los quejosos.",
+        "evidence_refs": [
+          {
+            "page": 10,
+            "doc_n": 1,
+            "quote": "Debió realizarse un adecuado estudio del caso y determinar si en el\nejercicio del derecho de defensa se ve lesionado el derecho al honor y un\ndaño moral.",
+            "filename": "2_227923_4153_firmado.pdf",
+            "verified": true,
+            "chunk_hash": "69d0a561e0cd39973ec0e3ffa148800d2849ae3ed1a4c8e6f9ab11e5df1a5fd3",
+            "end_offset": 18740,
+            "chunk_index": 6,
+            "document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+            "page_located": 10,
+            "start_offset": 18587,
+            "citation_hash": "b90f5b0b178a565cca8528d91d0dae03cb30d6dddedcce1f6c6bab95291d1e06",
+            "document_hash": "289dcce7044ee4767af3f11148607192d60d24edc29dd9e3259a03235c39ee2e",
+            "source_reattributed": false
+          }
+        ],
+        "affected_party": "parte_demandada",
+        "legal_significance": "Un análisis insuficiente puede resultar en una incorrecta ponderación de derechos, afectando la resolución del caso."
+      },
+      "final": false,
+      "claim_type": "procedural_defect",
+      "provisional": true,
+      "execution_id": null,
+      "exact_match_id": "em_b1ee2a71305d676a",
+      "is_authority_exempt": false,
+      "canonical_finding_id": "cf_7cb27e6981ac9e55"
+    },
+    "created_at": "2026-09-27T14:25:48.841119+00:00",
+    "updated_at": "2026-09-27T14:35:38.740728+00:00",
+    "finding_type": "DIRECT_EVIDENCE",
+    "source_document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+    "source_page": 10,
+    "source_quote": "Debió realizarse un adecuado estudio del caso y determinar si en el\nejercicio del derecho de defensa se ve lesionado el derecho al honor y un\ndaño moral.",
+    "canonical_finding_id": "cf_7cb27e6981ac9e55",
+    "derived_from_finding_ids": [],
+    "evidence_type": "neutral",
+    "impact_direction": "neutral",
+    "strategic_significance": null,
+    "priority": 4,
+    "verification_status": "unchecked",
+    "verification_notes": null,
+    "verified_at": null,
+    "finding_status": "verified",
+    "supporting_engines": [],
+    "evidence_strength": 0.55,
+    "citation_quality": null,
+    "authority_level": 1,
+    "projected_from_table": null,
+    "projected_from_row_id": null,
+    "confidence_dimensions": {
+      "legal": {
+        "level": "high",
+        "reason": "Legal significance was articulated by the engine; verify the cited rule is current and applicable."
+      },
+      "factual": {
+        "level": "moderate",
+        "reason": "Derived from the engine's overall confidence score for this finding."
+      },
+      "extraction": {
+        "level": "indeterminate",
+        "reason": "No source document attached to this finding — extraction quality can't be assessed."
+      },
+      "procedural": {
+        "level": "moderate",
+        "reason": "Procedural-stage certainty derived from pipeline consensus."
+      },
+      "classification": {
+        "level": "moderate",
+        "reason": "Category/materia classification not independently re-verified for this finding — inherited from the source engine's own classification."
+      },
+      "evidence_quality": {
+        "level": "moderate",
+        "reason": "One evidence reference cited; additional corroboration may be needed for disputed facts or inferences."
+      },
+      "corpus_completeness": {
+        "level": "low",
+        "reason": "Only a single document in the corpus touches this finding — the official expediente may contain more."
+      }
+    },
+    "rationale": {
+      "assumptions": [],
+      "contrary_evidence": [],
+      "supporting_evidence": [],
+      "applicable_authority": [],
+      "unresolved_questions": [],
+      "attorney_review_required": false,
+      "unsupported_language_flagged": false
+    },
+    "speaker_role": null,
+    "proposition_type": null,
+    "adoption_status": null,
+    "audit_classification": null,
+    "superseded_at": null,
+    "superseded_reason": null,
+    "lifecycle_status": null,
+    "evidence_relationship": "SOURCE_FACT",
+    "reconciliation_state": null,
+    "benefited_party": null,
+    "score_dimension": null,
+    "reason_for_score_effect": null,
+    "canonical_fingerprint": null,
+    "category_key": null
+  },
+  {
+    "id": "55db6f58-49f6-46f5-83fa-530614240cdf",
+    "case_id": "840649a2-4203-4e98-9219-5f99addf5fe5",
+    "user_id": "37f23039-a1f5-4e04-b2ad-1de95a75977f",
+    "source_module": "decision_core",
+    "category": "Hallazgo General",
+    "title": "DETERMINACIÓN DEL TRIBUNAL: Se desecha el recurso de revisión.",
+    "description": "Se desecha el recurso de revisión.",
+    "severity": "high",
+    "confidence": 0.99,
+    "legal_significance": "Determinación o cuestión identificada en la resolución judicial, respaldada por su pasaje fuente.",
+    "potential_impact": "Integra el análisis de la resolución concluida; no modifica las puntuaciones por sí sola.",
+    "affected_party": "neutral",
+    "source_doc_ids": [
+      "609a1b85-c72e-4a9e-9203-3d0a88a0a22d"
+    ],
+    "evidence_refs": [
+      {
+        "page": 27,
+        "doc_n": 1,
+        "label": "p.27",
+        "quote": "Se desecha por improcedente el recurso de revisión a que este\ntoca 7286/2017 se refiere.",
+        "doc_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+        "filename": "2_227923_4153_firmado.pdf",
+        "verified": true,
+        "chunk_hash": "7e971efff97c6ef8302f343c6eab97faa9d74e60c53b18e0f55c5276dd8e2cdd",
+        "end_offset": 55360,
+        "chunk_index": 18,
+        "document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+        "page_number": 27,
+        "page_located": 27,
+        "start_offset": 55272,
+        "citation_hash": "96702cca1ca05f126147718d83a7c1fa06d1f3ea56cb4f3530e59e4ac5761044",
+        "document_hash": "289dcce7044ee4767af3f11148607192d60d24edc29dd9e3259a03235c39ee2e",
+        "page_extraction_ref": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d:27",
+        "source_reattributed": false
+      }
+    ],
+    "related_finding_ids": [],
+    "tags": [],
+    "metadata": {
+      "final": true,
+      "claim_type": "uncategorized_finding",
+      "reportable": true,
+      "provisional": false,
+      "execution_id": null,
+      "score_moving": false,
+      "exact_match_id": "em_6c42ba3ea27ff62c",
+      "is_authority_exempt": false,
+      "canonical_finding_id": "cf_db9d94bf22ca646e",
+      "citation_exemption_type": "CITATION_REQUIRED",
+      "mandatory_decision_core": true,
+      "mandatory_decision_kind": "COURT_HOLDING",
+      "semantic_support_review": {
+        "hash": "69d6dcdba1c07b0a4bce0f989ecd77e78e7877f2976c112bd2ef0678a8b9bc73",
+        "reason": "The claim states that the court dismissed the appeal, which is directly supported by the court's decision in the provided context.",
+        "verdict": "supported",
+        "version": 1,
+        "supporting_quote": "Se desecha por improcedente el recurso de revisión a que este toca 7286/2017 se refiere."
+      },
+      "mandatory_decision_core_id": "decision-core:court_holding:618e62e9"
+    },
+    "created_at": "2026-09-27T14:25:40.65675+00:00",
+    "updated_at": "2026-09-27T14:35:38.740728+00:00",
+    "finding_type": "DIRECT_EVIDENCE",
+    "source_document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+    "source_page": 27,
+    "source_quote": "Se desecha por improcedente el recurso de revisión a que este\ntoca 7286/2017 se refiere.",
+    "canonical_finding_id": "cf_db9d94bf22ca646e",
+    "derived_from_finding_ids": [],
+    "evidence_type": "neutral",
+    "impact_direction": "neutral",
+    "strategic_significance": null,
+    "priority": 3,
+    "verification_status": "verified",
+    "verification_notes": "supported: The claim states that the court dismissed the appeal, which is directly supported by the court's decision in the provided context.",
+    "verified_at": "2026-09-27T14:33:39.462+00:00",
+    "finding_status": "verified",
+    "supporting_engines": [],
+    "evidence_strength": null,
+    "citation_quality": null,
+    "authority_level": 1,
+    "projected_from_table": null,
+    "projected_from_row_id": null,
+    "confidence_dimensions": null,
+    "rationale": null,
+    "speaker_role": "scjn",
+    "proposition_type": "court_holding",
+    "adoption_status": "adopted",
+    "audit_classification": "VERIFIED_COURT_HOLDING",
+    "superseded_at": null,
+    "superseded_reason": null,
+    "lifecycle_status": null,
+    "evidence_relationship": "SOURCE_FACT",
+    "reconciliation_state": null,
+    "benefited_party": "neutral",
+    "score_dimension": null,
+    "reason_for_score_effect": "La determinación judicial no modifica por sí sola las puntuaciones.",
+    "canonical_fingerprint": null,
+    "category_key": null
+  },
+  {
+    "id": "7c082c68-2129-45cd-8935-01407dddbf16",
+    "case_id": "840649a2-4203-4e98-9219-5f99addf5fe5",
+    "user_id": "37f23039-a1f5-4e04-b2ad-1de95a75977f",
+    "source_module": "agent:witness_credibility",
+    "category": "Hallazgo General",
+    "title": "Omisión en la interpretación del derecho de defensa",
+    "description": "El Tribunal Colegiado omitió realizar una interpretación del artículo 17 constitucional, consistente en el derecho fundamental de defensa.",
+    "severity": "medium",
+    "confidence": 0.8,
+    "legal_significance": "Vulneración del derecho a la defensa adecuada.",
+    "potential_impact": "Revisión de la interpretación del derecho de defensa en futuras resoluciones.",
+    "affected_party": null,
+    "source_doc_ids": [
+      "609a1b85-c72e-4a9e-9203-3d0a88a0a22d"
+    ],
+    "evidence_refs": [
+      {
+        "page": 11,
+        "doc_n": 1,
+        "quote": "El Tribunal Colegiado omitió realizar una interpretación del\nartículo 17 constitucional, consistente en el derecho fundamental de\ndefensa.",
+        "filename": "2_227923_4153_firmado.pdf",
+        "verified": true,
+        "chunk_hash": "69d0a561e0cd39973ec0e3ffa148800d2849ae3ed1a4c8e6f9ab11e5df1a5fd3",
+        "end_offset": 20546,
+        "chunk_index": 6,
+        "document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+        "page_located": 11,
+        "start_offset": 20408,
+        "citation_hash": "9145f2a318626e0629de605638a2481c874cee59cf0dbf271b52dc4d120af2cc",
+        "document_hash": "289dcce7044ee4767af3f11148607192d60d24edc29dd9e3259a03235c39ee2e",
+        "source_reattributed": false
+      }
+    ],
+    "related_finding_ids": [],
+    "tags": [],
+    "metadata": {
+      "raw": {
+        "title": "Omisión en la interpretación del derecho de defensa",
+        "severity": "medium",
+        "confidence": 0.8,
+        "provenance": {
+          "sources": [
+            {
+              "page": 11,
+              "doc_n": 1,
+              "quote": "El Tribunal Colegiado omitió realizar una interpretación del\nartículo 17 constitucional, consistente en el derecho fundamental de\ndefensa.",
+              "filename": "2_227923_4153_firmado.pdf",
+              "chunk_hash": "69d0a561e0cd39973ec0e3ffa148800d2849ae3ed1a4c8e6f9ab11e5df1a5fd3",
+              "end_offset": 20546,
+              "chunk_index": 6,
+              "document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+              "page_located": 11,
+              "start_offset": 20408,
+              "citation_hash": "9145f2a318626e0629de605638a2481c874cee59cf0dbf271b52dc4d120af2cc",
+              "document_hash": "289dcce7044ee4767af3f11148607192d60d24edc29dd9e3259a03235c39ee2e",
+              "source_reattributed": false
+            }
+          ],
+          "verified_count": 1,
+          "confidence_adjusted": 0.8
+        },
+        "description": "El Tribunal Colegiado omitió realizar una interpretación del artículo 17 constitucional, consistente en el derecho fundamental de defensa.",
+        "evidence_refs": [
+          {
+            "page": 11,
+            "doc_n": 1,
+            "quote": "El Tribunal Colegiado omitió realizar una interpretación del\nartículo 17 constitucional, consistente en el derecho fundamental de\ndefensa.",
+            "filename": "2_227923_4153_firmado.pdf",
+            "verified": true,
+            "chunk_hash": "69d0a561e0cd39973ec0e3ffa148800d2849ae3ed1a4c8e6f9ab11e5df1a5fd3",
+            "end_offset": 20546,
+            "chunk_index": 6,
+            "document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+            "page_located": 11,
+            "start_offset": 20408,
+            "citation_hash": "9145f2a318626e0629de605638a2481c874cee59cf0dbf271b52dc4d120af2cc",
+            "document_hash": "289dcce7044ee4767af3f11148607192d60d24edc29dd9e3259a03235c39ee2e",
+            "source_reattributed": false
+          }
+        ],
+        "affected_party": "parte_demandada",
+        "potential_impact": "Revisión de la interpretación del derecho de defensa en futuras resoluciones.",
+        "legal_significance": "Vulneración del derecho a la defensa adecuada."
+      },
+      "final": true,
+      "claim_type": "uncategorized_finding",
+      "provisional": false,
+      "execution_id": "587d15c5-5706-4314-a85b-c0f25e104981",
+      "exact_match_id": "em_9ce41abb092d155e",
+      "is_authority_exempt": false,
+      "canonical_finding_id": "cf_77226e4743e5c16d",
+      "semantic_support_review": {
+        "hash": "efb7949f0d9e0873a21670df2816f902563dbccae769ff887f4ee60217b0351d",
+        "reason": "The claim states that the Tribunal Colegiado omitted to interpret Article 17 of the Constitution regarding the fundamental right to defense, which is explicitly supported by the context.",
+        "verdict": "insufficient",
+        "version": 1,
+        "supporting_quote": ""
+      }
+    },
+    "created_at": "2026-09-27T14:26:44.335138+00:00",
+    "updated_at": "2026-09-27T14:35:38.538251+00:00",
+    "finding_type": "DIRECT_EVIDENCE",
+    "source_document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+    "source_page": 11,
+    "source_quote": "El Tribunal Colegiado omitió realizar una interpretación del\nartículo 17 constitucional, consistente en el derecho fundamental de\ndefensa.",
+    "canonical_finding_id": "cf_77226e4743e5c16d",
+    "derived_from_finding_ids": [],
+    "evidence_type": "neutral",
+    "impact_direction": "neutral",
+    "strategic_significance": null,
+    "priority": 4,
+    "verification_status": "unverified",
+    "verification_notes": "insufficient: The claim states that the Tribunal Colegiado omitted to interpret Article 17 of the Constitution regarding the fundamental right to defense, which is explicitly supported by the context.",
+    "verified_at": "2026-09-27T14:33:45.848+00:00",
+    "finding_status": "promoted",
+    "supporting_engines": [],
+    "evidence_strength": 0.55,
+    "citation_quality": null,
+    "authority_level": 1,
+    "projected_from_table": null,
+    "projected_from_row_id": null,
+    "confidence_dimensions": {
+      "legal": {
+        "level": "high",
+        "reason": "Legal significance was articulated by the engine; verify the cited rule is current and applicable."
+      },
+      "factual": {
+        "level": "high",
+        "reason": "Derived from the engine's overall confidence score for this finding."
+      },
+      "extraction": {
+        "level": "indeterminate",
+        "reason": "No source document attached to this finding — extraction quality can't be assessed."
+      },
+      "procedural": {
+        "level": "moderate",
+        "reason": "Procedural-stage certainty derived from pipeline consensus."
+      },
+      "classification": {
+        "level": "moderate",
+        "reason": "Category/materia classification not independently re-verified for this finding — inherited from the source engine's own classification."
+      },
+      "evidence_quality": {
+        "level": "moderate",
+        "reason": "One evidence reference cited; additional corroboration may be needed for disputed facts or inferences."
+      },
+      "corpus_completeness": {
+        "level": "low",
+        "reason": "Only a single document in the corpus touches this finding — the official expediente may contain more."
+      }
+    },
+    "rationale": {
+      "assumptions": [],
+      "contrary_evidence": [],
+      "supporting_evidence": [],
+      "applicable_authority": [],
+      "unresolved_questions": [],
+      "attorney_review_required": false,
+      "unsupported_language_flagged": false
+    },
+    "speaker_role": null,
+    "proposition_type": null,
+    "adoption_status": null,
+    "audit_classification": null,
+    "superseded_at": null,
+    "superseded_reason": null,
+    "lifecycle_status": null,
+    "evidence_relationship": "SOURCE_FACT",
+    "reconciliation_state": null,
+    "benefited_party": null,
+    "score_dimension": null,
+    "reason_for_score_effect": null,
+    "canonical_fingerprint": null,
+    "category_key": null
+  },
+  {
+    "id": "2c74c76d-60d9-405d-bf2b-0317e8024b7f",
+    "case_id": "840649a2-4203-4e98-9219-5f99addf5fe5",
+    "user_id": "37f23039-a1f5-4e04-b2ad-1de95a75977f",
+    "source_module": "agent:witness_credibility",
+    "category": "Responsabilidad Civil",
+    "title": "Negativa del amparo por daño moral",
+    "description": "El Tribunal Colegiado concluyó que los quejosos no acreditaron su acción de daño moral, justificando la decisión en la falta de pruebas suficientes.",
+    "severity": "high",
+    "confidence": 0.9,
+    "legal_significance": "La falta de acreditación de daño moral puede afectar la procedencia de la acción civil.",
+    "potential_impact": "Podría limitar las posibilidades de los quejosos para obtener una indemnización.",
+    "affected_party": null,
+    "source_doc_ids": [
+      "609a1b85-c72e-4a9e-9203-3d0a88a0a22d"
+    ],
+    "evidence_refs": [
+      {
+        "page": 9,
+        "doc_n": 1,
+        "quote": "se determinó negar el amparo.",
+        "filename": "2_227923_4153_firmado.pdf",
+        "verified": true,
+        "chunk_hash": "11255ad83fb67b6ea64fad0150368a60e47a7c47f1b0aa42c385387edf6a5bfd",
+        "end_offset": 16224,
+        "chunk_index": 5,
+        "document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+        "page_located": 9,
+        "start_offset": 16195,
+        "citation_hash": "b71daba8a55c3fefbc9b926df92f1c94056855944543f6cd896470f5f5917425",
+        "document_hash": "289dcce7044ee4767af3f11148607192d60d24edc29dd9e3259a03235c39ee2e",
+        "source_reattributed": false
+      }
+    ],
+    "related_finding_ids": [],
+    "tags": [
+      "dimension:damages_exposure"
+    ],
+    "metadata": {
+      "raw": {
+        "title": "Negativa del amparo por daño moral",
+        "severity": "high",
+        "confidence": 0.9,
+        "provenance": {
+          "sources": [
+            {
+              "page": 9,
+              "doc_n": 1,
+              "quote": "se determinó negar el amparo.",
+              "filename": "2_227923_4153_firmado.pdf",
+              "chunk_hash": "11255ad83fb67b6ea64fad0150368a60e47a7c47f1b0aa42c385387edf6a5bfd",
+              "end_offset": 16224,
+              "chunk_index": 5,
+              "document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+              "page_located": 9,
+              "start_offset": 16195,
+              "citation_hash": "b71daba8a55c3fefbc9b926df92f1c94056855944543f6cd896470f5f5917425",
+              "document_hash": "289dcce7044ee4767af3f11148607192d60d24edc29dd9e3259a03235c39ee2e",
+              "source_reattributed": false
+            }
+          ],
+          "verified_count": 1,
+          "confidence_adjusted": 0.9
+        },
+        "description": "El Tribunal Colegiado concluyó que los quejosos no acreditaron su acción de daño moral, justificando la decisión en la falta de pruebas suficientes.",
+        "evidence_refs": [
+          {
+            "page": 9,
+            "doc_n": 1,
+            "quote": "se determinó negar el amparo.",
+            "filename": "2_227923_4153_firmado.pdf",
+            "verified": true,
+            "chunk_hash": "11255ad83fb67b6ea64fad0150368a60e47a7c47f1b0aa42c385387edf6a5bfd",
+            "end_offset": 16224,
+            "chunk_index": 5,
+            "document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+            "page_located": 9,
+            "start_offset": 16195,
+            "citation_hash": "b71daba8a55c3fefbc9b926df92f1c94056855944543f6cd896470f5f5917425",
+            "document_hash": "289dcce7044ee4767af3f11148607192d60d24edc29dd9e3259a03235c39ee2e",
+            "source_reattributed": false
+          }
+        ],
+        "affected_party": "parte_actora",
+        "potential_impact": "Podría limitar las posibilidades de los quejosos para obtener una indemnización.",
+        "legal_significance": "La falta de acreditación de daño moral puede afectar la procedencia de la acción civil."
+      },
+      "final": true,
+      "claim_type": "uncategorized_finding",
+      "provisional": false,
+      "execution_id": "587d15c5-5706-4314-a85b-c0f25e104981",
+      "exact_match_id": "em_3b377dd1ad23da78",
+      "is_authority_exempt": false,
+      "canonical_finding_id": "cf_75734bb888554593",
+      "semantic_support_review": {
+        "hash": "ccd8d4272009e3d7d15c784857606d60e4d5bb03d3ded025f1c8aa3521c0bb44",
+        "reason": "The claim is supported by the context, which states that the Tribunal Colegiado concluded that the plaintiffs did not provide sufficient evidence to support their claim of moral damage.",
+        "verdict": "insufficient",
+        "version": 1,
+        "supporting_quote": ""
+      }
+    },
+    "created_at": "2026-09-27T14:26:44.335138+00:00",
+    "updated_at": "2026-09-27T14:35:38.740728+00:00",
+    "finding_type": "DIRECT_EVIDENCE",
+    "source_document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+    "source_page": 9,
+    "source_quote": "se determinó negar el amparo.",
+    "canonical_finding_id": "cf_75734bb888554593",
+    "derived_from_finding_ids": [],
+    "evidence_type": "inculpatory",
+    "impact_direction": "strengthens",
+    "strategic_significance": null,
+    "priority": 3,
+    "verification_status": "unverified",
+    "verification_notes": "insufficient: The claim is supported by the context, which states that the Tribunal Colegiado concluded that the plaintiffs did not provide sufficient evidence to support their claim of moral damage.",
+    "verified_at": "2026-09-27T14:33:41.371+00:00",
+    "finding_status": "verified",
+    "supporting_engines": [],
+    "evidence_strength": 0.55,
+    "citation_quality": null,
+    "authority_level": 1,
+    "projected_from_table": null,
+    "projected_from_row_id": null,
+    "confidence_dimensions": {
+      "legal": {
+        "level": "high",
+        "reason": "Legal significance was articulated by the engine; verify the cited rule is current and applicable."
+      },
+      "factual": {
+        "level": "high",
+        "reason": "Derived from the engine's overall confidence score for this finding."
+      },
+      "extraction": {
+        "level": "indeterminate",
+        "reason": "No source document attached to this finding — extraction quality can't be assessed."
+      },
+      "procedural": {
+        "level": "moderate",
+        "reason": "Procedural-stage certainty derived from pipeline consensus."
+      },
+      "classification": {
+        "level": "moderate",
+        "reason": "Category/materia classification not independently re-verified for this finding — inherited from the source engine's own classification."
+      },
+      "evidence_quality": {
+        "level": "moderate",
+        "reason": "One evidence reference cited; additional corroboration may be needed for disputed facts or inferences."
+      },
+      "corpus_completeness": {
+        "level": "low",
+        "reason": "Only a single document in the corpus touches this finding — the official expediente may contain more."
+      }
+    },
+    "rationale": {
+      "assumptions": [],
+      "contrary_evidence": [],
+      "supporting_evidence": [],
+      "applicable_authority": [],
+      "unresolved_questions": [],
+      "attorney_review_required": false,
+      "unsupported_language_flagged": false
+    },
+    "speaker_role": null,
+    "proposition_type": null,
+    "adoption_status": null,
+    "audit_classification": null,
+    "superseded_at": null,
+    "superseded_reason": null,
+    "lifecycle_status": null,
+    "evidence_relationship": "SOURCE_FACT",
+    "reconciliation_state": null,
+    "benefited_party": null,
+    "score_dimension": null,
+    "reason_for_score_effect": null,
+    "canonical_fingerprint": null,
+    "category_key": null
+  },
+  {
+    "id": "55547e37-679f-443f-89de-293f8f1a5654",
+    "case_id": "840649a2-4203-4e98-9219-5f99addf5fe5",
+    "user_id": "37f23039-a1f5-4e04-b2ad-1de95a75977f",
+    "source_module": "agent:witness_credibility",
+    "category": "Responsabilidad Civil",
+    "title": "Falta de prueba del daño moral",
+    "description": "El Tribunal Colegiado estableció que el daño moral debe ser probado, y en este caso, los quejosos no lograron cumplir con esta carga.",
+    "severity": "medium",
+    "confidence": 0.85,
+    "legal_significance": "La carga de la prueba recae sobre el actor en la acción civil.",
+    "potential_impact": "Esto puede resultar en la desestimación de futuras reclamaciones por daño moral.",
+    "affected_party": null,
+    "source_doc_ids": [
+      "609a1b85-c72e-4a9e-9203-3d0a88a0a22d"
+    ],
+    "evidence_refs": [
+      {
+        "page": 4,
+        "doc_n": 1,
+        "quote": "el daño moral por regla general debe ser probado",
+        "filename": "2_227923_4153_firmado.pdf",
+        "verified": true,
+        "chunk_hash": "051b5a4b4cc4ec275c98edeb12cf98a151107c83ee32d09bb3ed51af15109b40",
+        "end_offset": 6309,
+        "chunk_index": 2,
+        "document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+        "page_located": 4,
+        "start_offset": 6261,
+        "citation_hash": "4371d7224e8aaf5842d6ba35f50cadd7870390de7c058fc41c906f7a1b66da13",
+        "document_hash": "289dcce7044ee4767af3f11148607192d60d24edc29dd9e3259a03235c39ee2e",
+        "source_reattributed": false
+      }
+    ],
+    "related_finding_ids": [],
+    "tags": [
+      "dimension:damages_exposure"
+    ],
+    "metadata": {
+      "raw": {
+        "title": "Falta de prueba del daño moral",
+        "severity": "medium",
+        "confidence": 0.85,
+        "provenance": {
+          "sources": [
+            {
+              "page": 4,
+              "doc_n": 1,
+              "quote": "el daño moral por regla general debe ser probado",
+              "filename": "2_227923_4153_firmado.pdf",
+              "chunk_hash": "051b5a4b4cc4ec275c98edeb12cf98a151107c83ee32d09bb3ed51af15109b40",
+              "end_offset": 6309,
+              "chunk_index": 2,
+              "document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+              "page_located": 4,
+              "start_offset": 6261,
+              "citation_hash": "4371d7224e8aaf5842d6ba35f50cadd7870390de7c058fc41c906f7a1b66da13",
+              "document_hash": "289dcce7044ee4767af3f11148607192d60d24edc29dd9e3259a03235c39ee2e",
+              "source_reattributed": false
+            }
+          ],
+          "verified_count": 1,
+          "confidence_adjusted": 0.85
+        },
+        "description": "El Tribunal Colegiado estableció que el daño moral debe ser probado, y en este caso, los quejosos no lograron cumplir con esta carga.",
+        "evidence_refs": [
+          {
+            "page": 4,
+            "doc_n": 1,
+            "quote": "el daño moral por regla general debe ser probado",
+            "filename": "2_227923_4153_firmado.pdf",
+            "verified": true,
+            "chunk_hash": "051b5a4b4cc4ec275c98edeb12cf98a151107c83ee32d09bb3ed51af15109b40",
+            "end_offset": 6309,
+            "chunk_index": 2,
+            "document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+            "page_located": 4,
+            "start_offset": 6261,
+            "citation_hash": "4371d7224e8aaf5842d6ba35f50cadd7870390de7c058fc41c906f7a1b66da13",
+            "document_hash": "289dcce7044ee4767af3f11148607192d60d24edc29dd9e3259a03235c39ee2e",
+            "source_reattributed": false
+          }
+        ],
+        "affected_party": "parte_actora",
+        "potential_impact": "Esto puede resultar en la desestimación de futuras reclamaciones por daño moral.",
+        "legal_significance": "La carga de la prueba recae sobre el actor en la acción civil."
+      },
+      "final": true,
+      "claim_type": "vehicle_description_conflict",
+      "provisional": false,
+      "execution_id": "587d15c5-5706-4314-a85b-c0f25e104981",
+      "exact_match_id": "em_a97c1a7e3c4e0cbc",
+      "is_authority_exempt": false,
+      "canonical_finding_id": "cf_27087e2fd92cbec5",
+      "semantic_support_review": {
+        "hash": "feba854d042d99a0039c7fd05ead1148864e3981f8b2d16762f2b7a8fb6f923f",
+        "reason": "The claim accurately reflects the court's statement regarding the burden of proof for moral damages, indicating that it must be proven by the plaintiffs.",
+        "verdict": "supported",
+        "version": 1,
+        "supporting_quote": "el daño moral por regla general debe ser probado, pues se trata de un elemento constitutivo de la pretensión del actor"
+      }
+    },
+    "created_at": "2026-09-27T14:26:44.335138+00:00",
+    "updated_at": "2026-09-27T14:35:38.740728+00:00",
+    "finding_type": "DIRECT_EVIDENCE",
+    "source_document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+    "source_page": 4,
+    "source_quote": "el daño moral por regla general debe ser probado",
+    "canonical_finding_id": "cf_27087e2fd92cbec5",
+    "derived_from_finding_ids": [],
+    "evidence_type": "inculpatory",
+    "impact_direction": "strengthens",
+    "strategic_significance": null,
+    "priority": 4,
+    "verification_status": "verified",
+    "verification_notes": "supported: The claim accurately reflects the court's statement regarding the burden of proof for moral damages, indicating that it must be proven by the plaintiffs.",
+    "verified_at": "2026-09-27T14:33:39.311+00:00",
+    "finding_status": "verified",
+    "supporting_engines": [],
+    "evidence_strength": 0.55,
+    "citation_quality": null,
+    "authority_level": 1,
+    "projected_from_table": null,
+    "projected_from_row_id": null,
+    "confidence_dimensions": {
+      "legal": {
+        "level": "high",
+        "reason": "Legal significance was articulated by the engine; verify the cited rule is current and applicable."
+      },
+      "factual": {
+        "level": "high",
+        "reason": "Derived from the engine's overall confidence score for this finding."
+      },
+      "extraction": {
+        "level": "indeterminate",
+        "reason": "No source document attached to this finding — extraction quality can't be assessed."
+      },
+      "procedural": {
+        "level": "moderate",
+        "reason": "Procedural-stage certainty derived from pipeline consensus."
+      },
+      "classification": {
+        "level": "moderate",
+        "reason": "Category/materia classification not independently re-verified for this finding — inherited from the source engine's own classification."
+      },
+      "evidence_quality": {
+        "level": "moderate",
+        "reason": "One evidence reference cited; additional corroboration may be needed for disputed facts or inferences."
+      },
+      "corpus_completeness": {
+        "level": "low",
+        "reason": "Only a single document in the corpus touches this finding — the official expediente may contain more."
+      }
+    },
+    "rationale": {
+      "assumptions": [],
+      "contrary_evidence": [],
+      "supporting_evidence": [],
+      "applicable_authority": [],
+      "unresolved_questions": [],
+      "attorney_review_required": false,
+      "unsupported_language_flagged": false
+    },
+    "speaker_role": null,
+    "proposition_type": null,
+    "adoption_status": null,
+    "audit_classification": null,
+    "superseded_at": null,
+    "superseded_reason": null,
+    "lifecycle_status": null,
+    "evidence_relationship": "SOURCE_FACT",
+    "reconciliation_state": null,
+    "benefited_party": null,
+    "score_dimension": null,
+    "reason_for_score_effect": null,
+    "canonical_fingerprint": null,
+    "category_key": null
+  },
+  {
+    "id": "45b38f20-036a-4653-a8a9-8a7e04ffd191",
+    "case_id": "840649a2-4203-4e98-9219-5f99addf5fe5",
+    "user_id": "37f23039-a1f5-4e04-b2ad-1de95a75977f",
+    "source_module": "agent:witness_credibility",
+    "category": "Hallazgo General",
+    "title": "Ponderación de derechos",
+    "description": "Los quejosos argumentan que el Tribunal Colegiado erróneamente ponderó el derecho de defensa sobre el derecho al honor.",
+    "severity": "medium",
+    "confidence": 0.8,
+    "legal_significance": "La correcta ponderación de derechos es fundamental en casos de daño moral.",
+    "potential_impact": "Podría abrir la puerta a futuras apelaciones si se considera que hubo un error en la ponderación.",
+    "affected_party": null,
+    "source_doc_ids": [
+      "609a1b85-c72e-4a9e-9203-3d0a88a0a22d"
+    ],
+    "evidence_refs": [
+      {
+        "page": 10,
+        "doc_n": 1,
+        "quote": "indebidamente pondera el derecho de defensa sobre el derecho humano al\nhonor.",
+        "filename": "2_227923_4153_firmado.pdf",
+        "verified": true,
+        "chunk_hash": "69d0a561e0cd39973ec0e3ffa148800d2849ae3ed1a4c8e6f9ab11e5df1a5fd3",
+        "end_offset": 18112,
+        "chunk_index": 6,
+        "document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+        "page_located": 10,
+        "start_offset": 18035,
+        "citation_hash": "b37ebc181b5a2f0e4d3877427647943137c5ca9f183d7da71c96891ee2e8dbf1",
+        "document_hash": "289dcce7044ee4767af3f11148607192d60d24edc29dd9e3259a03235c39ee2e",
+        "source_reattributed": false
+      }
+    ],
+    "related_finding_ids": [],
+    "tags": [],
+    "metadata": {
+      "raw": {
+        "title": "Ponderación de derechos",
+        "severity": "medium",
+        "confidence": 0.8,
+        "provenance": {
+          "sources": [
+            {
+              "page": 10,
+              "doc_n": 1,
+              "quote": "indebidamente pondera el derecho de defensa sobre el derecho humano al\nhonor.",
+              "filename": "2_227923_4153_firmado.pdf",
+              "chunk_hash": "69d0a561e0cd39973ec0e3ffa148800d2849ae3ed1a4c8e6f9ab11e5df1a5fd3",
+              "end_offset": 18112,
+              "chunk_index": 6,
+              "document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+              "page_located": 10,
+              "start_offset": 18035,
+              "citation_hash": "b37ebc181b5a2f0e4d3877427647943137c5ca9f183d7da71c96891ee2e8dbf1",
+              "document_hash": "289dcce7044ee4767af3f11148607192d60d24edc29dd9e3259a03235c39ee2e",
+              "source_reattributed": false
+            }
+          ],
+          "verified_count": 1,
+          "confidence_adjusted": 0.8
+        },
+        "description": "Los quejosos argumentan que el Tribunal Colegiado erróneamente ponderó el derecho de defensa sobre el derecho al honor.",
+        "evidence_refs": [
+          {
+            "page": 10,
+            "doc_n": 1,
+            "quote": "indebidamente pondera el derecho de defensa sobre el derecho humano al\nhonor.",
+            "filename": "2_227923_4153_firmado.pdf",
+            "verified": true,
+            "chunk_hash": "69d0a561e0cd39973ec0e3ffa148800d2849ae3ed1a4c8e6f9ab11e5df1a5fd3",
+            "end_offset": 18112,
+            "chunk_index": 6,
+            "document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+            "page_located": 10,
+            "start_offset": 18035,
+            "citation_hash": "b37ebc181b5a2f0e4d3877427647943137c5ca9f183d7da71c96891ee2e8dbf1",
+            "document_hash": "289dcce7044ee4767af3f11148607192d60d24edc29dd9e3259a03235c39ee2e",
+            "source_reattributed": false
+          }
+        ],
+        "affected_party": "parte_demandada",
+        "potential_impact": "Podría abrir la puerta a futuras apelaciones si se considera que hubo un error en la ponderación.",
+        "legal_significance": "La correcta ponderación de derechos es fundamental en casos de daño moral."
+      },
+      "final": true,
+      "claim_type": "uncategorized_finding",
+      "provisional": false,
+      "execution_id": "587d15c5-5706-4314-a85b-c0f25e104981",
+      "exact_match_id": "em_b52f407bfc06236c",
+      "is_authority_exempt": false,
+      "canonical_finding_id": "cf_8eedcd84f5cbaafc",
+      "semantic_support_review": {
+        "hash": "f03890356195894b4df4e6107f5a68d130fdca2cfa3030c756846ae113eab075",
+        "reason": "The claim accurately reflects the context where the court discusses the erroneous balancing of rights, specifically stating that the Collegiate Court improperly weighed the right to defense over the right to honor.",
+        "verdict": "supported",
+        "version": 1,
+        "supporting_quote": "Alega que el Tribunal Colegiado efectuó un análisis e interpretación directa de los artículos 1, 14 y 16 de la Constitución Federal, consistente en una errónea ponderación de derechos, en el que indebidamente pondera el derecho de defensa sobre el derecho humano al honor."
+      }
+    },
+    "created_at": "2026-09-27T14:26:44.335138+00:00",
+    "updated_at": "2026-09-27T14:35:38.740728+00:00",
+    "finding_type": "DIRECT_EVIDENCE",
+    "source_document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+    "source_page": 10,
+    "source_quote": "indebidamente pondera el derecho de defensa sobre el derecho humano al\nhonor.",
+    "canonical_finding_id": "cf_8eedcd84f5cbaafc",
+    "derived_from_finding_ids": [],
+    "evidence_type": "neutral",
+    "impact_direction": "neutral",
+    "strategic_significance": null,
+    "priority": 4,
+    "verification_status": "verified",
+    "verification_notes": "supported: The claim accurately reflects the context where the court discusses the erroneous balancing of rights, specifically stating that the Collegiate Court improperly weighed the right to defense over the right to honor.",
+    "verified_at": "2026-09-27T14:33:39.108+00:00",
+    "finding_status": "verified",
+    "supporting_engines": [],
+    "evidence_strength": 0.55,
+    "citation_quality": null,
+    "authority_level": 1,
+    "projected_from_table": null,
+    "projected_from_row_id": null,
+    "confidence_dimensions": {
+      "legal": {
+        "level": "high",
+        "reason": "Legal significance was articulated by the engine; verify the cited rule is current and applicable."
+      },
+      "factual": {
+        "level": "high",
+        "reason": "Derived from the engine's overall confidence score for this finding."
+      },
+      "extraction": {
+        "level": "indeterminate",
+        "reason": "No source document attached to this finding — extraction quality can't be assessed."
+      },
+      "procedural": {
+        "level": "moderate",
+        "reason": "Procedural-stage certainty derived from pipeline consensus."
+      },
+      "classification": {
+        "level": "moderate",
+        "reason": "Category/materia classification not independently re-verified for this finding — inherited from the source engine's own classification."
+      },
+      "evidence_quality": {
+        "level": "moderate",
+        "reason": "One evidence reference cited; additional corroboration may be needed for disputed facts or inferences."
+      },
+      "corpus_completeness": {
+        "level": "low",
+        "reason": "Only a single document in the corpus touches this finding — the official expediente may contain more."
+      }
+    },
+    "rationale": {
+      "assumptions": [],
+      "contrary_evidence": [],
+      "supporting_evidence": [],
+      "applicable_authority": [],
+      "unresolved_questions": [],
+      "attorney_review_required": false,
+      "unsupported_language_flagged": false
+    },
+    "speaker_role": null,
+    "proposition_type": null,
+    "adoption_status": null,
+    "audit_classification": null,
+    "superseded_at": null,
+    "superseded_reason": null,
+    "lifecycle_status": null,
+    "evidence_relationship": "SOURCE_FACT",
+    "reconciliation_state": null,
+    "benefited_party": null,
+    "score_dimension": null,
+    "reason_for_score_effect": null,
+    "canonical_fingerprint": null,
+    "category_key": null
+  },
+  {
+    "id": "fb49272f-986f-4ffb-ac61-4cced02f75c0",
+    "case_id": "840649a2-4203-4e98-9219-5f99addf5fe5",
+    "user_id": "37f23039-a1f5-4e04-b2ad-1de95a75977f",
+    "source_module": "agent:settlement_opportunity_analyzer",
+    "category": "Hallazgo General",
+    "title": "Omisión en la interpretación del derecho a la defensa",
+    "description": "El Tribunal Colegiado omitió realizar una interpretación del artículo 17 constitucional, que garantiza el derecho fundamental de defensa.",
+    "severity": "high",
+    "confidence": 0.9,
+    "legal_significance": "La falta de análisis del derecho a la defensa puede afectar la validez del proceso judicial.",
+    "potential_impact": "Podría dar lugar a la nulidad de actuaciones y a la revisión del caso.",
+    "affected_party": null,
+    "source_doc_ids": [
+      "609a1b85-c72e-4a9e-9203-3d0a88a0a22d"
+    ],
+    "evidence_refs": [
+      {
+        "page": 11,
+        "doc_n": 1,
+        "quote": "El Tribunal Colegiado omitió realizar una interpretación del\nartículo 17 constitucional, consistente en el derecho fundamental de\ndefensa.",
+        "filename": "2_227923_4153_firmado.pdf",
+        "verified": true,
+        "chunk_hash": "69d0a561e0cd39973ec0e3ffa148800d2849ae3ed1a4c8e6f9ab11e5df1a5fd3",
+        "end_offset": 20546,
+        "chunk_index": 6,
+        "document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+        "page_located": 11,
+        "start_offset": 20408,
+        "citation_hash": "9145f2a318626e0629de605638a2481c874cee59cf0dbf271b52dc4d120af2cc",
+        "document_hash": "289dcce7044ee4767af3f11148607192d60d24edc29dd9e3259a03235c39ee2e",
+        "source_reattributed": false
+      }
+    ],
+    "related_finding_ids": [],
+    "tags": [],
+    "metadata": {
+      "raw": {
+        "title": "Omisión en la interpretación del derecho a la defensa",
+        "severity": "high",
+        "confidence": 0.9,
+        "provenance": {
+          "sources": [
+            {
+              "page": 11,
+              "doc_n": 1,
+              "quote": "El Tribunal Colegiado omitió realizar una interpretación del\nartículo 17 constitucional, consistente en el derecho fundamental de\ndefensa.",
+              "filename": "2_227923_4153_firmado.pdf",
+              "chunk_hash": "69d0a561e0cd39973ec0e3ffa148800d2849ae3ed1a4c8e6f9ab11e5df1a5fd3",
+              "end_offset": 20546,
+              "chunk_index": 6,
+              "document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+              "page_located": 11,
+              "start_offset": 20408,
+              "citation_hash": "9145f2a318626e0629de605638a2481c874cee59cf0dbf271b52dc4d120af2cc",
+              "document_hash": "289dcce7044ee4767af3f11148607192d60d24edc29dd9e3259a03235c39ee2e",
+              "source_reattributed": false
+            }
+          ],
+          "verified_count": 1,
+          "confidence_adjusted": 0.45
+        },
+        "description": "El Tribunal Colegiado omitió realizar una interpretación del artículo 17 constitucional, que garantiza el derecho fundamental de defensa.",
+        "evidence_refs": [
+          {
+            "page": 11,
+            "doc_n": 1,
+            "quote": "El Tribunal Colegiado omitió realizar una interpretación del\nartículo 17 constitucional, consistente en el derecho fundamental de\ndefensa.",
+            "filename": "2_227923_4153_firmado.pdf",
+            "verified": true,
+            "chunk_hash": "69d0a561e0cd39973ec0e3ffa148800d2849ae3ed1a4c8e6f9ab11e5df1a5fd3",
+            "end_offset": 20546,
+            "chunk_index": 6,
+            "document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+            "page_located": 11,
+            "start_offset": 20408,
+            "citation_hash": "9145f2a318626e0629de605638a2481c874cee59cf0dbf271b52dc4d120af2cc",
+            "document_hash": "289dcce7044ee4767af3f11148607192d60d24edc29dd9e3259a03235c39ee2e",
+            "source_reattributed": false
+          }
+        ],
+        "affected_party": "ambas",
+        "potential_impact": "Podría dar lugar a la nulidad de actuaciones y a la revisión del caso.",
+        "legal_significance": "La falta de análisis del derecho a la defensa puede afectar la validez del proceso judicial."
+      },
+      "final": true,
+      "claim_type": "uncategorized_finding",
+      "provisional": false,
+      "execution_id": "587d15c5-5706-4314-a85b-c0f25e104981",
+      "exact_match_id": "em_d090d7b427710391",
+      "is_authority_exempt": false,
+      "canonical_finding_id": "cf_2b342504152695c3",
+      "semantic_support_review": {
+        "hash": "5f460baecae3d89b25c8eb0c2e5937752cb8939511b446f4ce6a5cfa6c8df3e0",
+        "reason": "The context explicitly states that the Tribunal Colegiado omitted to interpret article 17 of the constitution, which guarantees the fundamental right to defense.",
+        "verdict": "supported",
+        "version": 1,
+        "supporting_quote": "El Tribunal Colegiado omitió realizar una interpretación del artículo 17 constitucional, consistente en el derecho fundamental de defensa."
+      }
+    },
+    "created_at": "2026-09-27T14:26:48.614541+00:00",
+    "updated_at": "2026-09-27T14:35:38.538251+00:00",
+    "finding_type": "DIRECT_EVIDENCE",
+    "source_document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+    "source_page": 11,
+    "source_quote": "El Tribunal Colegiado omitió realizar una interpretación del\nartículo 17 constitucional, consistente en el derecho fundamental de\ndefensa.",
+    "canonical_finding_id": "cf_2b342504152695c3",
+    "derived_from_finding_ids": [],
+    "evidence_type": "neutral",
+    "impact_direction": "neutral",
+    "strategic_significance": null,
+    "priority": 3,
+    "verification_status": "verified",
+    "verification_notes": "supported: The context explicitly states that the Tribunal Colegiado omitted to interpret article 17 of the constitution, which guarantees the fundamental right to defense.",
+    "verified_at": "2026-09-27T14:33:40.233+00:00",
+    "finding_status": "promoted",
+    "supporting_engines": [],
+    "evidence_strength": 0.55,
+    "citation_quality": null,
+    "authority_level": 1,
+    "projected_from_table": null,
+    "projected_from_row_id": null,
+    "confidence_dimensions": {
+      "legal": {
+        "level": "high",
+        "reason": "Legal significance was articulated by the engine; verify the cited rule is current and applicable."
+      },
+      "factual": {
+        "level": "high",
+        "reason": "Derived from the engine's overall confidence score for this finding."
+      },
+      "extraction": {
+        "level": "indeterminate",
+        "reason": "No source document attached to this finding — extraction quality can't be assessed."
+      },
+      "procedural": {
+        "level": "moderate",
+        "reason": "Procedural-stage certainty derived from pipeline consensus."
+      },
+      "classification": {
+        "level": "moderate",
+        "reason": "Category/materia classification not independently re-verified for this finding — inherited from the source engine's own classification."
+      },
+      "evidence_quality": {
+        "level": "moderate",
+        "reason": "One evidence reference cited; additional corroboration may be needed for disputed facts or inferences."
+      },
+      "corpus_completeness": {
+        "level": "low",
+        "reason": "Only a single document in the corpus touches this finding — the official expediente may contain more."
+      }
+    },
+    "rationale": {
+      "assumptions": [],
+      "contrary_evidence": [],
+      "supporting_evidence": [],
+      "applicable_authority": [],
+      "unresolved_questions": [],
+      "attorney_review_required": false,
+      "unsupported_language_flagged": false
+    },
+    "speaker_role": null,
+    "proposition_type": null,
+    "adoption_status": null,
+    "audit_classification": null,
+    "superseded_at": null,
+    "superseded_reason": null,
+    "lifecycle_status": null,
+    "evidence_relationship": "SOURCE_FACT",
+    "reconciliation_state": null,
+    "benefited_party": null,
+    "score_dimension": null,
+    "reason_for_score_effect": null,
+    "canonical_fingerprint": null,
+    "category_key": null
+  },
+  {
+    "id": "90af142d-2545-4a10-af59-080f9b0c04f5",
+    "case_id": "840649a2-4203-4e98-9219-5f99addf5fe5",
+    "user_id": "37f23039-a1f5-4e04-b2ad-1de95a75977f",
+    "source_module": "agent:settlement_opportunity_analyzer",
+    "category": "Hallazgo General",
+    "title": "No acreditación de la acción por parte de los actores",
+    "description": "El Juez Décimo Noveno de lo Civil determinó que los actores no acreditaron su acción en el juicio ordinario civil.",
+    "severity": "high",
+    "confidence": 0.95,
+    "legal_significance": "La falta de acreditación de la acción puede llevar a la desestimación de la demanda.",
+    "potential_impact": "La parte actora perdió el juicio y no obtuvo la indemnización por daño moral.",
+    "affected_party": null,
+    "source_doc_ids": [
+      "609a1b85-c72e-4a9e-9203-3d0a88a0a22d"
+    ],
+    "evidence_refs": [
+      {
+        "page": 2,
+        "doc_n": 1,
+        "quote": "PRIMERO. Ha sido procedente la vía ordinaria civil en la que los\nactores ********** y **********, no acreditaron su acción;",
+        "filename": "2_227923_4153_firmado.pdf",
+        "verified": true,
+        "chunk_hash": "5b18f74f93098e7dff9758064cb284b8fdc1ddb8707f6a2546fa6ca8a1b5c35e",
+        "end_offset": 2204,
+        "chunk_index": 0,
+        "document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+        "page_located": 2,
+        "start_offset": 2081,
+        "citation_hash": "a531c4226e6d8a1761d90745f5c6af9f36caeb99a6d0ff52a1d92faf019ef48f",
+        "document_hash": "289dcce7044ee4767af3f11148607192d60d24edc29dd9e3259a03235c39ee2e",
+        "source_reattributed": false
+      }
+    ],
+    "related_finding_ids": [],
+    "tags": [],
+    "metadata": {
+      "raw": {
+        "title": "No acreditación de la acción por parte de los actores",
+        "severity": "high",
+        "confidence": 0.95,
+        "provenance": {
+          "sources": [
+            {
+              "page": 2,
+              "doc_n": 1,
+              "quote": "PRIMERO. Ha sido procedente la vía ordinaria civil en la que los\nactores ********** y **********, no acreditaron su acción;",
+              "filename": "2_227923_4153_firmado.pdf",
+              "chunk_hash": "5b18f74f93098e7dff9758064cb284b8fdc1ddb8707f6a2546fa6ca8a1b5c35e",
+              "end_offset": 2204,
+              "chunk_index": 0,
+              "document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+              "page_located": 2,
+              "start_offset": 2081,
+              "citation_hash": "a531c4226e6d8a1761d90745f5c6af9f36caeb99a6d0ff52a1d92faf019ef48f",
+              "document_hash": "289dcce7044ee4767af3f11148607192d60d24edc29dd9e3259a03235c39ee2e",
+              "source_reattributed": false
+            }
+          ],
+          "verified_count": 1,
+          "confidence_adjusted": 0.95
+        },
+        "description": "El Juez Décimo Noveno de lo Civil determinó que los actores no acreditaron su acción en el juicio ordinario civil.",
+        "evidence_refs": [
+          {
+            "page": 2,
+            "doc_n": 1,
+            "quote": "PRIMERO. Ha sido procedente la vía ordinaria civil en la que los\nactores ********** y **********, no acreditaron su acción;",
+            "filename": "2_227923_4153_firmado.pdf",
+            "verified": true,
+            "chunk_hash": "5b18f74f93098e7dff9758064cb284b8fdc1ddb8707f6a2546fa6ca8a1b5c35e",
+            "end_offset": 2204,
+            "chunk_index": 0,
+            "document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+            "page_located": 2,
+            "start_offset": 2081,
+            "citation_hash": "a531c4226e6d8a1761d90745f5c6af9f36caeb99a6d0ff52a1d92faf019ef48f",
+            "document_hash": "289dcce7044ee4767af3f11148607192d60d24edc29dd9e3259a03235c39ee2e",
+            "source_reattributed": false
+          }
+        ],
+        "affected_party": "parte_actora",
+        "potential_impact": "La parte actora perdió el juicio y no obtuvo la indemnización por daño moral.",
+        "legal_significance": "La falta de acreditación de la acción puede llevar a la desestimación de la demanda."
+      },
+      "final": true,
+      "claim_type": "uncategorized_finding",
+      "provisional": false,
+      "execution_id": "587d15c5-5706-4314-a85b-c0f25e104981",
+      "exact_match_id": "em_f5adac5eb3a1d8cf",
+      "is_authority_exempt": false,
+      "canonical_finding_id": "cf_259a330c67236330",
+      "semantic_support_review": {
+        "hash": "3251391f3daaeadcb0a6aafe5b9202845b1a9914a02f59e4552d084d9190c644",
+        "reason": "The context confirms that the Juez Décimo Noveno de lo Civil determined that the actors did not prove their action in the civil trial.",
+        "verdict": "supported",
+        "version": 1,
+        "supporting_quote": "los actores ********** y **********, no acreditaron su acción; mientras que el demandado **********, justificó las excepciones que fueron objeto de estudio."
+      }
+    },
+    "created_at": "2026-09-27T14:26:48.614541+00:00",
+    "updated_at": "2026-09-27T14:35:38.740728+00:00",
+    "finding_type": "DIRECT_EVIDENCE",
+    "source_document_id": "609a1b85-c72e-4a9e-9203-3d0a88a0a22d",
+    "source_page": 2,
+    "source_quote": "PRIMERO. Ha sido procedente la vía ordinaria civil en la que los\nactores ********** y **********, no acreditaron su acción;",
+    "canonical_finding_id": "cf_259a330c67236330",
+    "derived_from_finding_ids": [],
+    "evidence_type": "neutral",
+    "impact_direction": "neutral",
+    "strategic_significance": null,
+    "priority": 3,
+    "verification_status": "verified",
+    "verification_notes": "supported: The context confirms that the Juez Décimo Noveno de lo Civil determined that the actors did not prove their action in the civil trial.",
+    "verified_at": "2026-09-27T14:33:39.612+00:00",
+    "finding_status": "verified",
+    "supporting_engines": [],
+    "evidence_strength": 0.55,
+    "citation_quality": null,
+    "authority_level": 1,
+    "projected_from_table": null,
+    "projected_from_row_id": null,
+    "confidence_dimensions": {
+      "legal": {
+        "level": "high",
+        "reason": "Legal significance was articulated by the engine; verify the cited rule is current and applicable."
+      },
+      "factual": {
+        "level": "high",
+        "reason": "Derived from the engine's overall confidence score for this finding."
+      },
+      "extraction": {
+        "level": "indeterminate",
+        "reason": "No source document attached to this finding — extraction quality can't be assessed."
+      },
+      "procedural": {
+        "level": "moderate",
+        "reason": "Procedural-stage certainty derived from pipeline consensus."
+      },
+      "classification": {
+        "level": "moderate",
+        "reason": "Category/materia classification not independently re-verified for this finding — inherited from the source engine's own classification."
+      },
+      "evidence_quality": {
+        "level": "moderate",
+        "reason": "One evidence reference cited; additional corroboration may be needed for disputed facts or inferences."
+      },
+      "corpus_completeness": {
+        "level": "low",
+        "reason": "Only a single document in the corpus touches this finding — the official expediente may contain more."
+      }
+    },
+    "rationale": {
+      "assumptions": [],
+      "contrary_evidence": [],
+      "supporting_evidence": [],
+      "applicable_authority": [],
+      "unresolved_questions": [],
+      "attorney_review_required": false,
+      "unsupported_language_flagged": false
+    },
+    "speaker_role": null,
+    "proposition_type": null,
+    "adoption_status": null,
+    "audit_classification": null,
+    "superseded_at": null,
+    "superseded_reason": null,
+    "lifecycle_status": null,
+    "evidence_relationship": "SOURCE_FACT",
+    "reconciliation_state": null,
+    "benefited_party": null,
+    "score_dimension": null,
+    "reason_for_score_effect": null,
+    "canonical_fingerprint": null,
+    "category_key": null
+  }
+]

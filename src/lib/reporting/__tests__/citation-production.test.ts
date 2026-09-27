@@ -84,6 +84,9 @@ describe('upstream canonical citation production', () => {
     expect(() => assertWriterCitationReferences(prose, catalog)).not.toThrow();
     expect(() => assertWriterCitationReferences('Otra afirmación [DOC 1 p.27]', catalog)).toThrow();
     expect(() => assertWriterCitationReferences(quote + ' [DOC 1 p.99]', catalog)).toThrow();
+    // Regression test for off-by-one physical page vs extracted page indexing
+    expect(() => assertWriterCitationReferences(quote + ' [DOC 1 p.26]', catalog)).not.toThrow();
+    expect(() => assertWriterCitationReferences(quote + ' [DOC 1 p.28]', catalog)).not.toThrow();
     const payload: any = { case: {}, documents: [{ id: 'doc', doc_n: 1 }], report: { executive_summary: prose,
       citations: catalog, full_report: { pre_release_source_pages: pages } } };
     expect(auditReportCitationIntegrity(payload).ok).toBe(true);

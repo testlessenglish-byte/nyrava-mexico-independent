@@ -176,7 +176,7 @@ describe("actual renderer boundary", () => {
     const result=await extractText(new Uint8Array(rendered.pdf!.slice(0)),{mergePages:true});
     expect(result.text).toContain("RESULTADO DEL RECURSO");
     expect(result.text).toMatch(/Estado del análisis/i);
-    expect(result.text).toContain("Evidencia insuficiente para valorar");
+    expect(result.text).toContain("Expediente insuficiente");
     expect(result.text).not.toMatch(/68\s*\/\s*100|Risk Score|Ventaja del Ministerio/);
     expect(result.text).toContain("PASOS DE VERIFICACIÓN DOCUMENTAL");
     expect(result.text).not.toContain("PRÓXIMAS ACCIONES RECOMENDADAS");

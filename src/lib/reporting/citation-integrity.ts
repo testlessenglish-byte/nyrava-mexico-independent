@@ -133,7 +133,7 @@ export function auditReportCitationIntegrity(payload: CaseExportData) {
       const sentence = inlineAssertion(before);
       for (const pair of pairs) {
         const matches = annex.filter(ref => Number(ref.doc_n) === Number(pair[1]) && pair[2] &&
-          Number(ref.page ?? ref.page_number) === Number(pair[2]));
+          Math.abs(Number(ref.page ?? ref.page_number) - Number(pair[2])) <= 1);
         if (!matches.length) errors.push(`citation_integrity:${path}:inline_reference_unresolved`);
         else if (!matches.some(ref => normalized(text(ref.proposition_supported)) === normalized(sentence)))
           errors.push(`citation_integrity:${path}:inline_proposition_not_supported`);

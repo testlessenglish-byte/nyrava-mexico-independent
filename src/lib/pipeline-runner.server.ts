@@ -1976,12 +1976,30 @@ async function _runPipelineForCase(
       }
       if (stageRequirement(key) !== "optional") stageFailures.push({ key: s.key, error: msg });
       if (FATAL_STAGES.has(key)) {
+        const isSubstantive = /REPORT_WRITER_CITATION_UNRESOLVED|CITATION_INTEGRITY|hallucination|not supported|verificable|sin pasaje/i.test(msg);
+        if (!isSubstantive) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: cRow } = await (supabase as any).from("cases").select("stall_auto_retry_count").eq("id", caseId).maybeSingle();
+          const retries = cRow?.stall_auto_retry_count ?? 0;
+          if (retries < 3) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (supabase as any).from("cases").update({ stall_auto_retry_count: retries + 1 }).eq("id", caseId);
+            console.warn(`[pipeline] Technical failure at ${s.key}, auto-retrying (${retries + 1}/3): ${msg}`);
+            try {
+              const { requeueForContinuation } = await import("@/lib/pipeline-stall.server");
+              await requeueForContinuation(supabase, caseId, s.key);
+            } catch (rqErr) {
+              console.warn(`[pipeline] re-queue failed after technical error`, rqErr);
+            }
+            return { kind: "checkpoint", index: i };
+          }
+        }
         await updateCase(
           {
             status: "failed",
             status_message: key === "report"
-              ? "No se pudo generar el informe. Verifique el diagnóstico técnico."
-              : `Failed at ${s.label}`,
+              ? "Revisión requerida: el informe requiere atención."
+              : `Revisión requerida en ${s.label}`,
             error: msg.slice(0, 2000),
             next_stage: s.key,
           },
