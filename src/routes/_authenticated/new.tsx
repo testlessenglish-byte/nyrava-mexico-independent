@@ -188,9 +188,6 @@ function NewCasePage() {
     }
     if (jurisdiction) {
       fd.append("jurisdiction", jurisdiction);
-      if (jurisdiction !== "federal" && jurisdiction !== "municipal") {
-        fd.append("applicable_law_state", jurisdiction);
-      }
     }
     if (needsCivilFamilyProcedure(caseType, caseType === "amparo" ? underlyingMateria : null)) {
       fd.append("proceeding_started_on", proceedingStartedOn);
