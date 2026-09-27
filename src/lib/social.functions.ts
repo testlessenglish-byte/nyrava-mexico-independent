@@ -1189,7 +1189,7 @@ export const openCareCaseFromIntake=createServerFn({method:"POST"})
   .inputValidator((d:unknown)=>z.object({
     intakeId:uuid,
     caseType:z.enum(["individual","minor_child","family"]),
-    priority:z.enum(["low","normal","high","urgent"]).default("normal"),
+    priority:z.enum(["standard","urgent","emergency"]).default("standard"),
     assignedUserId:uuid.optional(),
   }).parse(d))
   .handler(async({data,context})=>{
@@ -1206,7 +1206,7 @@ export const updateCareCaseState=createServerFn({method:"POST"})
   .inputValidator((d:unknown)=>z.object({
     caseId:uuid,
     status:z.enum(["intake","assessment","active","monitoring","pending_referral","reopened"]),
-    priority:z.enum(["low","normal","high","urgent"]),
+    priority:z.enum(["standard","urgent","emergency"]),
     reason:z.string().trim().min(5).max(2000),
   }).parse(d))
   .handler(async({data,context})=>{
