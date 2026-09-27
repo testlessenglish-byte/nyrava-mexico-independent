@@ -32,7 +32,8 @@ export const PENDING_CITATION_TEXT = 'Referencia localizada; transcripción/veri
 const placeholder = /cita documental referenciada en el texto|referencia localizada;\s*transcripci[oó]n\/verificaci[oó]n pendiente|\[(?:cita|quote|excerpt|pendiente)\]|lorem ipsum/i;
 const diagnosticKeys = new Set(['metadata', 'proposition_verification', 'pre_release_source_pages', 'pre_release_validation', 'citation_audit',
   'raw_findings', 'reconciled_findings', 'quarantined_findings', 'withheld_findings', 'merged_findings',
-  'source_location_audit', 'claim_entailment_audit', 'final_review', 'qa_statuses', 'canonical_sources', 'render_output']);
+  'source_location_audit', 'claim_entailment_audit', 'final_review', 'qa_statuses', 'canonical_sources', 'render_output',
+  'writer_proposition_quarantine']);
 const fullContentKeys = new Set(['prose', 'final_published_claims', 'mandatory_decision_core', 'decision_reconstruction',
   'contradictions', 'legal_memorandum', 'cross_examination', 'executive_summary', 'recommendations']);
 

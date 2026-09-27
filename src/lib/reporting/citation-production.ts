@@ -101,7 +101,10 @@ export function writerCitationCatalog(refs: Row[], pages: MatterSourcePage[], in
 /** The Writer names a verified catalog object, never a document/page pair.
  * Resolve the source identity and display page from that object only. A raw
  * Writer-authored [DOC N p.M] or an unsupported assertion is a producer error.
- * This is deliberately run before writing any generated report section. */
+ * This is deliberately run before writing any generated report section.
+ *
+ * STRICT variant — throws on first violation. Use in test assertions and
+ * contexts where a single bad token must abort the entire operation. */
 export function resolveWriterCitationReferences<T>(
   value: T, catalog: Row[], validateAttribution?: (precedingText: string, citation: Row) => void,
 ): { value: T; citations: Row[] } {
@@ -132,6 +135,195 @@ export function resolveWriterCitationReferences<T>(
     return part;
   };
   return { value: resolve(value) as T, citations: [...referenced.values()] };
+}
+
+// ---------------------------------------------------------------------------
+// QUARANTINE RESULT — returned by the SAFE resolver for every proposition
+// that cannot be published. Never thrown. Callers use this to decide whether
+// the surviving content can still form a valid report.
+// ---------------------------------------------------------------------------
+export interface WriterPropositionQuarantine {
+  /** The citation token that was quarantined, e.g. "[CITE cite_4347267cac90…]" */
+  token: string;
+  /** Machine-readable reason code — never materia-specific. */
+  reason:
+    | 'CITATION_UNRESOLVED'
+    | 'PROPOSITION_UNSUPPORTED'
+    | 'RAW_PAGE_REFERENCE'
+    | 'ATTRIBUTION_MISMATCH';
+  /** Human-readable detail for the audit log. */
+  detail: string;
+  /** The sentence fragment that preceded this citation token, for context. */
+  preceding_text: string;
+  /** The path within the Writer output tree where this occurred. */
+  path: string;
+}
+
+export interface SafeResolveResult<T> {
+  value: T;
+  citations: Row[];
+  quarantined: WriterPropositionQuarantine[];
+  /** True if ANY citation token was quarantined (but does NOT mean the report must be blocked). */
+  has_quarantined: boolean;
+}
+
+/**
+ * SAFE (quarantine-first) variant of resolveWriterCitationReferences.
+ *
+ * CONTRACT — universal across ALL materias (Familiar, Civil, Mercantil,
+ * Laboral, Penal, Amparo, Administrativo, Fiscal, Agrario, Ambiental,
+ * Electoral, Inmobiliario, Constitucional, Migratorio):
+ *
+ * - A verified, supported citation   → resolved to [DOC N p.M] and published.
+ * - An unresolved citation token     → the [CITE …] token is stripped from the
+ *   prose; the quarantine is recorded.
+ * - An unsupported proposition       → same quarantine path. The Writer
+ *   invented prose that the catalog cannot back; the token is stripped and
+ *   quarantined. Citation identity (citation_id, document_id, page, quote,
+ *   proposition_type, speaker_role) is preserved in the quarantine record and
+ *   never re-used for a different proposition.
+ * - A raw [DOC N p.M] reference      → stripped; quarantined.
+ * - An attribution mismatch          → stripped; quarantined.
+ *
+ * THIS FUNCTION NEVER THROWS. The caller MUST then:
+ *   1. Inspect quarantined items.
+ *   2. Prune affected sentences via pruneQuarantinedSentences().
+ *   3. Attempt deterministic reconstruction from surviving verified propositions.
+ *   4. Recompute the citation appendix.
+ *   5. Re-run the final-report contract.
+ *   6. Release if still complete; BLOCK with exact reason if a mandatory
+ *      proposition is irreparably missing.
+ */
+export function safeResolveWriterCitationReferences<T>(
+  value: T,
+  catalog: Row[],
+  opts: {
+    validateAttribution?: (precedingText: string, citation: Row) => void;
+    /** Path prefix for quarantine records (e.g. "narrative", "memo"). */
+    path?: string;
+  } = {},
+): SafeResolveResult<T> {
+  const referenced = new Map<string, Row>();
+  const quarantined: WriterPropositionQuarantine[] = [];
+  const basePath = opts.path ?? '';
+
+  const resolve = (part: unknown, currentPath: string): unknown => {
+    if (typeof part === 'string') {
+      // Raw [DOC N p.M] — writer invented a page reference directly.
+      if (/\bDOC\s+\d+\s+p\.\s*\d+\b/i.test(part)) {
+        for (const match of part.matchAll(/\bDOC\s+\d+\s+p\.\s*\d+\b/gi)) {
+          quarantined.push({
+            token: match[0], reason: 'RAW_PAGE_REFERENCE',
+            detail: 'Writer emitted a raw [DOC N p.M] reference instead of a [CITE id] reference.',
+            preceding_text: part.slice(Math.max(0, (match.index ?? 0) - 200), match.index ?? 0),
+            path: currentPath,
+          });
+        }
+        // Strip raw DOC refs and then process remaining [CITE …] tokens.
+        const stripped = part.replace(/\[?DOC\s+\d+\s+p\.\s*\d+\]?/gi, '');
+        return resolve(stripped, currentPath);
+      }
+
+      return part.replace(/\[(?:CITE|DOC)\b[^\]]*\]/gi, (token, offset: number) => {
+        const parsed = /^\[CITE\s+(cite_[a-f0-9]{24})\]$/i.exec(token);
+        if (!parsed) {
+          quarantined.push({
+            token, reason: 'CITATION_UNRESOLVED',
+            detail: 'Writer emitted an unrecognised citation token that is not in the verified catalog.',
+            preceding_text: part.slice(Math.max(0, offset - 200), offset),
+            path: currentPath,
+          });
+          return '';
+        }
+
+        const matches = catalog.filter(c => c.writer_ref_id === parsed[1] && c.verification_status === 'verified');
+        if (matches.length !== 1) {
+          quarantined.push({
+            token, reason: 'CITATION_UNRESOLVED',
+            detail: `Citation ${parsed[1]} not found in verified catalog (found ${matches.length} matches).`,
+            preceding_text: part.slice(Math.max(0, offset - 200), offset),
+            path: currentPath,
+          });
+          return '';
+        }
+
+        const citation = matches[0];
+        const proposition = inlineCitationStatement(part.slice(0, offset));
+
+        if (citationText(proposition) !== citationText(citation.proposition_supported) ||
+            !Number.isSafeInteger(citation.doc_n) || !Number.isSafeInteger(citation.page)) {
+          quarantined.push({
+            token, reason: 'PROPOSITION_UNSUPPORTED',
+            detail: `Writer proposition "${proposition.slice(0, 120)}" does not match verified proposition_supported "${citationText(citation.proposition_supported).slice(0, 120)}" for ${parsed[1]}.`,
+            preceding_text: part.slice(Math.max(0, offset - 350), offset),
+            path: currentPath,
+          });
+          return '';
+        }
+
+        // Attribution check — quarantine without throwing.
+        if (opts.validateAttribution) {
+          try {
+            opts.validateAttribution(part.slice(Math.max(0, offset - 350), offset), citation);
+          } catch (e) {
+            quarantined.push({
+              token, reason: 'ATTRIBUTION_MISMATCH',
+              detail: e instanceof Error ? e.message : String(e),
+              preceding_text: part.slice(Math.max(0, offset - 350), offset),
+              path: currentPath,
+            });
+            return '';
+          }
+        }
+
+        referenced.set(citation.writer_ref_id, citation);
+        return `[DOC ${citation.doc_n} p.${citation.page}]`;
+      });
+    }
+
+    if (Array.isArray(part)) return part.map((item, i) => resolve(item, `${currentPath}[${i}]`));
+    if (part && typeof part === 'object') {
+      return Object.fromEntries(Object.entries(part).map(([key, child]) => [
+        key,
+        ['quote', 'source_quote', 'excerpt', 'proposition_supported', 'proposition_verification'].includes(key)
+          ? child
+          : resolve(child, currentPath ? `${currentPath}.${key}` : key),
+      ]));
+    }
+    return part;
+  };
+
+  const resolved = resolve(value, basePath) as T;
+  return {
+    value: resolved,
+    citations: [...referenced.values()],
+    quarantined,
+    has_quarantined: quarantined.length > 0,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// PARAGRAPH PRUNING — removes sentences that still reference stripped tokens
+// (empty [] brackets) after quarantine. Operates on already-resolved strings.
+// Called on every prose string before it is merged into the final report.
+// ---------------------------------------------------------------------------
+
+/** Remove empty citation stubs ([] brackets) from any prose string, and remove
+ * sentences that consist only of whitespace or such stubs after stripping.
+ * A sentence with substantive text is always preserved, including its whitespace. */
+export function pruneQuarantinedSentences(text: string): string {
+  if (!text) return text;
+  // First pass: strip all empty bracket stubs globally.
+  const cleaned = text.replace(/\[\s*\]/g, '').replace(/[ \t]{2,}/g, ' ');
+  if (!cleaned.trim()) return '';
+  // Second pass: remove any sentence fragments that are now entirely whitespace.
+  // Split preserving the sentence-ending whitespace so the output can be re-joined cleanly.
+  const sentences = cleaned.split(/((?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÑ""]))/);
+  const kept: string[] = [];
+  for (const seg of sentences) {
+    if (seg.trim().length > 0) kept.push(seg);
+  }
+  return kept.join('').trim();
 }
 
 export function inlineCitationStatement(before: string): string {

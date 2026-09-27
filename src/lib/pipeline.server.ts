@@ -6543,7 +6543,8 @@ async function _runReportInner(args: {
   const mandatoryDecisionCoreRequired = isCompletedReportCaseMode(reportCaseAnalysisMode);
   const { loadCaseSourcePages: loadReportSourcePages } = await import("./intelligence/source-matter-audit.server");
   const { relocateSourceRefs } = await import("./reporting/source-location-audit");
-  const { writerCitationCatalog, resolveWriterCitationReferences, completedCoreCitations } = await import("./reporting/citation-production");
+  const { writerCitationCatalog, resolveWriterCitationReferences, completedCoreCitations,
+    safeResolveWriterCitationReferences, pruneQuarantinedSentences } = await import("./reporting/citation-production");
   const { attributeFindingsFromSource, validateSourceAttribution } = await import("./intelligence/source-speaker-provenance");
   const reportSourcePages = await loadReportSourcePages(db, caseId);
   const { ensureDecisionReconstruction } = await import(
@@ -7715,25 +7716,68 @@ ${paginationTail}`;
   // narrative → { prose: {...} }, memo → { legal_memorandum: {...} },
   // intelligence → { citations, evidence_index, ... }. Order chosen so
   // memo/intelligence never overwrite narrative prose keys.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  // Cached and fresh chunks enter the same producer boundary. This also
-  // binds citation IDs in recommendation inputs before they are merged below.
+  // ---------------------------------------------------------------------------
+  // UNIVERSAL WRITER PROPOSITION RESOLUTION — applies to ALL materias.
+  //
+  // Each chunk (narrative, memo, intelligence) is resolved through the SAFE
+  // variant, which quarantines every unsupported/unresolved citation rather
+  // than throwing. After all chunks are resolved, unsupported propositions are
+  // pruned from prose, the repair log is recorded, and only a mandatory
+  // irreparable gap blocks the report. A single bad proposition NEVER crashes
+  // an otherwise valid report. No materia-specific branches.
+  // ---------------------------------------------------------------------------
   const validateWriterAttribution = (precedingText: string, citation: Record<string, any>) => {
     const check = validateSourceAttribution(precedingText, citation as {
       document_id: string; page: number; quote: string;
     }, reportSourcePages);
     if (!check.ok) throw new Error(`REPORT_WRITER_ATTRIBUTION_MISMATCH: ${check.reason}`);
   };
+
+  // Accumulated quarantine log across all chunks.
+  const allQuarantined: import("./reporting/citation-production").WriterPropositionQuarantine[] = [];
+
   for (const name of ["narrative", "memo", "intelligence"] as const) {
-    if (chunkParsedByName[name])
-      chunkParsedByName[name] = resolveWriterCitationReferences(
-        chunkParsedByName[name], canonicalWriterCitations, validateWriterAttribution,
-      ).value;
+    if (!chunkParsedByName[name]) continue;
+    const safeResult = safeResolveWriterCitationReferences(
+      chunkParsedByName[name], canonicalWriterCitations,
+      { validateAttribution: validateWriterAttribution, path: name },
+    );
+    chunkParsedByName[name] = safeResult.value;
+    if (safeResult.has_quarantined) {
+      allQuarantined.push(...safeResult.quarantined);
+    }
   }
+
+  // Quarantine repair pass — runs once, bounded.
+  if (allQuarantined.length > 0) {
+    console.warn(
+      `[report:proposition-quarantine] ${allQuarantined.length} Writer proposition(s) quarantined across ${[...new Set(allQuarantined.map(q => q.reason))].join(', ')} — rebuilding from verified propositions.`,
+      allQuarantined.map(q => ({ reason: q.reason, path: q.path, detail: q.detail.slice(0, 120) })),
+    );
+
+    // Prune orphaned sentences from every string in the resolved chunks.
+    const pruneStrings = (obj: unknown): unknown => {
+      if (typeof obj === 'string') return pruneQuarantinedSentences(obj);
+      if (Array.isArray(obj)) return obj.map(pruneStrings);
+      if (obj && typeof obj === 'object') {
+        return Object.fromEntries(Object.entries(obj).map(([k, v]) =>
+          ['quote', 'source_quote', 'excerpt', 'proposition_supported', 'proposition_verification'].includes(k)
+            ? [k, v] : [k, pruneStrings(v)]));
+      }
+      return obj;
+    };
+    for (const name of ['narrative', 'memo', 'intelligence'] as const) {
+      if (chunkParsedByName[name]) chunkParsedByName[name] = pruneStrings(chunkParsedByName[name]);
+    }
+  }
+
   const parsed: Record<string, any> = {
     ...(chunkParsedByName.intelligence ?? {}),
     ...(chunkParsedByName.memo ?? {}),
     ...(chunkParsedByName.narrative ?? {}),
+    // Quarantine audit — written to full_report.citation_audit for diagnostic
+    // visibility. This is a diagnostic field excluded from publication audit.
+    ...(allQuarantined.length > 0 ? { writer_proposition_quarantine: allQuarantined } : {}),
   };
   // Old cached chunks use DOC labels; version 5 invalidates that cache.
   const prose = (parsed.prose ?? {}) as Record<string, unknown>;
@@ -7892,18 +7936,31 @@ ${paginationTail}`;
   // Merge any salvaged group prose from the split-group recovery. Salvaged
   // sections are LLM-authored, so they win over deterministic backfill below.
   for (const [k, v] of Object.entries(salvagedProse)) {
-    if (typeof v === "string" && v.trim().length > 0)
-      prose[k] = sanitizeOrphanedScores(resolveWriterCitationReferences(
-        v, canonicalWriterCitations, validateWriterAttribution,
-      ).value);
+    if (typeof v === "string" && v.trim().length > 0) {
+      const safeResult = safeResolveWriterCitationReferences(
+        v, canonicalWriterCitations,
+        { validateAttribution: validateWriterAttribution, path: `salvage.${k}` },
+      );
+      if (safeResult.has_quarantined) {
+        allQuarantined.push(...safeResult.quarantined);
+        console.warn(`[report:salvage-quarantine] ${safeResult.quarantined.length} proposition(s) quarantined in salvage section "${k}"`);
+      }
+      prose[k] = sanitizeOrphanedScores(pruneQuarantinedSentences(safeResult.value));
+    }
   }
   // Merge salvaged legal_memorandum into `parsed` so the final full_report
   // spread (line ~2621) picks it up. Only fill when the main call didn't
   // already produce one — never clobber a valid LLM-authored memo.
   if (salvagedMemo && (!parsed.legal_memorandum || typeof parsed.legal_memorandum !== "object")) {
-    parsed.legal_memorandum = resolveWriterCitationReferences(
-      salvagedMemo, canonicalWriterCitations, validateWriterAttribution,
-    ).value;
+    const safeResult = safeResolveWriterCitationReferences(
+      salvagedMemo, canonicalWriterCitations,
+      { validateAttribution: validateWriterAttribution, path: "salvage.memo" },
+    );
+    if (safeResult.has_quarantined) {
+      allQuarantined.push(...safeResult.quarantined);
+      console.warn(`[report:salvage-quarantine] ${safeResult.quarantined.length} proposition(s) quarantined in salvaged legal_memorandum`);
+    }
+    parsed.legal_memorandum = safeResult.value;
   }
 
   // ONE fallback banner at the top of the report — never repeated per section.

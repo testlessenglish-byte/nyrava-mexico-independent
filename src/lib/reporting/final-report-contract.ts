@@ -477,7 +477,7 @@ export function validateFinalReportContract(payload: FinalReportPayload, capabil
   // memo, prose, and sections. Audit-only booleans and score suppression flags are
   // not numeric scores or output recommendations.
   const visit = (v: any, key = "", path = "$", parent: Row = {}) => {
-    if (key === 'pre_release_source_pages' || key === 'pre_release_validation' || key === 'civil_rule_context' || key === 'proposition_verification' || key === 'citation_review_registry') return;
+    if (key === 'pre_release_source_pages' || key === 'pre_release_validation' || key === 'civil_rule_context' || key === 'proposition_verification' || key === 'citation_review_registry' || key === 'writer_proposition_quarantine') return;
     inspected_nodes++;
     if (typeof v==='string' && !/\.(?:documents|agent_logs|integrity_audit)(?:\[|\.)/.test(path)) {
       const foreign=auditText(v,{profile:mxProfileOrNull(payload.case?.case_type)??'civil',locale:payload.case?.report_language==='en'?'en':'es'})
