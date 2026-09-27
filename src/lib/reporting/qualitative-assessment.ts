@@ -73,20 +73,20 @@ export function assessCase(report: unknown, findings?: unknown[]): CaseAssessmen
 }
 
 const labels: Record<CaseStrengthState, [string, string]> = {
-  NOT_ASSESSED: ['Sin valoración', 'Not assessed'],
-  INSUFFICIENT_EVIDENCE: ['Evidencia insuficiente para valorar', 'Insufficient evidence to assess'],
-  MATERIAL_STRENGTHS_IDENTIFIED: ['Fortalezas relevantes identificadas', 'Material strengths identified'],
-  MIXED_OR_CONTESTED: ['Elementos mixtos o controvertidos', 'Mixed or contested'],
-  MATERIAL_WEAKNESSES_IDENTIFIED: ['Debilidades relevantes identificadas', 'Material weaknesses identified'],
+  NOT_ASSESSED: ['Evaluación no disponible', 'Assessment unavailable'],
+  INSUFFICIENT_EVIDENCE: ['Expediente insuficiente', 'Insufficient record'],
+  MATERIAL_STRENGTHS_IDENTIFIED: ['Sólida', 'Solid'],
+  MIXED_OR_CONTESTED: ['Moderada', 'Moderate'],
+  MATERIAL_WEAKNESSES_IDENTIFIED: ['Limitada', 'Limited'],
 };
 export function assessmentLabels(a: CaseAssessment, language = 'es') {
   const es = language !== 'en';
   const value = (s: string) => es ? ({ Partial: 'Parcial', Insufficient: 'Insuficiente', Undetermined: 'Indeterminada', Verified: 'Verificado', Unresolved: 'Sin resolver', Pending: 'Pendiente' } as Record<string, string>)[s] ?? s : s;
   return {
     title: es ? 'Estado del análisis' : 'Analysis Status',
-    caseStrengthTitle: es ? 'Fortaleza del caso' : 'Case Strength',
+    caseStrengthTitle: es ? 'Preparación probatoria' : 'Evidentiary Readiness',
     caseStrength: labels[a.state][es ? 0 : 1],
-    explanation: es ? 'Síntesis de evidencia verificada; no predice el resultado del litigio.' : 'Summary of verified evidence; does not predict the litigation outcome.',
+    explanation: es ? 'Mide la calidad del expediente disponible para sustentar el análisis jurídico. No predice el resultado del litigio.' : 'Measures how well the available record supports legal analysis. Does not predict litigation outcome.',
     rows: [
       [es ? 'Cobertura probatoria' : 'Evidence coverage', value(a.evidenceCoverage)],
       [es ? 'Estado de citas' : 'Citation status', value(a.citationStatus)],

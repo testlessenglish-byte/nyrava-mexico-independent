@@ -15,6 +15,7 @@ import {
   type CanonicalCounts,
   type ReportLike,
 } from "@/lib/intelligence/canonical";
+import { useRoles } from "@/hooks/use-roles";
 
 export type ModuleProjection = {
   module: string;
@@ -33,6 +34,9 @@ export function ParityBadge({
    */
   projections?: ModuleProjection[];
 }) {
+  const { isAdmin } = useRoles();
+  if (!isAdmin) return null;
+
   const canonical = useMemo(() => getCanonicalCounts(report), [report]);
   const signature = useMemo(() => paritySignature(report), [report]);
 

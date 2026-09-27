@@ -4379,7 +4379,7 @@ function renderCoverage(b: PdfBuilder, data: CaseExportData) {
   );
   const failures = asArr(coverage.failed_documents);
   if (failures.length) {
-    b.h2("Documentos con Error");
+    b.h2("Documentos con procesamiento incompleto");
     b.table(
       [["Archivo", "Error"]],
       failures.map((f) => [asStr(f.filename), asStr(f.error, "Unknown error").slice(0, 100)]),

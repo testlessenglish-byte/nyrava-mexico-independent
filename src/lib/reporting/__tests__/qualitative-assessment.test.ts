@@ -44,7 +44,7 @@ describe('shared subscriber assessment', () => {
   it.each(['familiar', 'civil', 'penal', 'migratorio', 'future_materia'])('ignores legacy baseline numbers for %s', case_type => {
     const report = { case_type, case_strength_score: 68, risk_score: 0, full_report: { deterministic_scorecard: { dimensions: { evidence: { score: 68, contributor_count: 0 } } } } };
     expect(assessCase(report).state).toBe('INSUFFICIENT_EVIDENCE');
-    expect(assessmentLabels(assessCase(report), 'en').caseStrength).toBe('Insufficient evidence to assess');
+    expect(assessmentLabels(assessCase(report), 'en').caseStrength).toBe('Insufficient record');
     expect(report.case_strength_score).toBe(68);
   });
   it.each([

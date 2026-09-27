@@ -295,8 +295,6 @@ export function CommandCenterDashboard({
                 </span>
                 <span>·</span>
                 <span>{t("cc.ess")} {t(`cc.ess.${ess.level}`)}</span>
-                <span>·</span>
-                <span className="font-mono text-[10px] text-muted-foreground/70">{t("cc.parity")} {parity.slice(0, 18)}…</span>
               </div>
             </div>
             <CaseStrengthCard report={report} language={locale} />

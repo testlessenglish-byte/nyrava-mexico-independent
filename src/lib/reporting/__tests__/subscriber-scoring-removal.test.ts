@@ -8,8 +8,8 @@ import { reconcileReportScorePresentation } from '../report-evidence-integrity';
 describe('subscriber scoring removal at real boundaries', () => {
   it('retains the Case Strength card for an insufficient historical report', () => {
     const html = renderToStaticMarkup(createElement(CaseStrengthCard, { language: 'en', report: { case_strength_score: 0, risk_score: 0 }, coverage: true }));
-    expect(html).toContain('Case Strength');
-    expect(html).toContain('Insufficient evidence to assess');
+    expect(html).toContain('Evidentiary Readiness');
+    expect(html).toContain('Insufficient record');
     expect(html).toContain('Analysis Status');
     expect(html).not.toMatch(/\/100|Critical|Risk Score/);
   });

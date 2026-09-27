@@ -1476,7 +1476,7 @@ async function _runPipelineForCase(
   }
 
   const total = stages.length;
-  const FATAL_STAGES = new Set<PipelineStageKey>(["extraction", "analyzers", "agents"]);
+  const FATAL_STAGES = new Set<PipelineStageKey>(["extraction", "analyzers", "agents", "report"]);
   const stageFailures: Array<{ key: string; error: string }> = [];
   const completed = new Set<PipelineStageKey>();
   // Stages walked past this tick because a prior tick already finished them.
@@ -1979,7 +1979,9 @@ async function _runPipelineForCase(
         await updateCase(
           {
             status: "failed",
-            status_message: `Failed at ${s.label}`,
+            status_message: key === "report"
+              ? "No se pudo generar el informe. Verifique el diagnóstico técnico."
+              : `Failed at ${s.label}`,
             error: msg.slice(0, 2000),
             next_stage: s.key,
           },

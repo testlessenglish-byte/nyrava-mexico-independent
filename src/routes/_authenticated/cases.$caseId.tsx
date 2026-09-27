@@ -689,13 +689,17 @@ function Workspace() {
                 data: { caseId: c.id, format: "pdf", caseName: c.name },
               }).catch(() => {});
             }}
-            onDownloadJson={async () => {
-              const { downloadJson } = await import("@/lib/export");
-              await downloadJson(await buildFreshExportData(), c.name);
-              void logReportExport({
-                data: { caseId: c.id, format: "json", caseName: c.name },
-              }).catch(() => {});
-            }}
+            onDownloadJson={
+              isPrivileged
+                ? async () => {
+                    const { downloadJson } = await import("@/lib/export");
+                    await downloadJson(await buildFreshExportData(), c.name);
+                    void logReportExport({
+                      data: { caseId: c.id, format: "json", caseName: c.name },
+                    }).catch(() => {});
+                  }
+                : undefined
+            }
           />
 
           <div className="rounded-xl border border-border bg-card p-4">
@@ -3407,11 +3411,12 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function Pre({ v, className }: { v: unknown; className?: string }) {
+  if (v == null) return <p className={`text-xs text-muted-foreground ${className ?? ""}`}>—</p>;
+  if (Array.isArray(v) && v.length === 0) return <p className={`text-xs text-muted-foreground italic ${className ?? ""}`}>No se identificaron elementos.</p>;
+  const content = typeof v === "string" ? v : JSON.stringify(v, null, 2);
   return (
-    <pre
-      className={`max-h-96 overflow-auto whitespace-pre-wrap rounded bg-secondary/40 p-3 text-xs text-foreground/90 ${className ?? ""}`}
-    >
-      {v == null ? "—" : typeof v === "string" ? v : JSON.stringify(v, null, 2)}
+    <pre className={`max-h-96 overflow-auto whitespace-pre-wrap rounded bg-secondary/40 p-3 text-xs text-foreground/90 ${className ?? ""}`}>
+      {content}
     </pre>
   );
 }

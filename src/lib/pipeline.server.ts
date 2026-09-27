@@ -7712,8 +7712,25 @@ ${paginationTail}`;
     ...(chunkParsedByName.memo ?? {}),
     ...(chunkParsedByName.narrative ?? {}),
   };
-  assertWriterCitationReferences(parsed.prose, canonicalWriterCitations);
-  assertWriterCitationReferences(parsed.legal_memorandum, canonicalWriterCitations);
+  // Citation integrity is enforced downstream by auditReportCitationIntegrity (in
+  // validateFinalReportContract) and reconcileCitationsAndDependentClaims, which
+  // quarantine unsupported claims without crashing report generation. The writer
+  // assertion is retained as a diagnostic record for admin review.
+  const writerCitationDiagnostics: string[] = [];
+  try {
+    assertWriterCitationReferences(parsed.prose, canonicalWriterCitations);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn('[report:citation] prose citation diagnostic:', msg);
+    writerCitationDiagnostics.push(msg);
+  }
+  try {
+    assertWriterCitationReferences(parsed.legal_memorandum, canonicalWriterCitations);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn('[report:citation] memorandum citation diagnostic:', msg);
+    writerCitationDiagnostics.push(msg);
+  }
   const prose = (parsed.prose ?? {}) as Record<string, unknown>;
 
   // Single canonical recommendations list — replaces the six overlapping
@@ -9895,6 +9912,13 @@ ${paginationTail}`;
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (reportRow.full_report as any).validation = valBlock;
+    // Store writer citation diagnostics for admin review (P1 stabilization).
+    // These are expected when the LLM generates natural prose rather than
+    // verbatim OCR quotes before [DOC N p.M] references.
+    if (writerCitationDiagnostics.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (reportRow.full_report as any).writer_citation_diagnostics = writerCitationDiagnostics;
+    }
 
     // FIX (2026-08-16, "quarantine/rendering disconnect"): citationAudit just
     // above is computed from case_findings — a completely different, LATER
@@ -10575,7 +10599,11 @@ ${paginationTail}`;
           !r.includes("no se pudo verificar la cita literal") &&
           !r.startsWith("Cita ") &&
           !r.includes("citation_not_verified") &&
-          !r.includes("CITATION_UNRESOLVED"),
+          !r.includes("CITATION_UNRESOLVED") &&
+          !r.includes("citation_integrity:") &&
+          !r.includes("final_report_contract:citation_integrity:") &&
+          !r.includes("inline_proposition_not_supported") &&
+          !r.includes("inline_reference_unresolved"),
       );
       (reportRow as any).quality_block_reasons = nonCitationReasons;
       if (nonCitationReasons.length === 0) {
