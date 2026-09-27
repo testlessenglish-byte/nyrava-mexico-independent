@@ -24,8 +24,9 @@ vi.mock("jspdf", async (original) => {
 export function regressionInput(): CaseExportData {
   const source = normalizeCanonicalSources([{id:"doc-1", filename:"2_314174_7540_firmado.pdf"}]).canonical_sources[0];
   source.source_aliases.push("314174 7540 firmado");
-  const quote = "Se desecha el recurso de revisión y queda firme la sentencia recurrida";
-  const ref = {document_id:"doc-1", canonical_source_id:source.canonical_source_id, page:1, quote};
+  const quote = "Este tribunal resuelve: Se desecha el recurso de revisión. Queda firme la sentencia recurrida";
+  const ref = {document_id:"doc-1", canonical_source_id:source.canonical_source_id, page:1, quote,
+    proposition_supported:quote,verification_status:"verified"};
   const item = {id:"holding",kind:"COURT_HOLDING",text:quote,speaker_role:"scjn",adoption_status:"adopted",source_refs:[ref]};
   return {
     case:{case_analysis_mode:"concluded_audit",case_type:"penal", name:"Synthetic concluded judgment"},
@@ -33,10 +34,14 @@ export function regressionInput(): CaseExportData {
     report:{report_mode:"LIMITED",scores_suppressed:true,motions_suppressed:true,
       executive_summary:'El tribunal desecha el recurso de revisión. Queda firme la sentencia recurrida, según el documento aportado para esta revisión.', full_report:{
       source_audit:{canonical_sources:[source]},
+      assessment_limitations:{underlying_record_absent:true},
+      pre_release_source_pages:[{document_id:"doc-1",filename:source.original_filename,page:1,text:quote}],
       mandatory_decision_core:{items:[
-        {...item,id:"disposition",kind:"DISPOSITION",text:"Se desecha el recurso de revisión"},
+        {...item,id:"disposition",kind:"DISPOSITION",text:"Se desecha el recurso de revisión",source_refs:[{
+          ...ref,quote:"Se desecha el recurso de revisión",proposition_supported:"Se desecha el recurso de revisión"}]},
         item,
-        {...item,id:"effect",kind:"REMEDY",text:"Queda firme la sentencia recurrida"},
+        {...item,id:"effect",kind:"REMEDY",text:"Queda firme la sentencia recurrida",source_refs:[{
+          ...ref,quote:"Queda firme la sentencia recurrida",proposition_supported:"Queda firme la sentencia recurrida"}]},
       ]},
     }},
     findings:[
@@ -138,16 +143,41 @@ describe("seven final report contract regressions", () => {
 });
 
 describe("actual renderer boundary", () => {
+  it("Civil PDF preserves separate pending jurisdictions and the issue elements matrix", async () => {
+    const {downloadPdf} = await import("../../export");
+    const input = regressionInput(); input.case!.case_type = 'civil'; input.case!.report_language = 'es';
+    input.report!.generated_language = 'es';
+    const full = input.report!.full_report as any;
+    full.pre_release_source_pages[0].text += '\n\nLa actora reclama daño moral. Postura procesal actual: revisión. Estado procesal: concluido.';
+    await downloadPdf(input, 'Synthetic Civil regression');
+    const {extractText} = await import('unpdf');
+    const result = await extractText(new Uint8Array(rendered.pdf!.slice(0)), {mergePages: true});
+    expect(result.text).toMatch(/Contexto procesal civil/i);
+    expect(result.text).toContain('Entidad del derecho sustantivo');
+    expect(result.text).toContain('Pendiente de verificar');
+    expect(result.text).toMatch(/Matriz de elementos civiles/i);
+    expect(result.text).toContain('Autoridad aplicable pendiente');
+    expect(result.text).not.toMatch(/interpelación|\[DOC N, p\. N\]/);
+    if (process.env.NYRAVA_REPORT_ARTIFACT_DIR) {
+      mkdirSync(process.env.NYRAVA_REPORT_ARTIFACT_DIR, {recursive: true});
+      writeFileSync(join(process.env.NYRAVA_REPORT_ARTIFACT_DIR, 'synthetic-civil-report.pdf'), new Uint8Array(rendered.pdf!));
+    }
+  }, 30000);
   it("PDF prints decision core, one source and verification-only actions", async () => {
     const {downloadPdf} = await import("../../export");
     const input=regressionInput();
     input.case!.report_language="es";
     input.report!.generated_language="es";
+    input.report!.case_strength_score=68;
+    input.report!.risk_score=0;
     await downloadPdf(input,"Synthetic regression");
     expect(rendered.pdf).not.toBeNull();
     const {extractText}=await import("unpdf");
     const result=await extractText(new Uint8Array(rendered.pdf!.slice(0)),{mergePages:true});
     expect(result.text).toContain("RESULTADO DEL RECURSO");
+    expect(result.text).toMatch(/Estado del análisis/i);
+    expect(result.text).toContain("Expediente insuficiente");
+    expect(result.text).not.toMatch(/68\s*\/\s*100|Risk Score|Ventaja del Ministerio/);
     expect(result.text).toContain("PASOS DE VERIFICACIÓN DOCUMENTAL");
     expect(result.text).not.toContain("PRÓXIMAS ACCIONES RECOMENDADAS");
     expect(result.text).not.toContain("Reincidencia");

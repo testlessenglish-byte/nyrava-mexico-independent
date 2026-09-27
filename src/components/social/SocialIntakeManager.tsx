@@ -1,3 +1,4 @@
+import { socialCasePriorityOptions } from "@/lib/social/priorities";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AlertTriangle, ArrowRight, ClipboardList, Loader2 } from "lucide-react";
@@ -46,7 +47,7 @@ export function SocialIntakeManager({orgId,programs,people,families,members,onCa
   const [selectedId,setSelectedId]=useState("");
   const [decision,setDecision]=useState({
     disposition:"refer_only",reason:"",caseType:"individual",
-    priority:"standard",assignedUserId:"",
+    priority:"normal",assignedUserId:"",
   });
   const refresh=()=>qc.invalidateQueries({queryKey:["social-intakes",orgId]});
   const createM=useMutation({
@@ -106,10 +107,10 @@ export function SocialIntakeManager({orgId,programs,people,families,members,onCa
       <CaseDynamicText text={selected.summary} className="mt-1" />
       <div className="mt-4 grid gap-3 md:grid-cols-3">
         <label className="text-xs font-medium text-muted-foreground">{es?"Tipo de caso":"Case type"}<select value={decision.caseType} onChange={e=>setDecision({...decision,caseType:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">{["individual","minor_child","family"].map(v=><option key={v} value={v}>{v.replaceAll("_"," ")}</option>)}</select></label>
-        <label className="text-xs font-medium text-muted-foreground">{es?"Prioridad":"Priority"}<select value={decision.priority} onChange={e=>setDecision({...decision,priority:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">{["standard","urgent","emergency"].map(v=><option key={v} value={v}>{v}</option>)}</select></label>
+        <label className="text-xs font-medium text-muted-foreground">{es?"Prioridad":"Priority"}<select value={decision.priority} onChange={e=>setDecision({...decision,priority:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">{socialCasePriorityOptions(es).map(({value,label})=><option key={value} value={value}>{label}</option>)}</select></label>
         <label className="text-xs font-medium text-muted-foreground">{es?"Asignar a":"Assign to"}<select value={decision.assignedUserId} onChange={e=>setDecision({...decision,assignedUserId:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="">—</option>{activeMembers.map((m:any)=><option key={m.user_id} value={m.user_id}>{m.name} · {m.role}</option>)}</select></label>
       </div>
-      {decision.priority==="emergency"&&<p className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{es?"La prioridad de emergencia crea alertas y tareas inmediatas; no sustituye servicios de emergencia.":"Emergency priority creates immediate alerts and tasks; it does not replace emergency services."}</p>}
+      {decision.priority==="urgent"&&<p className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{es?"La prioridad urgente requiere atención inmediata; no sustituye servicios de emergencia.":"Urgent priority requires immediate attention; it does not replace emergency services."}</p>}
       <button type="button" disabled={openM.isPending||(decision.caseType==="family"&&!selected.family_id)} onClick={()=>openM.mutate()} className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50"><ArrowRight className="mr-2 inline h-4 w-4"/>{es?"Abrir y asignar caso":"Open and assign case"}</button>
       <div className="mt-5 border-t border-border pt-4">
         <div className="grid gap-3 md:grid-cols-[260px_1fr]"><label className="text-xs font-medium text-muted-foreground">{es?"Otra disposición":"Other disposition"}<select value={decision.disposition} onChange={e=>setDecision({...decision,disposition:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">{["refer_only","information_only","ineligible","duplicate","no_follow_up"].map(v=><option key={v} value={v}>{v.replaceAll("_"," ")}</option>)}</select></label><label className="text-xs font-medium text-muted-foreground">{es?"Razón documentada":"Documented reason"}<input value={decision.reason} onChange={e=>setDecision({...decision,reason:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"/></label></div>

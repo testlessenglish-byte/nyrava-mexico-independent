@@ -1,3 +1,4 @@
+import { CaseStrengthCard } from "./CaseStrengthCard";
 // NYRAVA Intelligence Command Center
 // ---------------------------------------------------------------
 // Mission-control style dashboard rendered at the top of a case
@@ -30,14 +31,12 @@ import {
 import {
   getCanonicalCounts,
   getEssState,
-  getScores,
   getAgentSummary,
   paritySignature,
   type ReportLike,
 } from "@/lib/intelligence/canonical";
 import { useI18n } from "@/i18n";
 import { engineLabelKey, isStageRelevantForCaseType, resolveStageKeyLoose, statusLabelKey } from "@/lib/execution/mx-pipeline";
-import { scoreBand } from "@/lib/score-bands";
 import { useCaseExecution } from "@/hooks/useCaseExecution";
 import { COMMAND_CENTER_ENGINES } from "@/lib/execution/canonical";
 import { clearPipelineStuckState, resumeFullPipelineStep } from "@/lib/cases.functions";
@@ -157,7 +156,7 @@ export function CommandCenterDashboard({
   invalidate,
 
 }: Props) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const queryClient = useQueryClient();
   const { runs: engineRows, latestByEngine, progress: execProgress, isRunning } = useCaseExecution(caseId);
   // Jurisdiction-aware radar: hide engines that aren't legally relevant for
@@ -182,7 +181,6 @@ export function CommandCenterDashboard({
   const opportunitiesTotal = Math.max(opportunitiesCount ?? 0, counts.opportunities);
 
   const ess = useMemo(() => getEssState(report ?? null), [report]);
-  const scores = useMemo(() => getScores(report ?? null), [report]);
   const parity = useMemo(() => paritySignature(report ?? null), [report]);
   // Sourced from full_report.agent_statistics via canonical.ts — the SAME
   // helper the PDF/DOCX exports use (src/lib/export.ts). Intentionally a
@@ -192,36 +190,6 @@ export function CommandCenterDashboard({
   // different concepts were conflated in a single "engines complete" label,
   // which is what produced the mismatch against the PDF's agent count.
   const agentSummary = useMemo(() => getAgentSummary(report ?? null), [report]);
-
-  // Case score: prefer the live case_scores row (same "live wins over stale
-  // snapshot" principle already used above for findings/witnesses/evidence/
-  // opportunities counts), then the report snapshot's case_strength_score,
-  // then a risk-derived estimate; null only when none of those exist.
-  //
-  // FIX: the previous formula, `(scores.strength ?? 0) || 100 - (scores.risk
-  // ?? 100)`, had two bugs. First, `-` binds tighter than `||`, so it
-  // actually evaluated as `(scores.strength ?? 0) || (100 - (scores.risk ??
-  // 100))`, not the `(x ?? 0) || y` the author likely intended visually.
-  // Second, and the one that actually surfaced live: `||` treats 0 as falsy,
-  // so ANY time scores.strength was null (ESS-suppressed report, or no
-  // report yet) it collapsed to 0 via `?? 0`, which is falsy, which forced
-  // the `100 - (scores.risk ?? 100)` fallback — and since scores.risk is
-  // suppressed by the exact same ESS gate, THAT was also null, giving `100 -
-  // 100 = 0`. Confirmed live: a case showed a real case_scores-derived 75,
-  // then dropped to a flat 0 once the (ESS-suppressed, single-document)
-  // report finished generating and this component started reading the now-
-  // null report.case_strength_score instead.
-  const liveScore = (score?.overall_confidence ?? score?.case_quality) ?? null;
-  const reportScore = scores.strength ?? (scores.risk != null ? 100 - scores.risk : null);
-  // ESS suppression is authoritative. A stale/live case_scores row must not
-  // resurrect a numeric badge beside a report that explicitly withheld
-  // quantitative scoring (the ADR5829 run showed 86 while its PDF said the
-  // score was suppressed).
-  const rawCaseScore = ess.scoresSuppressed ? null : liveScore ?? reportScore;
-  const caseScore = rawCaseScore == null ? 0 : Math.max(0, Math.min(100, Math.round(rawCaseScore)));
-  const caseBand = scoreBand(caseScore);
-  const scoreLabel = rawCaseScore != null ? t(caseBand.labelKey) : t("score.pending");
-  const scoreColor = rawCaseScore != null ? caseBand.hex : "#A49983";
 
   const progressPct = engineRows.length > 0 ? execProgress.percent : Math.max(0, Math.min(100, progress ?? 0));
   const releaseBlocked = status === "needs_revision" || Boolean((report as { quality_blocked?: boolean } | null)?.quality_blocked);
@@ -327,11 +295,9 @@ export function CommandCenterDashboard({
                 </span>
                 <span>·</span>
                 <span>{t("cc.ess")} {t(`cc.ess.${ess.level}`)}</span>
-                <span>·</span>
-                <span className="font-mono text-[10px] text-muted-foreground/70">{t("cc.parity")} {parity.slice(0, 18)}…</span>
               </div>
             </div>
-            <ScoreGauge value={caseScore} color={scoreColor} label={scoreLabel} />
+            <CaseStrengthCard report={report} language={locale} />
           </div>
         </div>
       </div>
@@ -572,45 +538,6 @@ function pickLatest<T extends { status: string }>(map: Map<string, T>, keys: str
 }
 
 // ---------------- Subcomponents ----------------
-function ScoreGauge({ value, color, label }: { value: number; color: string; label: string }) {
-  const { t } = useI18n();
-  const R = 38;
-  const C = 2 * Math.PI * R;
-  const off = C * (1 - value / 100);
-  return (
-    <div className="relative grid place-items-center">
-      <svg width="120" height="120" viewBox="0 0 100 100">
-        <circle cx="50" cy="50" r={R} fill="none" stroke="#EAE5D9" strokeWidth="7" />
-        <circle
-          cx="50"
-          cy="50"
-          r={R}
-          fill="none"
-          stroke={color}
-          strokeWidth="7"
-          strokeLinecap="round"
-          strokeDasharray={C}
-          strokeDashoffset={off}
-          transform="rotate(-90 50 50)"
-          style={{ filter: `drop-shadow(0 0 6px ${color})`, transition: "stroke-dashoffset 1s ease" }}
-        />
-      </svg>
-      <div className="absolute inset-0 grid place-items-center text-center">
-        <div>
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{t("cc.caseScore")}</div>
-          <div className="text-2xl font-bold tabular-nums text-foreground">
-            {value}
-            <span className="text-xs text-muted-foreground">/100</span>
-          </div>
-          <div className="text-[10px] font-semibold" style={{ color }}>
-            {label}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 const TINTS: Record<string, string> = {
   cyan: "from-primary/20 to-primary/0 border-primary/30 text-primary",
   emerald: "from-success/20 to-success/0 border-success/30 text-success",

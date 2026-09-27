@@ -24,14 +24,15 @@ describe.skipIf(!process.env.REPORT_REPLAY_INPUT)('saved-case report replay thro
   const checks=validateFinalReportContract(out!);
   expect(checks.blocking_errors).toEqual([]);
   expect(out!.findings!.every(f=>ids.includes(f.id))).toBe(true);
-  expect(out!.report!.case_strength_score).toBe(64);
-  expect(out!.report!.risk_score).toBe(18);
+  expect(out!.report!.case_strength_score).toBeUndefined();
+  expect(out!.report!.risk_score).toBeUndefined();
   expect(out!.report!.contradictions_struct).toEqual([]);
   const text=out!.report_presentation.render_output!.text;
   expect(text).toMatch(/Devuélvanse los autos/);
   expect(text).not.toMatch(/444\/2021 concede amparo|SCJN concede el amparo|Document B:/);
-  expect(text).toContain('Fortaleza del expediente: 64/100');
-  expect(text).toContain('Riesgo: 18/100');
+  expect(text).not.toContain('64/100');
+  expect(text).not.toContain('18/100');
+  expect(text).toMatch(/Estado del análisis/i);
   expect(rendered.pdf).not.toBeNull();
   expect(rendered.pages.get(1)!.join(' ').toUpperCase()).toContain('PRIMERA SALA DE LA SUPREMA CORTE');
   for(const [i,f] of out!.findings!.entries()) {

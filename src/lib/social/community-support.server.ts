@@ -98,6 +98,6 @@ export function buildPublicSafeDraft(caseData: any, scope: "individual_case" | "
     publicIdentityMode: "anonymous",
     publicDisplayName: defaultDisplayName,
     locationDisplay: loc,
-    urgency: c.priority === "emergency" || c.priority === "urgent" ? "high" : "normal",
+    urgency: c.priority === "high" || c.priority === "urgent" ? "high" : "normal",
   };
 }

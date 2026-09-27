@@ -1,3 +1,4 @@
+import { CaseStrengthCard } from "@/components/CaseStrengthCard";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -895,17 +896,7 @@ function FeaturedCaseCard({
 }: {
   caseRow: NonNullable<ReturnType<typeof useMemoFeatured>>;
 }) {
-  const { t } = useI18n();
-  const score = (caseRow as { score?: number | null }).score ?? null;
-  const isComplete = caseRow.status === "complete";
-  const tone =
-    score == null
-      ? "text-muted-foreground"
-      : score >= 70
-        ? "text-success"
-        : score >= 40
-          ? "text-warning"
-          : "text-destructive";
+  const { t, locale } = useI18n();
   return (
     <div className="rounded-xl border border-border bg-card/60 p-5">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -919,21 +910,7 @@ function FeaturedCaseCard({
           </div>
         </div>
         <div className="flex items-center gap-6">
-          <div className="text-center">
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-              {t("dashboard.featured.score")}
-            </div>
-            {!isComplete ? (
-              <div className="text-sm font-medium text-muted-foreground">
-                {t("dashboard.featured.calculating")}
-              </div>
-            ) : (
-              <>
-                <div className={`text-4xl font-bold ${tone}`}>{score ?? t("common.dash")}</div>
-                <div className="text-[10px] text-muted-foreground">/ 100</div>
-              </>
-            )}
-          </div>
+          <CaseStrengthCard assessment={caseRow.case_assessment} language={locale} />
           <Link
             to="/cases/$caseId"
             params={{ caseId: caseRow.id }}
@@ -953,7 +930,7 @@ function useMemoFeatured() {
     name: string;
     status: string;
     status_message: string | null;
-    score?: number | null;
+    case_assessment?: import("@/lib/reporting/qualitative-assessment").CaseAssessment;
   };
 }
 

@@ -1,9 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/integrations/supabase/types';
 import { auditMatterCaptions, type MatterSourcePage } from './source-matter-audit';
+import { scopedReviewPages } from './review-source-snapshot.server';
 
 export async function loadCaseSourcePages(db: SupabaseClient<Database>, caseId: string) {
-  const { data: docs, error } = await db.from('documents').select('id,filename').eq('case_id', caseId).is('archived_at', null);
+  const { data: docs, error } = await db.from('documents').select('id,filename,metadata,archived_at').eq('case_id', caseId).is('archived_at', null);
   if (error) throw new Error('No se pudieron consultar los documentos del asunto.');
   const names = new Map((docs ?? []).map(d => [d.id, d.filename]));
   const pages: MatterSourcePage[] = [];
@@ -14,7 +15,7 @@ export async function loadCaseSourcePages(db: SupabaseClient<Database>, caseId: 
     for (const p of data ?? []) if (names.has(p.document_id)) pages.push({ ...p, text: p.text ?? '', filename: names.get(p.document_id)! });
     if (!data || data.length < 500) break;
   }
-  return pages;
+  return scopedReviewPages({ pages, documents: docs ?? [] }) as MatterSourcePage[];
 }
 
 export async function loadSourceMatterAudit(db: SupabaseClient<Database>, caseId: string, claimedNumber?: string | null) {

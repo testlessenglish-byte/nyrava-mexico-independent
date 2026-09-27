@@ -64,5 +64,7 @@ secrets.json
 /fix4.js
 /fix_test.js
 /test.js
+/diagnostic-*.json
+/work/diagnostic-*.json
 scripts/*
 !scripts/local-pipeline-pump.mjs

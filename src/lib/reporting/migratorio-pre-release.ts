@@ -51,9 +51,8 @@ export function validateMigratorioPreRelease(data: CaseExportData) {
         // Document itself doesn't exist in the case — always block.
         citationErrors.push(`${key}: ${m[0]} refiere a un documento no ingerido.`);
       } else if (m[2] && !citations.some(ref => (ref.document_id === id || Number(ref.doc_n) === Number(m[1])) &&
-          Number(ref.page ?? ref.page_number) === Number(m[2]))) {
-        // Relaxed: Don't require a strict `ref.quote` property existence if the page matches.
-        // citationErrors.push(`${key}: ${m[0]} sin pasaje verificable en el anexo.`);
+          Math.abs(Number(ref.page ?? ref.page_number) - Number(m[2])) <= 1)) {
+        citationErrors.push(`${key}: ${m[0]} sin pasaje verificable en el anexo.`);
       }
     }
   }

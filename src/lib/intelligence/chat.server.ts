@@ -1,3 +1,4 @@
+import { assessCase, subscriberAssessment } from "../reporting/qualitative-assessment";
 // Case AI Chat — Llama 4 Scout constrained to the case's intelligence.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { mexicoLock, groundingContract, getReportLocale } from "@/lib/mexico-lock";
@@ -41,7 +42,7 @@ type ChatSections = {
   }>;
   analysis: unknown;
   agents: Array<{ agent_type: string | null; summary: string | null; findings: unknown }>;
-  score: unknown;
+  assessment: unknown;
   theories: Array<Record<string, unknown>>;
   opportunities: Array<Record<string, unknown>>;
   witnesses: Array<Record<string, unknown>>;
@@ -88,7 +89,7 @@ async function fetchChatSections(db: Db, caseId: string): Promise<{ sections: Ch
       .select("filename,mime_type,status,size_bytes,extracted_text")
       .eq("case_id", caseId)
       .order("created_at", { ascending: true }),
-    db.from("reports").select("full_report,change_log,version").eq("case_id", caseId).maybeSingle(),
+    db.from("reports").select("full_report,change_log,version,citations,missing_evidence_struct,contradictions_struct").eq("case_id", caseId).maybeSingle(),
   ]);
 
   const docList = (docs.data ?? []).map((d) => ({
@@ -119,7 +120,7 @@ async function fetchChatSections(db: Db, caseId: string): Promise<{ sections: Ch
     })),
     analysis: analysis.data,
     agents: (agents.data ?? []) as ChatSections["agents"],
-    score: score.data,
+    assessment: assessCase(reportRow.data, findings.data ?? []),
     theories: (theories.data ?? []) as Array<Record<string, unknown>>,
     opportunities: (opps.data ?? []) as Array<Record<string, unknown>>,
     witnesses: (witnesses.data ?? []) as Array<Record<string, unknown>>,
@@ -129,7 +130,7 @@ async function fetchChatSections(db: Db, caseId: string): Promise<{ sections: Ch
     changeLog: reportRow.data?.change_log ?? null,
   };
 
-  return { sections, corpus };
+  return { sections: subscriberAssessment(sections), corpus };
 }
 
 // ---------------------------------------------------------------------------
@@ -254,8 +255,8 @@ ${JSON.stringify(sections.analysis).slice(0, 2500)}
 AGENT FINDINGS (most relevant first):
 ${JSON.stringify(agents).slice(0, 1500)}
 
-SCORE:
-${JSON.stringify(sections.score).slice(0, 800)}
+CASE ASSESSMENT (evidence summary, not an outcome prediction):
+${JSON.stringify(sections.assessment).slice(0, 800)}
 
 THEORIES (most relevant first):
 ${JSON.stringify(theories).slice(0, 1200)}

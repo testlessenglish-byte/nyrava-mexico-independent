@@ -1,3 +1,6 @@
+import { CivilAnalysisPanel } from '@/components/CivilAnalysisPanel';
+import { subscriberAssessment } from "@/lib/reporting/qualitative-assessment";
+import { CaseStrengthCard } from "@/components/CaseStrengthCard";
 import { DocumentAnalysisPurposeFields } from "@/components/DocumentAnalysisPurposeFields";
 import { DocumentPurposeEditor } from "@/components/DocumentPurposeEditor";
 import { LegalScopeSummary } from "@/components/reports/LegalScopeSummary";
@@ -85,7 +88,6 @@ import { ClientCard } from "@/components/crm/ClientCard";
 function L(es: string, en: string): string {
   return CUR_LOCALE === "es" ? es : en;
 }
-import { scoreBand } from "@/lib/score-bands";
 import { MatterMetadataCard } from "@/components/MatterMetadataCard";
 import { PipelinePanel } from "@/components/PipelinePanel";
 import { CaseControlPanel } from "@/components/CaseControlPanel";
@@ -384,7 +386,7 @@ function Workspace() {
   const analysis = data.analysis;
   const agents = data.agents;
   const score = data.score;
-  const report = data.report;
+  const report = subscriberAssessment(data.report);
   const pipelineRuns = data.pipeline_runs ?? [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const agentLogs = (data as any).agent_logs ?? [];
@@ -687,13 +689,17 @@ function Workspace() {
                 data: { caseId: c.id, format: "pdf", caseName: c.name },
               }).catch(() => {});
             }}
-            onDownloadJson={async () => {
-              const { downloadJson } = await import("@/lib/export");
-              await downloadJson(await buildFreshExportData(), c.name);
-              void logReportExport({
-                data: { caseId: c.id, format: "json", caseName: c.name },
-              }).catch(() => {});
-            }}
+            onDownloadJson={
+              isPrivileged
+                ? async () => {
+                    const { downloadJson } = await import("@/lib/export");
+                    await downloadJson(await buildFreshExportData(), c.name);
+                    void logReportExport({
+                      data: { caseId: c.id, format: "json", caseName: c.name },
+                    }).catch(() => {});
+                  }
+                : undefined
+            }
           />
 
           <div className="rounded-xl border border-border bg-card p-4">
@@ -834,6 +840,7 @@ function Workspace() {
                   <DashboardTab
                     findings={findings}
                     score={score}
+                    report={report}
                     trialPrep={trialPrep}
                     opportunities={opportunities}
                     theories={theories}
@@ -881,7 +888,7 @@ function Workspace() {
             {tab === "witnesses" && <WitnessesTab witnesses={witnesses} ranAt={c.witnesses_at} />}
             {tab === "trial" && <TrialPrepTab t={trialPrep} ranAt={c.trial_prep_at} />}
             {tab === "work" && <WorkProductTab docs={workProduct} />}
-            {tab === "scorecard" && <ScorecardTab s={score as unknown as Score | null} />}
+            {tab === "scorecard" && <CaseStrengthCard report={report} findings={findings as unknown[]} language={locale} coverage />}
             {tab === "transaction_center" && <TransactionCenterPanel caseId={c.id} />}
             {tab === "parties" && <CasePartiesPanel caseId={c.id} />}
             {tab === "tasks" && <CaseTasksPanel caseId={c.id} />}
@@ -1211,6 +1218,7 @@ function sevColor(s: string): string {
 }
 
 function DashboardTab({
+  report,
   findings,
   score,
   trialPrep,
@@ -1218,6 +1226,7 @@ function DashboardTab({
   theories,
   witnesses,
 }: {
+  report: unknown;
   findings: Finding[];
   score: ScoreSummary | null | undefined;
   trialPrep: TrialPrepSummary | null | undefined;
@@ -1251,120 +1260,7 @@ function DashboardTab({
         />
       </div>
 
-      {score &&
-        (() => {
-          const dbRaw = (score as { dimension_breakdowns?: Record<string, unknown> }).dimension_breakdowns ?? {};
-          const ct =
-            typeof (dbRaw as { case_type?: unknown }).case_type === "string"
-              ? (dbRaw as { case_type: string }).case_type
-              : "general_civil";
-          const isCrim = ct === "penal" || ct === "criminal" || ct === "civil_rights";
-          return (
-            <div className="rounded-xl border border-border bg-card p-5">
-              <h3 className="text-sm font-semibold">{t("dash.caseHealth")}</h3>
-              <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                <BigMetric label={t("dash.metric.overallConfidence")} v={score.overall_confidence} />
-                <BigMetric label={t("dash.metric.caseQuality")} v={score.case_quality} />
-                {isCrim ? (
-                  <BigMetric label={t("dash.metric.convictionRisk")} v={score.conviction_risk} inverse />
-                ) : (
-                  <BigMetric
-                    label={t("dash.metric.litigationRisk")}
-                    v={(score as Record<string, unknown>).litigation_risk as number | null}
-                    inverse
-                  />
-                )}
-              </div>
-            </div>
-          );
-        })()}
-
-      {score &&
-        (() => {
-          // Item 3 — granular evidentiary metrics, explicitly separated
-          // rather than blended under one generic term. Evidence Strength
-          // and Confidence already exist as their own case_scores columns;
-          // Corroboration Level didn't exist as a case-level number before
-          // this — computed here as the average of each witness's own
-          // corroboration score (case_witnesses.corroboration, already
-          // produced by the witness profiling engine), which is the real
-          // signal for "how much do independent sources back each other up"
-          // rather than inventing a new number with nothing behind it.
-          const witnessCorrobs = (witnesses as Array<{ corroboration?: number | null }>)
-            .map((w) => w.corroboration)
-            .filter((v): v is number => typeof v === "number");
-          const corroborationLevel =
-            witnessCorrobs.length > 0
-              ? Math.round(witnessCorrobs.reduce((a, b) => a + b, 0) / witnessCorrobs.length)
-              : null;
-          if (score.evidence_strength == null && corroborationLevel == null && score.overall_confidence == null) {
-            return null;
-          }
-          return (
-            <div className="rounded-xl border border-border bg-card p-5">
-              <h3 className="text-sm font-semibold">{t("dash.evidentiaryMetrics")}</h3>
-              <p className="mt-1 text-xs text-muted-foreground">{t("dash.evidentiaryMetrics.subtitle")}</p>
-              <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                <BigMetric label={t("dash.metric.evidenceStrength")} v={score.evidence_strength} />
-                <BigMetric label={t("dash.metric.corroborationLevel")} v={corroborationLevel} />
-                <BigMetric label={t("dash.metric.confidence")} v={score.overall_confidence} />
-              </div>
-              {witnessCorrobs.length === 0 && (
-                <p className="mt-2 text-[11px] text-muted-foreground">{t("dash.metric.corroborationLevel.noData")}</p>
-              )}
-            </div>
-          );
-        })()}
-
-      {trialPrep &&
-        (() => {
-          const dbRaw2 =
-            (score as { dimension_breakdowns?: Record<string, unknown> } | null)?.dimension_breakdowns ?? {};
-          const ct2 =
-            typeof (dbRaw2 as { case_type?: unknown }).case_type === "string"
-              ? (dbRaw2 as { case_type: string }).case_type
-              : (((trialPrep as Record<string, unknown>).case_type as string | undefined) ?? "general_civil");
-          const isCrim2 = ct2 === "penal" || ct2 === "criminal" || ct2 === "civil_rights";
-          const cm = ((trialPrep as Record<string, unknown>).civil_metrics ?? {}) as Record<string, number | null>;
-          const pm = ((trialPrep as Record<string, unknown>).penal_metrics ?? {}) as Record<string, number | null>;
-          return (
-            <div className="rounded-xl border border-border bg-card p-5">
-              <h3 className="text-sm font-semibold">{isCrim2 ? t("dash.outcome.penal") : t("dash.outcome")}</h3>
-              <div className="mt-3 grid gap-3 sm:grid-cols-4">
-                {isCrim2 ? (
-                  <>
-                    <BigMetric label={t("dash.metric.vinculacion")} v={pm.vinculacion_proceso_pct ?? null} />
-                    <BigMetric
-                      label={t("dash.metric.condenatoria")}
-                      v={pm.sentencia_condenatoria_pct ?? trialPrep.jury_conviction_pct}
-                    />
-                    <BigMetric
-                      label={t("dash.metric.absolutoria")}
-                      v={pm.sentencia_absolutoria_pct ?? trialPrep.jury_acquittal_pct}
-                    />
-                    <BigMetric
-                      label={t("dash.metric.abreviado")}
-                      v={pm.procedimiento_abreviado_pct ?? trialPrep.jury_settlement_pct}
-                    />
-                  </>
-                ) : (
-                  <>
-                    <BigMetric label={t("dash.metric.actorSuccess")} v={cm.plaintiff_success_pct ?? null} />
-                    <BigMetric label={t("dash.metric.defenseSuccess")} v={cm.defense_success_pct ?? null} />
-                    <BigMetric
-                      label={t("dash.metric.settlement")}
-                      v={cm.settlement_probability_pct ?? trialPrep.jury_settlement_pct}
-                    />
-                    <BigMetric
-                      label={t("dash.metric.comparativeFault")}
-                      v={cm.comparative_fault_estimate_pct ?? null}
-                    />
-                  </>
-                )}
-              </div>
-            </div>
-          );
-        })()}
+      <CaseStrengthCard report={report} findings={findings} language={L("es", "en")} coverage />
 
       <DashboardList title={t("dash.list.top")} items={top} empty={t("dash.list.top.empty")} />
       <DashboardList title={t("dash.list.risks")} items={risks} empty={t("dash.list.risks.empty")} />
@@ -1401,33 +1297,6 @@ function StatTile({ label, value, accent }: { label: string; value: number; acce
     <div className="rounded-xl border border-border bg-card p-4">
       <div className="text-xs uppercase tracking-wider text-muted-foreground">{label}</div>
       <div className={`mt-1 text-3xl font-semibold tabular-nums ${color}`}>{value}</div>
-    </div>
-  );
-}
-
-function BigMetric({ label, v, inverse }: { label: string; v: number | null; inverse?: boolean }) {
-  const { t } = useI18n();
-  const val = typeof v === "number" ? v : null;
-  const band = val == null ? null : scoreBand(val, inverse ? "risk" : "strength");
-  const color = band ? band.textClass : "text-foreground";
-  return (
-    <div>
-      <div className="text-xs uppercase tracking-wider text-muted-foreground">{label}</div>
-      <div className="mt-1 flex items-baseline gap-1">
-        <div className={`text-3xl font-semibold tabular-nums ${color}`}>{val ?? "—"}</div>
-        {val != null && <div className="text-sm text-muted-foreground">/100</div>}
-        {band && (
-          <span className={`ml-1.5 rounded-full border px-2 py-0.5 text-[10px] font-medium ${band.badgeClass}`}>
-            {t(band.labelKey)}
-          </span>
-        )}
-      </div>
-      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
-        <div
-          className={band ? "h-full" : "h-full bg-accent"}
-          style={{ width: `${val ?? 0}%`, backgroundColor: band ? band.hex : undefined }}
-        />
-      </div>
     </div>
   );
 }
@@ -2352,40 +2221,6 @@ function TrialPrepTab({ t, ranAt }: { t: any; ranAt?: string | null }) {
   const pm = (t.penal_metrics ?? {}) as Record<string, number | null>;
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border border-border bg-card p-4">
-        <h3 className="text-sm font-semibold">
-          {isCrim ? "Estimación de resultado (Tribunal de Enjuiciamiento)" : "Estimación de resultado"}
-        </h3>
-        <div className="mt-3 grid gap-3 sm:grid-cols-4">
-          {isCrim ? (
-            <>
-              <BigMetric label="Vinculación a proceso" v={pm.vinculacion_proceso_pct ?? null} />
-              <BigMetric label="Sentencia condenatoria" v={pm.sentencia_condenatoria_pct ?? t.jury_conviction_pct} />
-              <BigMetric label="Sentencia absolutoria" v={pm.sentencia_absolutoria_pct ?? t.jury_acquittal_pct} />
-              <BigMetric label="Procedimiento abreviado" v={pm.procedimiento_abreviado_pct ?? t.jury_settlement_pct} />
-            </>
-          ) : (
-            <>
-              <BigMetric label={L("Éxito de parte actora", "Plaintiff success")} v={cm.plaintiff_success_pct ?? null} />
-              <BigMetric label={L("Éxito de la defensa", "Defense success")} v={cm.defense_success_pct ?? null} />
-              <BigMetric label={L("Probabilidad de convenio", "Settlement")} v={cm.settlement_probability_pct ?? t.jury_settlement_pct} />
-              <BigMetric label={L("Responsabilidad concurrente", "Comparative fault")} v={cm.comparative_fault_estimate_pct ?? null} />
-            </>
-          )}
-        </div>
-        {isCrim && (
-          <p className="mt-3 text-xs text-muted-foreground">
-            Éxito estimado en recurso (apelación / amparo directo):{" "}
-            <span className="tabular-nums">{pm.recurso_exito_pct ?? t.jury_appeal_pct ?? "—"}</span>. En el sistema
-            penal acusatorio mexicano no existe jurado: la culpabilidad la determina el Tribunal de Enjuiciamiento.
-          </p>
-        )}
-        <p className="mt-2 text-xs italic text-muted-foreground">
-          Estimación del modelo de IA a partir del expediente actual — no calibrada contra resultados reales de
-          casos. Trátese como un punto de referencia, no como una probabilidad estadística validada.
-        </p>
-      </div>
-
       <div className="grid gap-3 md:grid-cols-2">
         <Block title="Ejes de apertura" items={t.opening_themes} />
         <Block title="Ejes de clausura" items={t.closing_themes} />
@@ -2513,150 +2348,6 @@ type Score = Record<string, unknown> & {
   positive_contributors: { label: string; weight: number; finding_id?: string | null }[] | null;
   negative_contributors: { label: string; weight: number; finding_id?: string | null }[] | null;
 };
-
-function ScorecardTab({ s }: { s: Score | null | undefined }) {
-  if (!s) return <Empty msg={L("Aún no hay valoración. Ejecute Valoración del Caso.", "No scorecard yet. Run Score Case.")} />;
-  // Render dimensions from the deterministic scorecard when available so the
-  // displayed metrics always reflect the case type (civil vs criminal). Any
-  // legacy column the runScoring step set to null is hidden entirely.
-  const breakdownsRaw = (s.dimension_breakdowns ?? {}) as Record<string, unknown>;
-  const detRoot = (
-    breakdownsRaw as {
-      deterministic?: { dimensions?: Record<string, { dimension?: string; score?: number }> };
-    }
-  ).deterministic;
-  const detDims = detRoot?.dimensions ?? {};
-  const detKeys = Object.keys(detDims);
-  const INVERSE = new Set(["conviction_risk", "appeal_risk", "litigation_risk", "settlement_pressure"]);
-  const LEGACY_LABELS: Record<string, string> = {
-    overall_confidence: L("Confianza general", "Overall confidence"),
-    case_quality: L("Calidad del caso", "Case quality"),
-    evidence_strength: L("Fuerza probatoria", "Evidence strength"),
-    witness_reliability: L("Fiabilidad de testigos", "Witness reliability"),
-    timeline_integrity: L("Integridad cronológica", "Timeline integrity"),
-    chain_of_custody: L("Cadena de custodia", "Chain of custody"),
-    constitutional_compliance: L("Cumplimiento constitucional", "Constitutional compliance"),
-    investigation_completeness: L("Exhaustividad de la investigación", "Investigation completeness"),
-    conviction_risk: L("Riesgo de condena", "Conviction risk"),
-    appeal_risk: L("Riesgo en apelación / recurso", "Appeal risk"),
-  };
-  const dims: { k: string; label: string; inverse?: boolean }[] = [
-    { k: "overall_confidence", label: L("Confianza general", "Overall confidence") },
-    { k: "case_quality", label: L("Calidad del caso", "Case quality") },
-    ...(detKeys.length
-      ? detKeys.map((k) => ({
-          k,
-          label: detDims[k]?.dimension ?? LEGACY_LABELS[k] ?? k,
-          inverse: INVERSE.has(k),
-        }))
-      : Object.keys(LEGACY_LABELS)
-          .filter((k) => k !== "overall_confidence" && k !== "case_quality")
-          .map((k) => ({ k, label: LEGACY_LABELS[k], inverse: INVERSE.has(k) }))),
-  ].filter(({ k }) => {
-    // Always show the two top-of-card metrics; for the rest hide when the
-    // value is null (criminal-only dimension on a civil case, etc.).
-    if (k === "overall_confidence" || k === "case_quality") return true;
-    const v = (s as Record<string, unknown>)[k];
-    const detV = detDims[k]?.score;
-    return typeof v === "number" || typeof detV === "number";
-  });
-  const breakdowns = breakdownsRaw as Record<
-    string,
-    {
-      score: number;
-      reasoning: string;
-      positive: { label: string; finding_id?: string | null }[];
-      negative: { label: string; finding_id?: string | null }[];
-    }
-  >;
-  return (
-    <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {dims.map(({ k, label, inverse }) => {
-          const v = (s as Record<string, unknown>)[k] as number | null | undefined;
-          const detScore = detDims[k]?.score;
-          const shownV: number | null = typeof v === "number" ? v : typeof detScore === "number" ? detScore : null;
-          const b = breakdowns[k];
-          return (
-            <details key={k} className="rounded-lg border border-border bg-card p-4">
-              <summary className="cursor-pointer">
-                <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</div>
-                <div className="mt-1 flex items-baseline gap-1">
-                  <div
-                    className={`text-3xl font-semibold tabular-nums ${shownV != null && (inverse ? shownV > 70 : shownV < 35) ? "text-destructive" : shownV != null && (inverse ? shownV < 40 : shownV >= 60) ? "text-success" : "text-foreground"}`}
-                  >
-                    {shownV ?? "—"}
-                  </div>
-                  {shownV != null && <div className="text-sm text-muted-foreground">/100</div>}
-                </div>
-                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
-                  <div className="h-full bg-accent" style={{ width: `${shownV ?? 0}%` }} />
-                </div>
-              </summary>
-              {b && (
-                <div className="mt-3 space-y-2 text-xs">
-                  {b.reasoning && <p className="text-foreground/90">{b.reasoning}</p>}
-                  {b.positive?.length > 0 && (
-                    <div>
-                      <div className="text-[10px] font-semibold uppercase tracking-wider text-success">{L("Positivo", "Positive")}</div>
-                      <ul className="mt-0.5 list-disc pl-5">
-                        {b.positive.map((p, i) => (
-                          <li key={i}>{p.label}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {b.negative?.length > 0 && (
-                    <div>
-                      <div className="text-[10px] font-semibold uppercase tracking-wider text-destructive">
-                        {L("Negativo", "Negative")}
-                      </div>
-                      <ul className="mt-0.5 list-disc pl-5">
-                        {b.negative.map((p, i) => (
-                          <li key={i}>{p.label}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              )}
-            </details>
-          );
-        })}
-      </div>
-      {s.methodology && (
-        <div className="rounded-lg border border-border bg-card p-4">
-          <h3 className="text-sm font-semibold">{L("Metodología", "Methodology")}</h3>
-          <p className="mt-2 whitespace-pre-wrap text-sm text-foreground/90">{s.methodology}</p>
-        </div>
-      )}
-      <div className="grid gap-3 md:grid-cols-2">
-        <div className="rounded-lg border border-border bg-card p-4">
-          <h3 className="text-sm font-semibold text-success">{L("Factores positivos principales", "Top positive contributors")}</h3>
-          <ul className="mt-2 space-y-1 text-sm">
-            {(s.positive_contributors ?? []).slice(0, 10).map((p, i) => (
-              <li key={i} className="flex justify-between gap-2">
-                <span>{p.label}</span>
-                <span className="tabular-nums text-muted-foreground">+{p.weight}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div className="rounded-lg border border-border bg-card p-4">
-          <h3 className="text-sm font-semibold text-destructive">{L("Factores de riesgo principales", "Top negative contributors")}</h3>
-          <ul className="mt-2 space-y-1 text-sm">
-            {(s.negative_contributors ?? []).slice(0, 10).map((p, i) => (
-              <li key={i} className="flex justify-between gap-2">
-                <span>{p.label}</span>
-                <span className="tabular-nums text-muted-foreground">−{p.weight}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // =================== CHAT TAB ===================
 
@@ -2821,7 +2512,6 @@ const REPORT_SECTION_ORDER: { key: string; title: string }[] = [
   { key: "defense_theory_report", title: "Defense Theory" },
   { key: "alternative_theory_report", title: "Alternative Theories" },
   { key: "risk_analysis", title: "Risk Analysis" },
-  { key: "score_breakdown", title: "Case Score Breakdown" },
   { key: "recommendations", title: "Recommended Actions" },
   { key: "appendix_sources", title: "Appendix: Source References" },
 ];
@@ -2872,26 +2562,6 @@ function Cite({ c }: { c: any }) {
       </span>
       {quote && <span className="mt-0.5 max-w-md italic text-muted-foreground">"{quote.slice(0, 220)}"</span>}
     </span>
-  );
-}
-
-function ScoreCard({ label, value, tone }: { label: string; value: number | null; tone: "good" | "risk" }) {
-  const { t } = useI18n();
-  if (value == null) return null;
-  const band = scoreBand(value, tone === "risk" ? "risk" : "strength");
-  return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</div>
-      <div className={`mt-1 flex items-baseline gap-2 text-3xl font-bold ${band.textClass}`}>
-        {value}
-        <span className="text-base font-normal text-muted-foreground">/100</span>
-      </div>
-      <span
-        className={`mt-1.5 inline-block rounded-full border px-2 py-0.5 text-[10px] font-medium ${band.badgeClass}`}
-      >
-        {t(band.labelKey)}
-      </span>
-    </div>
   );
 }
 
@@ -3099,8 +2769,6 @@ function ReportTab({
   const scoresSuppressed = Boolean((r as any).scores_suppressed);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const motionsSuppressed = Boolean((r as any).motions_suppressed);
-  const strength = scoresSuppressed ? null : rNum(r.case_strength_score);
-  const risk = scoresSuppressed ? null : rNum(r.risk_score);
   const citations = rArr(r.citations);
   // The AI-generated snapshot (r.evidence_index) is written once, at report
   // generation time — it goes stale/thin exactly like the dashboard's
@@ -3139,8 +2807,6 @@ function ReportTab({
   const nextActions = rArr(r.next_actions);
 
   const hasIntel =
-    strength != null ||
-    risk != null ||
     citations.length > 0 ||
     contradictions.length > 0 ||
     disputedIssues.length > 0 ||
@@ -3272,18 +2938,6 @@ function ReportTab({
         >
           <ul className="grid gap-2 text-sm sm:grid-cols-2">
             <li className="rounded border border-border bg-card p-3">
-              <div className="text-xs uppercase tracking-wider text-muted-foreground">{L("Fuerza del caso", "Case Strength")}</div>
-              <div>
-                {changeLog.score_delta?.strength?.prev ?? "—"} → {changeLog.score_delta?.strength?.now ?? "—"}
-              </div>
-            </li>
-            <li className="rounded border border-border bg-card p-3">
-              <div className="text-xs uppercase tracking-wider text-muted-foreground">{L("Índice de riesgo", "Risk Score")}</div>
-              <div>
-                {changeLog.score_delta?.risk?.prev ?? "—"} → {changeLog.score_delta?.risk?.now ?? "—"}
-              </div>
-            </li>
-            <li className="rounded border border-border bg-card p-3">
               <div className="text-xs uppercase tracking-wider text-muted-foreground">{L("Contradicciones", "Contradictions")}</div>
               <div>
                 {changeLog.contradictions?.prev ?? 0} → {changeLog.contradictions?.now ?? 0}
@@ -3334,14 +2988,6 @@ function ReportTab({
         </Panel>
       )}
 
-      {ess.scoresSuppressed && (
-        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
-          {L(
-            "Las puntuaciones cuantitativas de fuerza del caso y riesgo están suprimidas para este asunto — el validador de suficiencia probatoria no alcanzó el umbral requerido para una puntuación fiable. Suba más documentos fuente para habilitar la puntuación.",
-            "Quantitative case-strength and risk scores are suppressed for this case — the evidence-sufficiency validator did not reach the threshold required for reliable scoring. Upload more source documents to enable scoring.",
-          )}
-        </div>
-      )}
       {ess.motionsSuppressed && (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
           {L(
@@ -3366,12 +3012,8 @@ function ReportTab({
           </ul>
         </Panel>
       )}
-      {(strength != null || risk != null) && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <ScoreCard label={L("Fuerza del caso", "Case Strength")} value={strength} tone="good" />
-          <ScoreCard label={L("Índice de riesgo", "Risk Score")} value={risk} tone="risk" />
-        </div>
-      )}
+      <CaseStrengthCard report={r} language={L("es", "en")} coverage />
+      <CivilAnalysisPanel report={r} language={L("es", "en")} />
 
       {nextActions.length > 0 && (
         <Panel title={L("Siguientes acciones recomendadas", "Recommended Next Actions")} subtitle={L("Priorizadas", "Prioritized")}>
@@ -3682,8 +3324,8 @@ function ReportTab({
       {!hasIntel && (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-800">
           {L(
-            "Este informe fue generado antes de la actualización de inteligencia procesal. Vuelva a ejecutar \"Generar Informe\" para poblar citas, promociones, contrainterrogatorios y puntuaciones de riesgo.",
-            "This report was generated before the litigation-intelligence upgrade. Re-run \"Generate Report\" to populate citations, motions, cross-exam, and risk scores.",
+            "Este informe fue generado antes de la actualización de inteligencia procesal. Vuelva a ejecutar \"Generar Informe\" para poblar citas, promociones, contrainterrogatorios y evidencia para la valoración cualitativa.",
+            "This report was generated before the litigation-intelligence upgrade. Re-run \"Generate Report\" to populate citations, motions, and cross-exam.",
           )}
         </div>
       )}
@@ -3749,7 +3391,7 @@ function ReportTab({
         return (
           <>
             {lead.map(({ key, title }) => renderSection(key, title))}
-            <LitigationImpactDashboardSection report={r} />
+
             <LitigationCommandCenterSection report={r} />
             {rest.map(({ key, title }) => renderSection(key, title))}
           </>
@@ -3769,11 +3411,12 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function Pre({ v, className }: { v: unknown; className?: string }) {
+  if (v == null) return <p className={`text-xs text-muted-foreground ${className ?? ""}`}>—</p>;
+  if (Array.isArray(v) && v.length === 0) return <p className={`text-xs text-muted-foreground italic ${className ?? ""}`}>No se identificaron elementos.</p>;
+  const content = typeof v === "string" ? v : JSON.stringify(v, null, 2);
   return (
-    <pre
-      className={`max-h-96 overflow-auto whitespace-pre-wrap rounded bg-secondary/40 p-3 text-xs text-foreground/90 ${className ?? ""}`}
-    >
-      {v == null ? "—" : typeof v === "string" ? v : JSON.stringify(v, null, 2)}
+    <pre className={`max-h-96 overflow-auto whitespace-pre-wrap rounded bg-secondary/40 p-3 text-xs text-foreground/90 ${className ?? ""}`}>
+      {content}
     </pre>
   );
 }
@@ -4047,5 +3690,3 @@ function AttackSurfaceTab({ surface }: { surface: any }) {
     </div>
   );
 }
-
-

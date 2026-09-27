@@ -1,3 +1,4 @@
+import { subscriberAssessment } from "@/lib/reporting/qualitative-assessment";
 // Phase 2/3/4 UI surfaces: Perspectives, Evidence Intelligence, Strategy.
 // Pure presentation — pulls from data already loaded via getCase.
 import { useState } from "react";
@@ -99,17 +100,6 @@ export function ConfidenceBadge({ value }: { value: Confidence }) {
   );
 }
 
-function ScoreRing({ label, value, tone }: { label: string; value: number | null | undefined; tone: "good" | "bad" }) {
-  const v = typeof value === "number" ? Math.max(0, Math.min(100, value)) : null;
-  const color = tone === "good" ? "text-success" : "text-destructive";
-  return (
-    <div className="flex items-center gap-3 rounded-lg border border-border bg-card p-3">
-      <div className={`text-2xl font-semibold ${color}`}>{v == null ? "—" : v}</div>
-      <div className="text-xs uppercase tracking-wider text-muted-foreground">{label}</div>
-    </div>
-  );
-}
-
 // ============= PERSPECTIVES =============
 type PerspectiveRow = {
   id: string;
@@ -153,7 +143,7 @@ export function PerspectivesPanel({
 }) {
   const { locale } = useI18n();
   const [active, setActive] = useState<string>(perspectives[0]?.perspective ?? "defense");
-  const current = perspectives.find((p) => p.perspective === active) ?? perspectives[0];
+  const current = subscriberAssessment(perspectives.find((p) => p.perspective === active) ?? perspectives[0]);
 
   if (!perspectives || perspectives.length === 0) {
     return (
@@ -201,10 +191,7 @@ export function PerspectivesPanel({
               <ConfidenceBadge value={current.confidence_label} />
             </div>
             {current.summary && <p className="text-sm text-muted-foreground">{current.summary}</p>}
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <ScoreRing label={locale === "es" ? "Fortaleza del caso" : "Case strength"} value={current.strength_score} tone="good" />
-              <ScoreRing label={locale === "es" ? "Riesgo" : "Risk"} value={current.risk_score} tone="bad" />
-            </div>
+
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
@@ -509,7 +496,7 @@ export function StrategyPanel({
   ] as const;
   const existing = new Set(strategy.map((s) => s.perspective));
   const [active, setActive] = useState<string>(strategy[0]?.perspective ?? "independent");
-  const current = strategy.find((s) => s.perspective === active);
+  const current = subscriberAssessment(strategy.find((s) => s.perspective === active));
 
   return (
     <div>
@@ -557,10 +544,7 @@ export function StrategyPanel({
               <ConfidenceBadge value={current.confidence_label} />
             </div>
             {current.summary && <p className="text-sm text-muted-foreground">{current.summary}</p>}
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <ScoreRing label={locale === "es" ? "Fortaleza del caso" : "Case strength"} value={current.case_strength_score} tone="good" />
-              <ScoreRing label={locale === "es" ? "Riesgo" : "Risk"} value={current.risk_score} tone="bad" />
-            </div>
+
           </div>
 
           <ListCard

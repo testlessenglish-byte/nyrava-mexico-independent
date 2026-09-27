@@ -705,7 +705,7 @@ async function agentJudge(ctx: RunCtx): Promise<AgentResult> {
 
 async function agentHallucination(ctx: RunCtx): Promise<AgentResult> {
   const m = await import("@/lib/intelligence/hallucination.server");
-  const report = await m.runHallucinationReview({ db: ctx.db, caseId: ctx.caseId, userId: ctx.userId });
+  const report = await m.runHallucinationReview({ db: ctx.db, caseId: ctx.caseId, userId: ctx.userId, executionId: ctx.executionId });
   // No authority-label exemption can stand in for evidence of claim support.
   const authorityExempt = report.authority_exempt ?? 0;
   const grounded = report.verified;
@@ -1007,7 +1007,7 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
   const { getAnalysisMode } = await import("@/lib/intelligence/evidence-gate.server");
   const { validateJSONPipelineIntegrity } = await import("@/lib/intelligence/json-integrity-gate");
   const { dedupeCaseFindingsInDatabase } = await import("@/lib/intelligence/findings.server");
-  await dedupeCaseFindingsInDatabase(args.db, args.caseId);
+  await dedupeCaseFindingsInDatabase(args.db, args.caseId, args.executionId);
   const { reconcileCaseFindingsClaims } = await import("@/lib/intelligence/claim-level-reconciliation.server");
   await reconcileCaseFindingsClaims(args.db, args.caseId, args.executionId);
 
@@ -1227,7 +1227,8 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
 
   // One transaction writes all release mirrors; failure cannot leave a released
   // case alongside a blocked report. The database repeats the blocking invariant.
-  const fullRep = finalReport.full_report ?? {};
+  const { preserveInternalAssessmentMetrics } = await import("@/lib/reporting/qualitative-assessment");
+  const fullRep = preserveInternalAssessmentMetrics(reportRow as Record<string, any>, finalReport).full_report ?? {};
   const persistedFull = {...fullRep,
     narrative_semantic_review:narrativeManifest ?? null,
     qa_statuses:release.qa_statuses,

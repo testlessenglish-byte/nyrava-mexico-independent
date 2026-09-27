@@ -20,6 +20,7 @@
 // =============================================================================
 
 import { MX_CASE_TYPES, type MexicanCaseType } from "@/lib/jurisdiction/mexico-types";
+import { CIVIL_RULES, civilRuleApplicability, type CivilRow } from '../civil/issue-contract';
 
 export type ActKey = string;
 
@@ -1485,8 +1486,20 @@ const CACHE = new Map<string, ActLexicon>();
  * Resolves the act lexicon for a materia. Unknown or absent materia → the
  * universal lexicon, so the engine's output shape never changes.
  */
-export function resolveActLexicon(caseType?: string | null): ActLexicon {
+export function resolveActLexicon(caseType?: string | null, civilContext?: CivilRow): ActLexicon {
   const key = normKey(caseType);
+  if (['civil', 'general_civil', 'responsabilidad_civil'].includes(key)) {
+    // Civil is not proof of a contract. Only admit this normative gap after
+    // every predicate (including the applicable demand requirement) is verified.
+    const permitted = civilContext && civilRuleApplicability(CIVIL_RULES.contractual_default, civilContext).apply;
+    const observedActs = OBLIGATION_ACTS.map(a => a.act === 'incumplimiento_alegado' ? { ...a,
+      re: /(incumpli|no pago|adeudo pendiente|saldo insoluto|\bmora\b|falta de pago|omitio entregar|rescision por)/ } : a);
+    return permitted ? mergeLexicons([UNIVERSAL_LEXICON, {
+      acts: observedActs.filter(a => !['posesion_entregada', 'danos_reclamados'].includes(a.act)),
+      sequences: OBLIGATION_SEQUENCES.filter(s => s.to !== 'posesion_entregada' && s.to !== 'registro_inscrito'),
+      gaps: OBLIGATION_GAPS.filter(g => g.act === 'incumplimiento_alegado'),
+    }]) : mergeLexicons([UNIVERSAL_LEXICON, { acts: observedActs, sequences: [], gaps: [] }]);
+  }
   const cached = CACHE.get(key);
   if (cached) return cached;
   const layers = MATERIA_LAYERS[key] ?? [];

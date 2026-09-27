@@ -5,11 +5,13 @@ import type { Database } from "@/integrations/supabase/types";
 import { reviewClaimSupport } from './claim-support-review.server';
 import { supportInput, type SupportClaim, type SupportVerdict } from './claim-support-review';
 import { PROJECTION_LIKE } from "@/lib/intelligence/finding-selection";
+import { filterFindingsForExecution } from './finding-selection';
 import { isDuplicateTitle } from "./report-recommendations";
 import { checkDomainVocabulary } from "./domain-vocabulary-gate";
 import { validateRenderedReport } from "@/lib/canonical/prerender-validate.server";
 import { decideRenderedReportRelease } from "@/lib/canonical/rendered-report-release";
 import { loadReviewSourceSnapshot, scopedReviewPages } from './review-source-snapshot.server';
+import { attributeFindingsFromSource } from './source-speaker-provenance';
 
 type Db = SupabaseClient<Database>;
 
@@ -25,6 +27,7 @@ type Finding = SupportClaim & {
   source_page: number | null;
   source_quote: string | null;
   source_doc_ids: string[] | null;
+  evidence_refs?: Record<string, any>[];
   speaker_role?: string | null;
   proposition_type?: string | null;
   adoption_status?: string | null;
@@ -500,17 +503,25 @@ async function reconcileSavedReportProse(
 
 }
 
-export async function runHallucinationReview(args: { db: Db; caseId: string; userId?: string }): Promise<HallucinationReport> {
+export async function runHallucinationReview(args: { db: Db; caseId: string; userId?: string; executionId?: string }): Promise<HallucinationReport> {
   const { db, caseId } = args;
 
   const snapshot=await loadReviewSourceSnapshot(db,caseId);
-  const findings = (snapshot.findings as Array<Finding & { source_module: string; metadata?: Record<string, unknown> }>)
+  let findings = (args.executionId
+    ? filterFindingsForExecution(snapshot.findings, args.executionId)
+    : snapshot.findings as Array<Finding & { source_module: string; metadata?: Record<string, unknown> }>)
     .filter(f=>!String(f.source_module ?? '').startsWith(PROJECTION_LIKE.replace(/%$/,'')))
     .filter(f=>f.finding_status!=="suppressed" && !f.superseded_at && f.lifecycle_status!=="superseded" && f.metadata?.provisional!==true);
 
   const proseReconciliation = await reconcileSavedReportProse(db, caseId);
 
   const pages = scopedReviewPages(snapshot);
+  const { restoreFindingSourceContext } = await import('./claim-support-review');
+  findings = findings.map(f => restoreFindingSourceContext(f, pages));
+  // Attribute a quoted party grievance from its place in the extracted source
+  // before the existing hash-bound semantic review. A named tribunal is not
+  // necessarily the speaker of the passage.
+  findings = attributeFindingsFromSource(findings, pages);
   const findingsById=new Map(findings.map(f=>[f.id,f]));
   const persistBatch=async (batch:ReadonlyMap<string,SupportVerdict>)=>{
     for(const [id,verdict] of batch){
@@ -518,6 +529,11 @@ export async function runHallucinationReview(args: { db: Db; caseId: string; use
       const status=!finding.source_quote || !finding.source_document_id ? 'no_citation'
         : verdict.verdict==='supported' ? 'verified' : 'unverified';
       const {data:written,error}=await db.from('case_findings').update({
+        source_document_id: finding.source_document_id, source_page: finding.source_page, source_quote: finding.source_quote,
+        evidence_refs: finding.evidence_refs,
+        description: finding.description, speaker_role: finding.speaker_role,
+        proposition_type: finding.proposition_type, adoption_status: finding.adoption_status,
+        audit_classification: finding.audit_classification,
         verification_status:status,verification_notes:`${verdict.verdict}: ${verdict.reason}`,
         verified_at:new Date().toISOString(),metadata:{...finding.metadata,semantic_support_review:verdict},
       } as any).eq('id',id).eq('updated_at',finding.updated_at).select('id,updated_at');
@@ -579,7 +595,8 @@ export async function runHallucinationReview(args: { db: Db; caseId: string; use
   // A concurrent edit or newly inserted claim invalidates this review as a whole.
   const current=await loadReviewSourceSnapshot(db,caseId);
   const currentPages=scopedReviewPages(current);
-  const eligible=current.findings.filter((f:any)=>!String(f.source_module ?? '').startsWith(PROJECTION_LIKE.replace(/%$/,'')) && f.finding_status!=='suppressed' && !f.superseded_at && f.lifecycle_status!=='superseded' && f.metadata?.provisional!==true);
+  const eligible=(args.executionId ? filterFindingsForExecution(current.findings,args.executionId) : current.findings)
+    .filter((f:any)=>!String(f.source_module ?? '').startsWith(PROJECTION_LIKE.replace(/%$/,'')) && f.finding_status!=='suppressed' && !f.superseded_at && f.lifecycle_status!=='superseded' && f.metadata?.provisional!==true);
   if(eligible.length!==findings.length || eligible.some((f:any)=>support.get(f.id)?.hash!==supportInput(f,currentPages).hash))
     throw new Error('Findings changed during semantic review; final approval withheld.');
 

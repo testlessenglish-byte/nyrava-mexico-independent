@@ -320,7 +320,7 @@ export function ReportDownloadsCard({
               >
                 <FileJson className="h-3.5 w-3.5 text-accent" />
                 <span>
-                  {downloadingJson ? "Exportando JSON..." : "Descargar JSON (Auditoría)"}
+                  {downloadingJson ? "Exportando JSON..." : "Descargar diagnóstico técnico (JSON)"}
                 </span>
               </Button>
             </div>

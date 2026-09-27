@@ -143,7 +143,7 @@ const ES: Record<string, string> = {
   "Legal standard": "Estándar jurídico",
   "Legal authority": "Fundamento legal",
   "Draft outline": "Esquema del borrador",
-  "Failed documents": "Documentos con error",
+  "Failed documents": "Documentos con procesamiento incompleto",
   "Cross-domain (activated)": "Materia cruzada (activada)",
   Enabled: "Habilitado",
   Generated: "Generado",
@@ -377,7 +377,7 @@ const ES: Record<string, string> = {
     "Sustentado en evidencia. Citas auditadas. Diseñado para trabajo de inteligencia jurídica sensible.",
   "Draft — citation verification not passed. Attorney review required before reliance.":
     "Borrador — la verificación de citas no fue superada. Requiere revisión del abogado antes de utilizarse.",
-  "Case Strength": "Fortaleza del Caso",
+  "Case Strength": "Preparación Probatoria",
   "Risk Score": "Puntuación de Riesgo",
   "Work product": "Producto de trabajo",
   "Primary Evidence:": "Evidencia principal:",

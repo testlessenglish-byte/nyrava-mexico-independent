@@ -31,9 +31,10 @@ import { verifyStatutoryCitation } from "@/lib/legal/citation-verification.serve
 import {
   buildCaseGroundingCorpus,
   verifyQuoteDetailed,
+  verifyEvidenceRefs,
   type GroundingCorpus,
 } from "./grounding.server";
-import { locateQuoteInText, pageForOffset } from "./evidence-provenance.server";
+import { locateQuoteInText } from "./evidence-provenance.server";
 import { SPEAKER_ROLES, PROPOSITION_TYPES, ADOPTION_STATUSES } from "./finding-taxonomy";
 import {
   sourced,
@@ -73,7 +74,7 @@ type Doc = { id: string; filename: string; extracted_text: string | null };
  *  contract; this one returns the EvidenceRef shape decision-
  *  reconstruction.ts's Sourced<T> expects. Same verification calls
  *  underneath (verifyQuoteDetailed, locateQuoteInText). */
-function resolveEvidenceRef(
+export function resolveEvidenceRef(
   quote: string | null | undefined,
   corpus: GroundingCorpus,
   docs: Doc[],
@@ -83,11 +84,13 @@ function resolveEvidenceRef(
   for (const doc of docs) {
     const loc = locateQuoteInText(quote, doc.extracted_text ?? "");
     if (loc) {
-      return {
-        document_id: doc.id,
-        quote: (doc.extracted_text ?? '').slice(loc.start, loc.end),
-        label: `p.${pageForOffset(loc.start, corpus.pageChars)}`,
-      };
+      const ref = verifyEvidenceRefs([{ document_id: doc.id, quote }], corpus)[0];
+      // Character chunks are not PDF pages. No physical location means the
+      // reconstruction must remain unresolved instead of inventing a page.
+      if (!ref?.page) return null;
+      return { ...ref, document_id: doc.id, doc_id: doc.id, doc_n: ref.doc_n ?? undefined,
+        label: `p.${ref.page}`, page_number: ref.page,
+        page_located: ref.page, page_extraction_ref: `${doc.id}:${ref.page}` };
     }
   }
   return null;

@@ -1,3 +1,7 @@
+import { assessCase, subscriberAssessment } from './qualitative-assessment';
+import { prepareCivilReport, auditCivilReport } from '../civil/report-contract';
+import { auditReportCitationIntegrity, canonicalizeReportCitations, bindAttributedFindingCitations } from './citation-integrity';
+import { findingCitationReviews } from './citation-production';
 import { withReviewedSections } from "./reviewed-sections";
 import type { CaseExportData } from "../export";
 import { validateMigratorioPreRelease } from './migratorio-pre-release';
@@ -101,13 +105,15 @@ const PROBABILITY_FIELDS = new Set(["probability", "success_probability", "likel
 
 /** Build the presentation once, before any PDF/DOCX/HTML renderer receives it.
  * This replaces renderer-side reconstruction. Raw DB records are not mutated. */
-export function composeFinalReportPayload(input: CaseExportData): FinalReportPayload {
+export function composeFinalReportPayload(input: CaseExportData, sourceReviewFindings = input.findings): FinalReportPayload {
   input = withReviewedSections(input);
   const originalFull = obj(obj(input.report).full_report);
   const currentNumbers = arr(originalFull.proceeding_registry).filter(p => /sentencia analizada|current judgment/i.test(p.relationship ?? '')).map(p => String(p.number));
   const integrity = quarantineDispositionConflicts(input, originalFull.migratorio_disposition, currentNumbers);
   const data = relocateReportReferences(structuredClone(integrity.data),arr(originalFull.pre_release_source_pages) as any,
     input.documents.map((d,i)=>({document_id:String(d.id),doc_n:Number(d.doc_n??i+1)}))) as FinalReportPayload;
+  // Snapshot authoritative engine records, never embedded writer review objects.
+  (data as Row).citation_review_registry = findingCitationReviews(arr(sourceReviewFindings));
   const report = obj(data.report), full = obj(report.full_report), c = obj(data.case);
   const stored = obj(full.report_governance);
   const governance = resolveReportGovernance({
@@ -163,7 +169,7 @@ export function composeFinalReportPayload(input: CaseExportData): FinalReportPay
     }
   }
   const withheld: ReportPresentation["withheld_findings"] = [];
-  const findings = arr(data.findings).map((f): Row | null => {
+  let findings = arr(data.findings).map((f): Row | null => {
     if (historicalFindingIds.has(f.id)) return null;
     if (
       f.lifecycle_status === 'superseded' ||
@@ -293,6 +299,16 @@ export function composeFinalReportPayload(input: CaseExportData): FinalReportPay
     : Number(({critical:4,high:3,medium:2,low:1} as Record<string,number>)[String(b.severity)] ?? 0) -
       Number(({critical:4,high:3,medium:2,low:1} as Record<string,number>)[String(a.severity)] ?? 0));
   data.findings = findings;
+  // Publish the underlying claims before adding Civil's attribution notices.
+  // Alignment/publication must not overwrite safe text, and a pending notice
+  // is presentation metadata rather than a new source factual proposition.
+  prepareCivilReport(data);
+  bindAttributedFindingCitations(data);
+  findings = arr(data.findings);
+  for (const finding of findings) {
+    finding.speaker_role = resolveReportSpeaker(finding, core);
+    finding.speaker_role_label = formatSpeakerRoleBadge(finding);
+  }
   if (full.intelligence) full.intelligence.consolidated_findings = findings;
   // Canonical recommendation candidates own all action lanes. Retired raw
   // prose/agent next_actions are never resurrected for an older report.
@@ -319,6 +335,7 @@ export function composeFinalReportPayload(input: CaseExportData): FinalReportPay
     caseType: c.case_type, jurisdiction: c.jurisdiction,
     missingDocuments: arr(report.missing_evidence_struct).map(m => String(m.item ?? "")).filter(Boolean),
     capability, governance,
+    civilRuleContext: full.civil_rule_context,
   };
   const finding_cards = findings.map(f => ({ finding: f, source_count: canonicalSourceCount(f.evidence_refs), details: buildFindingWorkProduct(f, context) }));
   const snapshot = buildCaseSnapshot(findings, context);
@@ -337,7 +354,7 @@ export function composeFinalReportPayload(input: CaseExportData): FinalReportPay
       !(!capability.scores_allowed && SCORE_FIELDS.has(key)) &&
       !(!capability.probabilities_allowed && PROBABILITY_FIELDS.has(key)) &&
       key !== "final_renderer_payload" && key !== "report_presentation"
-    ).map(([key, v]) => [key, project(v)]));
+    ).map(([key, v]) => [key, ['proposition_verification','citation_review_registry'].includes(key) ? structuredClone(v) : project(v)]));
   };
   const projected = project(data) as FinalReportPayload;
   projected.report ??= {};
@@ -367,7 +384,7 @@ export function composeFinalReportPayload(input: CaseExportData): FinalReportPay
   // Content-policy transforms can remove one side, so check the final pair
   // after every transform, not only on the model's original response.
   const finalReport = obj(final.report), finalFull = obj(finalReport.full_report);
-  if (!migratorio && !arr(finalFull.pre_release_source_pages).length) return final;
+  if (!migratorio && !arr(finalFull.pre_release_source_pages).length) return assessmentPresentation(final);
   const pairAudit = verifyContradictionPairs(arr(finalReport.contradictions_struct), arr(finalFull.pre_release_source_pages) as any,
     final.documents.map((d,i)=>({document_id:String(d.id),doc_n:Number(d.doc_n ?? i+1)})));
   finalReport.contradictions_struct = pairAudit.accepted.filter(c=>c.kind==='factual');
@@ -408,8 +425,24 @@ export function composeFinalReportPayload(input: CaseExportData): FinalReportPay
   finalFull.integrity_audit = {...obj(finalFull.integrity_audit), contradiction_rejections:[
     ...arr(obj(finalFull.integrity_audit).contradiction_rejections), ...pairAudit.rejected,
   ]};
-  return final;
+  return assessmentPresentation(final);
 
+}
+
+function assessmentPresentation(payload: FinalReportPayload): FinalReportPayload {
+  payload = canonicalizeReportCitations(payload);
+  // The final content transform may have changed a finding into a source-
+  // attribution wrapper. Bind that exact published assertion after transform.
+  bindAttributedFindingCitations(payload);
+  payload.report_presentation.finding_cards.forEach((card, index) => {
+    if (payload.findings?.[index]) card.finding = payload.findings[index];
+  });
+  const citationAudit = auditReportCitationIntegrity(payload);
+  const full = obj(payload.report!.full_report);
+  full.assessment_limitations = { ...obj(full.assessment_limitations), material_citations_unresolved: citationAudit.unresolved.length > 0 };
+  full.case_assessment = assessCase(payload.report, payload.findings);
+  payload.report!.full_report = full;
+  return subscriberAssessment(payload);
 }
 
 export function validateFinalReportContract(payload: FinalReportPayload, capability = payload.report_presentation.capability, governance = payload.report_presentation.governance) {
@@ -444,7 +477,7 @@ export function validateFinalReportContract(payload: FinalReportPayload, capabil
   // memo, prose, and sections. Audit-only booleans and score suppression flags are
   // not numeric scores or output recommendations.
   const visit = (v: any, key = "", path = "$", parent: Row = {}) => {
-    if (key === 'pre_release_source_pages' || key === 'pre_release_validation') return;
+    if (key === 'pre_release_source_pages' || key === 'pre_release_validation' || key === 'civil_rule_context' || key === 'proposition_verification' || key === 'citation_review_registry') return;
     inspected_nodes++;
     if (typeof v==='string' && !/\.(?:documents|agent_logs|integrity_audit)(?:\[|\.)/.test(path)) {
       const foreign=auditText(v,{profile:mxProfileOrNull(payload.case?.case_type)??'civil',locale:payload.case?.report_language==='en'?'en':'es'})
@@ -549,6 +582,8 @@ export function validateFinalReportContract(payload: FinalReportPayload, capabil
   if (restricted && !rules.verificationStepsOnly) violations.push("verificationStepsOnly");
   const sourceReview = validateMigratorioPreRelease(payload);
   violations.push(...sourceReview.errors);
+  violations.push(...auditReportCitationIntegrity(payload).errors);
+  violations.push(...auditCivilReport(payload).errors, ...arr(obj(payload.report?.full_report).civil_quality?.errors).map(String));
   return { ok: violations.length === 0, blocking_errors: violations, checked_rules: rules, source_review: sourceReview,
     violation_paths, inspected_nodes, validation_stage: view.render_output ? "after_renderer_transforms" : "after_section_transforms" };
 }
@@ -612,7 +647,9 @@ export function preflightFinalReportPayload(input: CaseExportData): FinalReportP
 }
 function validatePayload(input: CaseExportData, preflight: boolean): FinalReportPayload {
   if (!preflight && input.report?.quality_blocked === true) throw new Error("REPORT_BLOCKED: report failed its release gate");
-  let payload = (input as FinalReportPayload).report_presentation ? input as FinalReportPayload : composeFinalReportPayload(input);
+  let payload = (input as FinalReportPayload).report_presentation
+    ? assessmentPresentation(structuredClone(input as FinalReportPayload))
+    : composeFinalReportPayload(input);
   let validation = validateFinalReportContract(payload);
   // REMEDIATE -> REVALIDATE before BLOCK. An uncited absolute absence sentence
   // (typically report_writer:missing_evidence) is rewritten into qualified

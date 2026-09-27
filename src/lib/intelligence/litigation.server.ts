@@ -10,6 +10,8 @@ import { resolveProviderKeys } from "../ai-key-router.server";
 import { addFindings, addGatedFindings, clearFindingsByModule } from "./findings.server";
 import { PROJECTION_LIKE } from "@/lib/intelligence/finding-selection";
 import { isGroundedByTextOverlap } from "./finding-dedupe";
+import { completeEvidenceCitation } from "./evidence-gate.server";
+import type { GroundingCorpus } from "./grounding.server";
 
 const MODEL = GROQ_DEFAULT_MODEL;
 type Db = SupabaseClient<Database>;
@@ -64,6 +66,17 @@ export function keyEvidenceIsGrounded(
   if (!item || typeof item !== "object") return false;
   const quote = (item as { citation?: { quote?: unknown } }).citation?.quote;
   return typeof quote === "string" && quote.trim().length > 0 && verifyQuote(quote, corpus);
+}
+
+/** Preserve every surviving perspective item while attaching the existing
+ * physical-page citation proof wherever its quoted source can be verified. */
+export function completePerspectiveKeyEvidence<T>(items: T[], corpus: GroundingCorpus): T[] {
+  return items.map(item => {
+    if (!item || typeof item !== "object") return item;
+    const row = item as Record<string, unknown>;
+    if (!row.citation || typeof row.citation !== "object" || Array.isArray(row.citation)) return item;
+    return { ...row, citation: completeEvidenceCitation(row.citation as Record<string, unknown>, corpus) } as T;
+  });
 }
 
 const ALL_PERSPECTIVES = [
@@ -268,10 +281,13 @@ export async function runPerspectivesEngine(args: {
   const { buildCaseGroundingCorpus, verifyQuote } = await import("./grounding.server");
   const { data: docsForPerspectiveGrounding } = await db
     .from("documents")
-    .select("id,filename,extracted_text")
-    .eq("case_id", caseId);
+    .select("id,filename,extracted_text,status,evidence_scope")
+    .eq("case_id", caseId)
+    .neq("evidence_scope", "revision_context")
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true });
   const perspectiveGroundingCorpus = await buildCaseGroundingCorpus(db, caseId, 
-    (docsForPerspectiveGrounding ?? []).map((d) => ({
+    (docsForPerspectiveGrounding ?? []).filter(d => d.status === "extracted").map((d) => ({
       id: d.id as string,
       filename: d.filename,
       extracted_text: d.extracted_text,
@@ -301,8 +317,8 @@ export async function runPerspectivesEngine(args: {
   "summary": string (3-5 sentences),
   "confidence_label": "confirmed"|"likely"|"possible"|"unknown",
   "confidence": number 0-1,
-  "strength_score": int 0-100,
-  "risk_score": int 0-100,
+  "strength_score": null,
+  "risk_score": null,
   "strengths": [ { "title": string, "detail": string, "confidence_label": "confirmed"|"likely"|"possible"|"unknown" } ],
   "weaknesses": [ { "title": string, "detail": string, "confidence_label": "confirmed"|"likely"|"possible"|"unknown" } ],
   "opposing_arguments": [ { "argument": string, "strength": "high"|"medium"|"low" } ],
@@ -390,8 +406,10 @@ ${briefText}`,
       // (perspectiveGroundingCorpus, fetched once above) — an entry with no
       // citation at all is dropped too, same "no verified fact, no publish"
       // policy used everywhere else in this codebase.
-      p.key_evidence = (Array.isArray(p.key_evidence) ? p.key_evidence : []).filter((item: unknown) =>
-        keyEvidenceIsGrounded(item, verifyQuote, perspectiveGroundingCorpus),
+      p.key_evidence = completePerspectiveKeyEvidence(
+        (Array.isArray(p.key_evidence) ? p.key_evidence : []).filter((item: unknown) =>
+          keyEvidenceIsGrounded(item, verifyQuote, perspectiveGroundingCorpus),
+        ), perspectiveGroundingCorpus,
       );
 
       // supabase-js does NOT throw on a rejected insert — it returns { error }.
@@ -405,8 +423,8 @@ ${briefText}`,
         summary: p.summary ?? null,
         confidence_label: p.confidence_label ?? null,
         confidence: typeof p.confidence === "number" ? p.confidence : null,
-        strength_score: typeof p.strength_score === "number" ? p.strength_score : null,
-        risk_score: typeof p.risk_score === "number" ? p.risk_score : null,
+        strength_score: null,
+        risk_score: null,
         strengths: (p.strengths ?? []) as J,
         weaknesses: (p.weaknesses ?? []) as J,
         opposing_arguments: (p.opposing_arguments ?? []) as J,
@@ -485,75 +503,7 @@ ${briefText}`,
     throw new Error(`All ${PERSPECTIVES.length} perspectives failed: ${failures.join("; ")}`);
   }
 
-  // Adversarial reconciliation pass.
-  //
-  // Perspectives are generated independently — a "defense strength_score: 85"
-  // and "prosecution strength_score: 85" can both be persisted with nothing
-  // checking whether the aggregate scores make internal sense together. This
-  // doesn't re-run generation (that would be new LLM-call surface); it's a
-  // deterministic, code-only check that flags the specific failure mode —
-  // both sides of an adversarial pair scoring high with no differentiation —
-  // as a weakness entry on both rows, using the existing `weaknesses` JSON
-  // column rather than a new schema field.
-  const OPPOSING_PAIRS: Array<[Perspective, Perspective]> = [
-    ["ministerio_publico", "defensa"],
-    ["quejoso", "autoridad_responsable"],
-    // Added after checking real report output: general civil case types
-    // (employment, personal injury, general_civil, medical_malpractice) use
-    // "defense" as the opposing side for "plaintiff", not "respondent" —
-    // the original two pairs above never fired for any of those case
-    // types, which is most of the platform's civil fixture corpus.
-    ["parte_actora", "parte_demandada"],
-  ];
-  const RECONCILE_HIGH_THRESHOLD = 65;
-  const RECONCILE_CLOSE_MARGIN = 15;
-  try {
-    for (const [a, b] of OPPOSING_PAIRS) {
-      if (!PERSPECTIVES.includes(a) || !PERSPECTIVES.includes(b)) continue;
-      const { data: rows } = await db
-        .from("case_perspectives")
-        .select("id,perspective,strength_score,weaknesses")
-        .eq("case_id", caseId)
-        .in("perspective", [a, b]);
-      const rowA = (rows ?? []).find((r) => r.perspective === a);
-      const rowB = (rows ?? []).find((r) => r.perspective === b);
-      if (!rowA || !rowB) continue;
-      const sA = typeof rowA.strength_score === "number" ? rowA.strength_score : null;
-      const sB = typeof rowB.strength_score === "number" ? rowB.strength_score : null;
-      if (sA === null || sB === null) continue;
-      const bothHigh = sA >= RECONCILE_HIGH_THRESHOLD && sB >= RECONCILE_HIGH_THRESHOLD;
-      const unreconciled = Math.abs(sA - sB) <= RECONCILE_CLOSE_MARGIN;
-      if (bothHigh && unreconciled) {
-        const locale = await getReportLocale(db, caseId);
-        const note =
-          locale === "en"
-            ? {
-                title: "Both sides scored similarly strong",
-                detail: `The ${a} and ${b} analyses both came back with a high strength score (${sA} and ${sB}) and neither clearly outweighs the other. That's unusual — normally one side's evidence is stronger. Review both analyses together before relying on either score.`,
-                confidence_label: "possible" as const,
-              }
-            : {
-                title: "Ambas partes obtuvieron una puntuación de fortaleza igualmente alta",
-                detail: `Los análisis de ${a} y ${b} obtuvieron cada uno una puntuación de fortaleza alta (${sA} y ${sB}) sin que una parte supere claramente a la otra. Esto es inusual — normalmente la evidencia de una de las partes es más sólida. Revise ambos análisis en conjunto antes de basarse en cualquiera de las dos puntuaciones.`,
-                confidence_label: "possible" as const,
-              };
-        for (const row of [rowA, rowB]) {
-          const existing = Array.isArray(row.weaknesses) ? row.weaknesses : [];
-          await db
-            .from("case_perspectives")
-            .update({ weaknesses: [...existing, note] as unknown as J })
-            .eq("id", row.id);
-        }
-      }
-    }
-  } catch (e) {
-    // Reconciliation is a best-effort enhancement, not a required part of
-    // the stage — a failure here must never fail the whole perspectives run.
-    console.warn(
-      `[perspectives] reconciliation pass failed (non-fatal): ${e instanceof Error ? e.message : String(e)}`,
-    );
-  }
-
+  // Numeric adversarial comparison is retired; preserve the substantive analyses.
   await setCase(db, caseId, {
     status: "intelligence_complete",
     status_message: failures.length
@@ -1152,8 +1102,8 @@ Each source_refs entry is {document_id:string,page:integer,quote:string}. Omit u
       perspective,
       summary: s.summary ?? null,
       confidence_label: s.confidence_label ?? null,
-      case_strength_score: typeof s.case_strength_score === "number" ? s.case_strength_score : null,
-      risk_score: typeof s.risk_score === "number" ? s.risk_score : null,
+      case_strength_score: null,
+      risk_score: null,
       motion_rankings: (filterMotions(s.motion_rankings) ?? []) as J,
       anticipated_opposing: (s.anticipated_opposing ?? []) as J,
       counter_arguments: (filterCounters(s.counter_arguments) ?? []) as J,

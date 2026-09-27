@@ -230,8 +230,8 @@ describe("Atomic Claim Enforcement at Final Publication — Universal Across Mat
     expect(blocked).toContain("16:30 horas");
   });
 
-  // 5. failure of one proposition never blocks the report
-  it("5. failure of one proposition never blocks the report (permissive release invariant)", () => {
+  // Publication repair does not substitute for final source/semantic verification.
+  it("5. repairs supported propositions but blocks FINAL when their references remain unverified", () => {
     // Materia Agrario / Ambiental / Electoral
     const mixedFindings = [
       // Finding 1: P1 supported + P2 unsupported
@@ -299,9 +299,10 @@ describe("Atomic Claim Enforcement at Final Publication — Universal Across Mat
 
     // Validate report release contract
     const contract = validateFinalReportContract(composed);
-    expect(contract.blocking_errors).toEqual([]);
-    expect(contract.ok).toBe(true);
+    expect(contract.blocking_errors.some(error => error.startsWith('citation_integrity:'))).toBe(true);
+    expect(contract.ok).toBe(false);
 
-    // Invariant confirmed: failure of propositions NEVER blocked report release
+    // Repair/suppression succeeds; absent source pages and unverified paraphrases
+    // must still prevent those surviving claims from being certified as FINAL.
   });
 });

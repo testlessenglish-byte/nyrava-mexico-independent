@@ -18,13 +18,16 @@ vi.mock("jspdf",async original=>{
   return {...actual,default:Pdf};
 });
 const source={document_id:"doc-1",canonical_source_id:"source-1",original_filename:"Judgment.pdf",display_name:"Judgment.pdf",source_aliases:[]};
-const ref={document_id:"doc-1",canonical_source_id:"source-1",quote:"Se desecha el recurso.",page:1};
+const ref={document_id:"doc-1",canonical_source_id:"source-1",quote:"Se desecha el recurso.",page:1,
+  proposition_supported:"Se desecha el recurso.",verification_status:"verified"};
 function input():CaseExportData {
   return {case:{case_type:"amparo",case_analysis_mode:"concluded_audit",report_language:"es"},
     documents:[{id:"doc-1",filename:"Judgment.pdf"}],analysis:null,agents:[],score:null,findings:[],
     report:{report_mode:"LIMITED",scores_suppressed:true,motions_suppressed:true,generated_language:"es",
       executive_summary:'El documento aportado contiene la resolución del tribunal. El recurso fue desechado según el resolutivo de la sentencia analizada.',
       full_report:{case_type:"amparo",source_audit:{canonical_sources:[source]},
+        pre_release_source_pages:[{document_id:"doc-1",filename:"Judgment.pdf",page:1,
+          text:"Se desecha el recurso.\nReposición del procedimiento."}],
         mandatory_decision_core:{items:[{id:"disposition",kind:"DISPOSITION",text:ref.quote,speaker_role:"scjn",source_refs:[ref]}]}}}};
 }
 const forbidden=["ESTIMACIÓN DE PROBABILIDAD","PROBABILIDAD DE ÉXITO","SUCCESS PROBABILITY","WIN PROBABILITY"];
@@ -50,7 +53,8 @@ describe("targeted hardening A–G",()=>{
     const raw=input();
     raw.report!.constitutional_issues_struct=[
       {remedy_sought:"Reposición del procedimiento."},
-      {content_class:"HISTORICAL_REMEDY",remedy_sought:"Reposición del procedimiento.",source_refs:[ref]},
+      {content_class:"HISTORICAL_REMEDY",remedy_sought:"Reposición del procedimiento.",source_refs:[{
+        ...ref,quote:"Reposición del procedimiento.",proposition_supported:"Reposición del procedimiento."}]},
       {content_class:"HISTORICAL_REMEDY",remedy_sought:"Unsupported"}];
     const payload=releaseFinalReportPayload(raw);
     const rows=payload.report!.constitutional_issues_struct as any[];

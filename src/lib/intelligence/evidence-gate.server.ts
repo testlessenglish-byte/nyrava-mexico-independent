@@ -17,6 +17,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { buildCaseGroundingCorpus, verifyQuoteDetailed, type GroundingCorpus } from "./grounding.server";
 import { assessProceduralDefectGrounding } from "./procedural-defect-grounding.server";
+import { createCanonicalCitation, citationText } from "../reporting/citation-production";
+import { relocateSourceRefs } from "../reporting/source-location-audit";
 
 export type AnalysisMode = "strict" | "balanced" | "exploratory";
 export type FindingType = "DIRECT_EVIDENCE" | "EVIDENCE_BASED_INFERENCE" | "AI_THEORY";
@@ -97,7 +99,7 @@ export type GatedItem<T> = T & {
   source_document_id: string | null;
   source_page: number | null;
   source_quote: string | null;
-  citations: Array<{ quote: string; document_id: string | null; page: number | null; doc_n: number | null }>;
+  citations: Array<Record<string, unknown> & { quote: string; document_id: string | null; page: number | null; doc_n: number | null }>;
   /** Set only for a procedural-defect-grounding downgrade (see
    * procedural-defect-grounding.server.ts). Callers apply this to the KEPT
    * row's title/description AFTER matching it back to the input row —
@@ -191,6 +193,7 @@ type CitationCandidate = {
   document_id: string | null;
   document_label: string | null;
   malformed: boolean;
+  raw: Record<string, unknown>;
 };
 
 function normalizeCitationCandidate(raw: unknown): CitationCandidate | null {
@@ -203,6 +206,7 @@ function normalizeCitationCandidate(raw: unknown): CitationCandidate | null {
       document_id: null,
       document_label: null,
       malformed: false,
+      raw: { quote: raw },
     };
   }
   if (typeof raw !== "object" || Array.isArray(raw)) return null;
@@ -214,6 +218,7 @@ function normalizeCitationCandidate(raw: unknown): CitationCandidate | null {
     document_id: citationDocId(c),
     document_label: citationDocLabel(c),
     malformed: !citationQuote(c) && !citationDocN(c) && !citationDocId(c) && !citationDocLabel(c),
+    raw: c,
   };
 }
 
@@ -231,7 +236,7 @@ function pushUnknownCitationShape(target: CitationCandidate[], raw: unknown) {
 }
 
 function pickPrimaryCitation(item: EvidenceItem, corpus: GroundingCorpus) {
-  const candidates: Array<{ quote: string; doc_n: number | null; page: number | null; document_id: string | null }> =
+  const candidates: Array<{ quote: string; doc_n: number | null; page: number | null; document_id: string | null; raw: Record<string, unknown> }> =
     [];
   let malformed = false;
   const normalized: Array<{
@@ -241,6 +246,7 @@ function pickPrimaryCitation(item: EvidenceItem, corpus: GroundingCorpus) {
     document_id: string | null;
     document_label: string | null;
     malformed: boolean;
+    raw: Record<string, unknown>;
   }> = [];
   if (item.sourceQuote && (item.sourceDocumentId || item.sourcePage != null)) {
     normalized.push({
@@ -250,6 +256,7 @@ function pickPrimaryCitation(item: EvidenceItem, corpus: GroundingCorpus) {
       document_id: item.sourceDocumentId ?? null,
       document_label: null,
       malformed: false,
+      raw: { quote: item.sourceQuote, document_id: item.sourceDocumentId, page: item.sourcePage },
     });
   }
   pushUnknownCitationShape(normalized, item.evidence_refs);
@@ -269,7 +276,7 @@ function pickPrimaryCitation(item: EvidenceItem, corpus: GroundingCorpus) {
       );
       if (d) document_id = d.document_id;
     }
-    if (n.quote) candidates.push({ quote: n.quote, doc_n: n.doc_n, page: n.page, document_id });
+    if (n.quote) candidates.push({ quote: n.quote, doc_n: n.doc_n, page: n.page, document_id, raw: n.raw });
   }
   // Resolve document_id from doc_n when possible.
   for (const c of candidates) {
@@ -279,6 +286,21 @@ function pickPrimaryCitation(item: EvidenceItem, corpus: GroundingCorpus) {
     }
   }
   return { candidates, malformed };
+}
+
+/** Complete a producer citation only from a literal passage on a physical
+ * source page. Keep unresolved references intact for the final release gate. */
+export function completeEvidenceCitation(ref: Record<string, unknown>, corpus: GroundingCorpus): Record<string, unknown> {
+  const pages = corpus.docs.flatMap(doc => (doc.physicalPages ?? []).map(page => ({
+    ...page, document_id: doc.document_id, filename: doc.filename,
+  })));
+  if (!pages.length) return ref;
+  const index = corpus.docs.map(doc => ({ document_id: doc.document_id, doc_n: doc.doc_n }));
+  const located = relocateSourceRefs([ref], pages, index)[0];
+  const quote = typeof located.quote === "string" ? located.quote : "";
+  if (!quote || (ref.verification_status != null && ref.verification_status !== "verified") ||
+      (ref.proposition_supported != null && citationText(ref.proposition_supported) !== citationText(quote))) return located;
+  return createCanonicalCitation(located, quote, pages, index) ?? located;
 }
 
 export function diagnoseEvidenceGate<T extends EvidenceItem>(
@@ -504,7 +526,14 @@ export function diagnoseEvidenceGate<T extends EvidenceItem>(
         }
       : null;
 
-    const primary = verified[0] ?? candidates[0] ?? null;
+    const citations = (verified.length ? verified : candidates).map((c) => completeEvidenceCitation({
+      ...c.raw,
+      quote: c.quote,
+      document_id: c.document_id,
+      page: c.page,
+      doc_n: c.doc_n,
+    }, opts.corpus) as GatedItem<T>["citations"][number]);
+    const primary = citations.find(c => c.verification_status === "verified") ?? citations[0] ?? null;
     audit.accepted += 1;
     accepted.push({
       index,
@@ -517,12 +546,7 @@ export function diagnoseEvidenceGate<T extends EvidenceItem>(
         source_document_id: primary?.document_id ?? null,
         source_page: primary?.page ?? null,
         source_quote: primary?.quote ?? null,
-        citations: (verified.length ? verified : candidates).map((c) => ({
-          quote: c.quote,
-          document_id: c.document_id,
-          page: c.page,
-          doc_n: c.doc_n,
-        })),
+        citations,
       },
     });
   }

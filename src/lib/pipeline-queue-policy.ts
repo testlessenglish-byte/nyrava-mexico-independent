@@ -44,6 +44,36 @@ export function decideWorkerErrorAction(attempts: number): "auto_retry" | "park_
   return attempts < MAX_WORKER_AUTO_RETRIES ? "auto_retry" : "park_failed";
 }
 
+/** Legal integrity failures need review. Only known transient transport failures get a bounded retry. */
+export function decideStageFailureAction(
+  message: string,
+  attempts: number,
+): "retry" | "needs_revision" | "failed" {
+  const substantive =
+    /REPORT_CONTRACT_BLOCKED|REPORT_BLOCKED|REPORT_WRITER_CITATION_UNRESOLVED|CITATION_INTEGRITY|hallucination|proposition_not_supported|proposition_supported_missing|verification_pending|source_location_unverified|inline_proposition_not_supported/i;
+  if (substantive.test(message)) return "needs_revision";
+  const transient = /\b(?:ETIMEDOUT|ECONNRESET|ECONNREFUSED|EAI_AGAIN)\b|timeout|timed out|HTTP 5\d\d|\b429\b|rate limit|temporary network|fetch failed/i;
+  if (!transient.test(message)) return "needs_revision";
+  return attempts < MAX_WORKER_AUTO_RETRIES ? "retry" : "failed";
+}
+
+export function terminalStageFailurePatch(
+  stage: string,
+  action: "needs_revision" | "failed",
+  message: string,
+) {
+  return {
+    status: action,
+    status_message: action === "needs_revision"
+      ? stage === "report"
+        ? "Revisión requerida: el informe no superó la verificación."
+        : `Revisión requerida en ${stage}: no superó la verificación.`
+      : `Infrastructure retry budget exhausted at ${stage}.`,
+    error: message.slice(0, 2000),
+    next_stage: null,
+  } as const;
+}
+
 /**
  * A queued case is claimable only when it has a queued_at AND no live lease.
  * Mirrors `claim_next_queued_case`. Used by the stall sweeper's queued pass

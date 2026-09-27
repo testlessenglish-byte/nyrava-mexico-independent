@@ -13,7 +13,7 @@ function fixture(caseType = "migratorio"): CaseExportData {
   const previous: MandatoryDecisionCoreItem[] = [{ id: "old", kind: "DISPOSITION", text: "Se confirma la sentencia de sobreseimiento.",
     speaker_role: null, adoption_status: "adopted", proposition_type: "procedural_fact", source_refs: [{ document_id: doc.id, quote: "Se confirmó el sobreseimiento." }] },
     { id: "old-holding", kind: "COURT_HOLDING", text: "El juzgado sobreseyó el juicio.", speaker_role: "tribunal_local", adoption_status: "adopted", proposition_type: "holding", source_refs: [] }];
-  const resolved = resolveMigratorioDisposition([doc], previous);
+  const resolved = resolveMigratorioDisposition([{...doc,pages}], previous);
   return { case: { case_type: caseType, case_analysis_mode: "concluded_audit" }, documents: [doc], analysis: null, agents: [], score: null, findings: [],
     report: { report_mode: "LIMITED", full_report: { source_audit: { canonical_sources: sources },
       pre_release_source_pages: pages,

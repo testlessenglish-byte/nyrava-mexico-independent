@@ -70,7 +70,6 @@ export function downloadLegalMemoPdf(payload: FinalReportPayload, caseName: stri
       b.text("Bottom Line:", { bold: true });
       b.text(exec.dispositive_recommendation);
     }
-    if (exec.case_strength) b.text(`Case Strength: ${exec.case_strength}`);
     if (exec.primary_risk) b.text(`Primary Risk: ${exec.primary_risk}`);
     if ((exec.urgent_actions?.length ?? 0) > 0) {
       b.text(rt("Urgent Actions Required:"), { bold: true });

@@ -12,6 +12,21 @@ export type FindingSourceClass = "engine" | "agent" | "analyzer" | "projection" 
 
 export const PROJECTION_LIKE = "projection:%";
 
+/** New analyses must not inherit findings from an earlier (or unscoped)
+ * execution. A retry supplies the same ID and therefore keeps its state. */
+export function filterFindingsForExecution<T extends {
+  execution_id?: unknown;
+  metadata?: Record<string, unknown> | null;
+}>(rows: readonly T[], executionId: string): T[] {
+  if (!executionId) return [];
+  return rows.filter(row => {
+    const top = typeof row.execution_id === 'string' ? row.execution_id : null;
+    const nested = typeof row.metadata?.execution_id === 'string' ? row.metadata.execution_id : null;
+    if (top && nested && top !== nested) return false;
+    return (top ?? nested) === executionId;
+  });
+}
+
 export type FindingStatus = "candidate" | "verified" | "disputed" | "suppressed" | "promoted";
 
 export const FINDING_STATUSES: readonly FindingStatus[] = [

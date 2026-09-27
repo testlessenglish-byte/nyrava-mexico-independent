@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   decidePostRunQueueAction,
   decideWorkerErrorAction,
+  decideStageFailureAction,
+  terminalStageFailurePatch,
   isClaimableQueuedCase,
   MAX_WORKER_AUTO_RETRIES,
 } from "@/lib/pipeline-queue-policy";
@@ -111,6 +113,56 @@ describe("worker post-run queue policy", () => {
       expect(decideWorkerErrorAction(i)).toBe("auto_retry");
     }
     expect(decideWorkerErrorAction(MAX_WORKER_AUTO_RETRIES)).toBe("park_failed");
+  });
+});
+
+describe("report-stage failure classification", () => {
+  it("parks substantive citation and contract failures for revision without retrying", () => {
+    for (const message of [
+      "REPORT_CONTRACT_BLOCKED: citation_integrity:inline_proposition_not_supported",
+      "REPORT_WRITER_CITATION_UNRESOLVED: [DOC 1 p.2]",
+      "citation_integrity:proposition_not_supported",
+    ]) {
+      expect(decideStageFailureAction(message, 0)).toBe("needs_revision");
+      expect(decideStageFailureAction(message, MAX_WORKER_AUTO_RETRIES)).toBe("needs_revision");
+    }
+  });
+
+  it("retries transient report infrastructure errors only within the bounded budget", () => {
+    expect(decideStageFailureAction("ECONNRESET during report save", 0)).toBe("retry");
+    expect(decideStageFailureAction("provider timeout", MAX_WORKER_AUTO_RETRIES - 1)).toBe("retry");
+    expect(decideStageFailureAction("provider timeout", MAX_WORKER_AUTO_RETRIES)).toBe("failed");
+  });
+
+  it("does not assume an unknown report failure is a transient provider error", () => {
+    expect(decideStageFailureAction("source location cannot be verified", 0)).toBe("needs_revision");
+  });
+
+  it("records a substantive report failure as Revisión requerida", () => {
+    const message = "REPORT_CONTRACT_BLOCKED: citation_integrity:proposition_not_supported";
+    const action = decideStageFailureAction(message, 0);
+    expect(action).toBe("needs_revision");
+    if (action === "retry") throw new Error("A substantive report failure cannot be retried");
+    expect(terminalStageFailurePatch("report", action, message)).toMatchObject({
+      status: "needs_revision",
+      next_stage: null,
+      error: message,
+      status_message: expect.stringContaining("Revisión requerida"),
+    });
+  });
+
+  it("parks substantive failures from required upstream stages without worker retry", () => {
+    const message = "Hallucination: unsupported proposition in agent output";
+    const action = decideStageFailureAction(message, 0);
+    expect(action).toBe("needs_revision");
+    if (action === "retry") throw new Error("A substantive agent failure cannot be retried");
+    expect(terminalStageFailurePatch("agents", action, message)).toMatchObject({
+      status: "needs_revision",
+      next_stage: null,
+      status_message: expect.stringContaining("Revisión requerida"),
+    });
+    expect(decideStageFailureAction("HTTP 503 while extracting", 0)).toBe("retry");
+    expect(decideStageFailureAction("HTTP 503 while extracting", MAX_WORKER_AUTO_RETRIES)).toBe("failed");
   });
 });
 
