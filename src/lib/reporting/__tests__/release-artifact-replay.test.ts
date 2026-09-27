@@ -12,6 +12,9 @@ import { auditText } from '../../intelligence/mx-terminology';
 // Opt-in local replay. Captured records and credentials are never committed.
 describe.skipIf(!process.env.NYRAVA_RELEASE_REPLAY)('captured release artifact', () => {
   const data = process.env.NYRAVA_RELEASE_REPLAY ? JSON.parse(readFileSync(process.env.NYRAVA_RELEASE_REPLAY, 'utf8')) : null;
+  const documents = data?.documents.map((doc: any) => ({ ...doc,
+    canonical_source_id: data.reports[0].full_report.source_audit.canonical_sources.find(
+      (source: any) => source.document_id === doc.id)?.canonical_source_id }));
   it('replays the actual source context and preserves blocking of the old unsupported report', () => {
     const report = data.reports[0], core = report.full_report.mandatory_decision_core.items;
     expect(data.case_findings.filter((f: any) => f.source_module === 'decision_core').every((f: any) => f.source_page === null)).toBe(true);
@@ -24,7 +27,7 @@ describe.skipIf(!process.env.NYRAVA_RELEASE_REPLAY)('captured release artifact',
     expect(catalog.length).toBeGreaterThanOrEqual(report.citations.length);
     const regenerated = catalog.map(c => '“' + c.proposition_supported + '” [DOC ' + c.doc_n + ' p.' + c.page + ']').join('\n\n');
     expect(() => assertWriterCitationReferences(regenerated, catalog)).not.toThrow();
-    const payload: any = { case: {}, documents: data.documents, report: { executive_summary: regenerated, citations: catalog,
+    const payload: any = { case: {}, documents, report: { executive_summary: regenerated, citations: catalog,
       full_report: { pre_release_source_pages: pages } } };
     expect(auditReportCitationIntegrity(payload).ok).toBe(true);
     expect(auditReportCitationIntegrity({ ...payload, report }).ok).toBe(false);
@@ -49,7 +52,7 @@ describe.skipIf(!process.env.NYRAVA_RELEASE_REPLAY)('captured release artifact',
     const verifiedCore = completedCoreCitations(core, findings, pages, index);
     const citations = verifiedCore.flatMap(c => c.source_refs);
     expect(citations.every(c => c.verification_status === 'verified')).toBe(true);
-    const payload: any = { case: {}, documents: data.documents, citation_review_registry: findingCitationReviews(findings), report: { citations,
+    const payload: any = { case: {}, documents, citation_review_registry: findingCitationReviews(findings), report: { citations,
       full_report: { pre_release_source_pages: pages, mandatory_decision_core: { items: verifiedCore } } } };
     const result = auditReportCitationIntegrity(payload);
     writeFileSync('work/release-live-review-result.json', JSON.stringify({ verdicts: [...reviewed.values()], citationAudit: result }, null, 2));

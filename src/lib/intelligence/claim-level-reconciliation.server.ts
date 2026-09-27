@@ -4,6 +4,7 @@ import {
   evaluateClaimEntailment,
   type ClaimEntailmentDiagnostic,
 } from "./claim-evidence-entailment";
+import { filterFindingsForExecution } from './finding-selection';
 
 type Db = SupabaseClient<Database>;
 
@@ -36,15 +37,16 @@ export async function reconcileCaseFindingsClaims(
   caseId: string,
   executionId?: string,
 ): Promise<ClaimReconciliationResult> {
-  const { data: allRawRows, error } = await (db as any)
+  let findingsQuery = (db as any)
     .from("case_findings")
     .select("*")
     .eq("case_id", caseId);
+  if (executionId) findingsQuery = findingsQuery.eq('execution_id', executionId);
+  const { data: allRawRows, error } = await findingsQuery;
 
-  const rawRows = (allRawRows ?? []).filter((r: any) => {
-    const fExec = r.execution_id ?? r.metadata?.execution_id ?? null;
-    return !executionId || !fExec || fExec === executionId;
-  });
+  const rawRows = executionId
+    ? filterFindingsForExecution(allRawRows ?? [], executionId)
+    : (allRawRows ?? []);
 
   if (error || !rawRows || rawRows.length === 0) {
     return {

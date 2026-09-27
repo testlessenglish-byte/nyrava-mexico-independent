@@ -201,7 +201,9 @@ export function evaluateAttribution(
   // 1. Check if the text describes a party allegation
   const partyIndicators =
     /(?:se\s+alega|el\s+quejoso\s+argumenta|la\s+quejosa\s+argumenta|aduce|expresa\s+como\s+agravio|agravio|alegaci[oó]n|en\s+su\s+demanda\s+senalo)/i;
-  const isPartyAllegation = partyIndicators.test(claimText) || partyIndicators.test(quoteText);
+  const role = String(speakerRole ?? "").toLowerCase();
+  const isPartyAllegation = partyIndicators.test(claimText) || partyIndicators.test(quoteText) ||
+    ["quejoso", "quejosa", "recurrente", "actor", "demandado", "defensa", "party"].includes(role);
 
   // 2. Check if the text cites a precedent rather than an original holding
   const isPrecedentRef =
@@ -210,16 +212,14 @@ export function evaluateAttribution(
     ) || /\b(?:en\s+el\s+amparo\s+en\s+revisi[oó]n\s+\d+\/\d+\s+se\s+determin[oó])\b/i.test(normQuote);
 
   let speaker: SpeakerAttribution = "unattributed";
-  if (isPartyAllegation || speakerRole === "quejoso" || speakerRole === "defensa" || speakerRole === "actor") {
+  if (isPartyAllegation || ["quejoso", "quejosa", "recurrente", "actor", "demandado", "defensa", "party"].includes(role)) {
     speaker = "party";
+  } else if (["scjn", "reviewing_court", "primera_sala", "segunda_sala"].includes(role)) {
+    speaker = "reviewing_court";
+  } else if (["lower_court", "tribunal_colegiado_a_quo", "juez_distrito"].includes(role)) {
+    speaker = "lower_court";
   } else if (isPrecedentRef) {
     speaker = "precedent";
-  } else if (/\b(?:scjn|primera\s+sala|segunda\s+sala|pleno)\b/i.test(claimText + " " + quoteText)) {
-    speaker = "reviewing_court";
-  } else if (/\b(?:tribunal\s+colegiado|colegiado)\b/i.test(claimText + " " + quoteText)) {
-    speaker = "lower_court";
-  } else if (/\b(?:articulo\s+\d+|ley\s+de)\b/i.test(quoteText)) {
-    speaker = "statute";
   }
 
   return { speaker, isPartyAllegation, isPrecedentRef };
@@ -313,7 +313,7 @@ export function evaluateClaimEntailment(claim: {
       // Factual assertion / holding / party proposition entailment
       // Strip speech attribution prefix before tokenizing so core substantive tokens are tested
       const cleanedNormProp = normProp.replace(
-        /^(?:el\s+quejoso|la\s+quejosa|la\s+parte\s+actora|el\s+actor|la\s+actora|la\s+demandada|el\s+demandado|el\s+tercero\s+interesado|el\s+ministerio\s+p[uú]blico|la\s+autoridad\s+responsable)\s+(?:argumenta|sostiene|alega|aduce|senala|señala|expone|refiere|afirma|solicita)\s+(?:que\s+)?/i,
+        /^(?:el\s+quejoso|la\s+quejosa|los\s+recurrentes|las\s+recurrentes|la\s+parte\s+actora|el\s+actor|la\s+actora|la\s+demandada|el\s+demandado|el\s+tercero\s+interesado|el\s+ministerio\s+p[uú]blico|la\s+autoridad\s+responsable)\s+(?:argumenta|sostiene|sostuvieron|alega|alegaron|aduce|adujeron|senala|señala|expone|refiere|afirma|solicita)\s+(?:que\s+)?/i,
         "",
       );
       const propTokens = cleanedNormProp.split(" ").filter((t) => t.length > 2 && !SPANISH_STOPWORDS.has(t));
@@ -444,7 +444,8 @@ export function evaluateClaimEntailment(claim: {
     source_page: claim.source_page ?? null,
     source_quote: quote,
     speaker,
-    attribution_type: isPartyAllegation ? "party_allegation" : isPrecedentRef ? "precedent" : "court_holding",
+    attribution_type: speaker === "party" ? "party_allegation" : isPrecedentRef ? "precedent" :
+      speaker === "reviewing_court" || speaker === "lower_court" ? "court_holding" : "unresolved",
     entailment_status: overallStatus,
     entailment_reason: reason,
     repaired_claim: repairedClaim,

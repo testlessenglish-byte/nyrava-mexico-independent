@@ -27,7 +27,11 @@ export function supportInput(claim:SupportClaim, pages:readonly SupportPage[]):S
   const text = normalize(page?.text ?? '');
   const quote = normalize(claim.source_quote ?? '');
   const at = quote ? text.indexOf(quote) : -1;
-  const context = at < 0 ? '' : text.slice(Math.max(0,at-700),Math.min(text.length,at+Math.min(quote.length,1500)+1400));
+  // Party grievance headings can precede the quoted paragraph on the same
+  // page. Include that speaker cue in the existing review input; otherwise a
+  // genuine quotation could be mistaken for an adopted court holding.
+  const before = claim.speaker_role === 'quejoso' ? 1400 : 700;
+  const context = at < 0 ? '' : text.slice(Math.max(0,at-before),Math.min(text.length,at+Math.min(quote.length,1500)+1400));
   const input = {id:claim.id,claim:JSON.stringify({title:claim.title,description:claim.description,
     legal_significance:claim.legal_significance,potential_impact:claim.potential_impact,rationale:claim.rationale,
     audit_classification:claim.audit_classification,finding_type:claim.finding_type,authority_level:claim.authority_level,

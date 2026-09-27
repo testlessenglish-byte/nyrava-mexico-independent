@@ -10,6 +10,8 @@ import { resolveProviderKeys } from "../ai-key-router.server";
 import { addFindings, addGatedFindings, clearFindingsByModule } from "./findings.server";
 import { PROJECTION_LIKE } from "@/lib/intelligence/finding-selection";
 import { isGroundedByTextOverlap } from "./finding-dedupe";
+import { completeEvidenceCitation } from "./evidence-gate.server";
+import type { GroundingCorpus } from "./grounding.server";
 
 const MODEL = GROQ_DEFAULT_MODEL;
 type Db = SupabaseClient<Database>;
@@ -64,6 +66,17 @@ export function keyEvidenceIsGrounded(
   if (!item || typeof item !== "object") return false;
   const quote = (item as { citation?: { quote?: unknown } }).citation?.quote;
   return typeof quote === "string" && quote.trim().length > 0 && verifyQuote(quote, corpus);
+}
+
+/** Preserve every surviving perspective item while attaching the existing
+ * physical-page citation proof wherever its quoted source can be verified. */
+export function completePerspectiveKeyEvidence<T>(items: T[], corpus: GroundingCorpus): T[] {
+  return items.map(item => {
+    if (!item || typeof item !== "object") return item;
+    const row = item as Record<string, unknown>;
+    if (!row.citation || typeof row.citation !== "object" || Array.isArray(row.citation)) return item;
+    return { ...row, citation: completeEvidenceCitation(row.citation as Record<string, unknown>, corpus) } as T;
+  });
 }
 
 const ALL_PERSPECTIVES = [
@@ -268,10 +281,13 @@ export async function runPerspectivesEngine(args: {
   const { buildCaseGroundingCorpus, verifyQuote } = await import("./grounding.server");
   const { data: docsForPerspectiveGrounding } = await db
     .from("documents")
-    .select("id,filename,extracted_text")
-    .eq("case_id", caseId);
+    .select("id,filename,extracted_text,status,evidence_scope")
+    .eq("case_id", caseId)
+    .neq("evidence_scope", "revision_context")
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true });
   const perspectiveGroundingCorpus = await buildCaseGroundingCorpus(db, caseId, 
-    (docsForPerspectiveGrounding ?? []).map((d) => ({
+    (docsForPerspectiveGrounding ?? []).filter(d => d.status === "extracted").map((d) => ({
       id: d.id as string,
       filename: d.filename,
       extracted_text: d.extracted_text,
@@ -390,8 +406,10 @@ ${briefText}`,
       // (perspectiveGroundingCorpus, fetched once above) — an entry with no
       // citation at all is dropped too, same "no verified fact, no publish"
       // policy used everywhere else in this codebase.
-      p.key_evidence = (Array.isArray(p.key_evidence) ? p.key_evidence : []).filter((item: unknown) =>
-        keyEvidenceIsGrounded(item, verifyQuote, perspectiveGroundingCorpus),
+      p.key_evidence = completePerspectiveKeyEvidence(
+        (Array.isArray(p.key_evidence) ? p.key_evidence : []).filter((item: unknown) =>
+          keyEvidenceIsGrounded(item, verifyQuote, perspectiveGroundingCorpus),
+        ), perspectiveGroundingCorpus,
       );
 
       // supabase-js does NOT throw on a rejected insert — it returns { error }.

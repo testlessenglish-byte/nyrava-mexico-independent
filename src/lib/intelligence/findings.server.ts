@@ -859,11 +859,17 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
   for (const [caseId, _] of byCase) {
     const groupRows = validated.filter((r) => r.case_id === caseId);
     if (groupRows.length === 0) continue;
-    const { data: existing, error: existingError } = await db
+    const currentExecutionId = (groupRows[0] as any).execution_id ??
+      (groupRows[0].metadata as Record<string, unknown> | undefined)?.execution_id ?? null;
+    let existingQuery = db
       .from("case_findings")
       .select("id,canonical_finding_id,category,title,description,evidence_refs,confidence,source_doc_ids,metadata,source_module,speaker_role,proposition_type,adoption_status,audit_classification,affected_party,benefited_party,evidence_type,impact_direction,authority_level,score_dimension,reason_for_score_effect")
       .eq("case_id", caseId)
       .not("source_module", "like", PROJECTION_LIKE);
+    if (typeof currentExecutionId === 'string' && currentExecutionId) {
+      existingQuery = existingQuery.eq('execution_id', currentExecutionId);
+    }
+    const { data: existing, error: existingError } = await existingQuery;
 
     // A resumed promotion is the same source-bound decision, independent of
     // title truncation or semantic clustering. Preserve the original row.
@@ -2270,6 +2276,7 @@ export function normalizeReportWriterFindings(args: {
 export async function dedupeCaseFindingsInDatabase(
   db: Db,
   caseId: string,
+  executionId?: string,
 ): Promise<{
   survivingCount: number;
   duplicatesRemoved: number;
@@ -2284,10 +2291,12 @@ export async function dedupeCaseFindingsInDatabase(
   }>;
   final_reportable_canonical_ids_unique: boolean;
 }> {
-  const { data: rawRows } = await db
+  let rowsQuery = db
     .from("case_findings")
     .select("*")
     .eq("case_id", caseId);
+  if (executionId) rowsQuery = rowsQuery.eq('execution_id', executionId);
+  const { data: rawRows } = await rowsQuery;
 
   if (!rawRows || rawRows.length === 0) {
     return {

@@ -4,7 +4,7 @@ import { resolveFinalReleaseDecision } from '../final-release-decision';
 
 const quote = 'El tribunal confirmó la sentencia recurrida.';
 function payload(override: Record<string, unknown> = {}) {
-  return { case: {}, documents: [{ id: 'doc-1', doc_n: 1 }], analysis: null, agents: [], score: null,
+  return { case: {}, documents: [{ id: 'doc-1', doc_n: 1, canonical_source_id: 'doc-1' }], analysis: null, agents: [], score: null,
     report: { executive_summary: `${quote} [DOC 1 p.1]`, citations: [{ document_id: 'doc-1', doc_n: 1,
       page: 1, quote, proposition_supported: quote, verification_status: 'verified', ...override }],
       full_report: { pre_release_source_pages: [{ document_id: 'doc-1', filename: 'Sentencia.pdf', page: 1, text: quote }] } } };
@@ -89,6 +89,11 @@ describe('final subscriber citation integrity', () => {
   });
   it('rejects an inline citation absent from the annex', () => {
     const data = payload(); data.report.citations = [];
+    expect(auditReportCitationIntegrity(data).errors.join(' ')).toContain('inline_reference_unresolved');
+  });
+  it('rejects adjacent inline pages when the source and annex verify only page one', () => {
+    const data = payload();
+    data.report.executive_summary = `${quote} [DOC 1 p.2]`;
     expect(auditReportCitationIntegrity(data).errors.join(' ')).toContain('inline_reference_unresolved');
   });
   it('rejects an unresolved singular citation in subscriber cross examination', () => {

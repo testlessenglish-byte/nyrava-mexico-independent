@@ -67,7 +67,8 @@ function publishedAssertion(parent: Row, ref: Row, pages: MatterSourcePage[], in
  * reuse verification of the previous paraphrase for newly rendered text. */
 export function bindAttributedFindingCitations(payload: CaseExportData): void {
   const pages = rows(obj(obj(payload.report).full_report).pre_release_source_pages) as MatterSourcePage[];
-  const index = payload.documents.map((d, i) => ({ document_id: String(d.id), doc_n: Number(d.doc_n ?? i + 1) }));
+  const index = payload.documents.map((d, i) => ({ document_id: String(d.id),
+    doc_n: Number(d.doc_n ?? i + 1), canonical_source_id: text(d.canonical_source_id) }));
   for (const finding of rows(payload.findings)) {
     if (!finding.canonical_attribution) continue;
     finding.evidence_refs = rows(finding.evidence_refs).map(ref => {
@@ -97,7 +98,8 @@ export function auditReportCitationIntegrity(payload: CaseExportData) {
   // composeFinalReportPayload snapshots DB findings before presentation changes.
   // Neither a writer citation nor full_report can supply this trust registry.
   const reviews = (payload as Row).citation_review_registry ?? findingCitationReviews(rows(payload.findings));
-  const index = payload.documents.map((doc, i) => ({ document_id: String(doc.id ?? doc.document_id ?? ''), doc_n: Number(doc.doc_n ?? i + 1) }));
+  const index = payload.documents.map((doc, i) => ({ document_id: String(doc.id ?? doc.document_id ?? ''),
+    doc_n: Number(doc.doc_n ?? i + 1), canonical_source_id: text(doc.canonical_source_id) }));
   const errors: string[] = [], verified: Row[] = [], unresolved: Row[] = [];
   let checked = 0;
   const auditRef = (raw: Row, path: string, parent: Row = {}) => {
@@ -111,6 +113,9 @@ export function auditReportCitationIntegrity(payload: CaseExportData) {
     if (!ref.quote || placeholder.test(ref.quote)) reasons.push('excerpt_missing_or_placeholder');
     if (!proposition) reasons.push('proposition_supported_missing');
     if (String(raw.verification_status ?? '').toLowerCase() !== 'verified') reasons.push('verification_pending');
+    const canonicalSource = index.find(doc => doc.document_id === ref.document_id)?.canonical_source_id;
+    if (!canonicalSource || raw.canonical_source_id && canonicalSource !== raw.canonical_source_id)
+      reasons.push('canonical_source_identity_unverified');
     const location = auditSourceLocations([ref], pages, index);
     if (!location.ok) reasons.push('source_location_unverified');
     if (proposition && ref.quote && !supported(proposition, ref.quote, ref, pages, reviews)) reasons.push('proposition_not_supported');
@@ -133,7 +138,7 @@ export function auditReportCitationIntegrity(payload: CaseExportData) {
       const sentence = inlineAssertion(before);
       for (const pair of pairs) {
         const matches = annex.filter(ref => Number(ref.doc_n) === Number(pair[1]) && pair[2] &&
-          Math.abs(Number(ref.page ?? ref.page_number) - Number(pair[2])) <= 1);
+          Number(ref.page ?? ref.page_number) === Number(pair[2]));
         if (!matches.length) errors.push(`citation_integrity:${path}:inline_reference_unresolved`);
         else if (!matches.some(ref => normalized(text(ref.proposition_supported)) === normalized(sentence)))
           errors.push(`citation_integrity:${path}:inline_proposition_not_supported`);
@@ -179,7 +184,13 @@ export function canonicalizeReportCitations<T extends CaseExportData>(input: T):
   const payload = structuredClone(input);
   const report = obj(payload.report), full = obj(report.full_report);
   const pages = rows(full.pre_release_source_pages) as MatterSourcePage[];
-  const index = payload.documents.map((doc, i) => ({ document_id: String(doc.id ?? doc.document_id ?? ''), doc_n: Number(doc.doc_n ?? i + 1) }));
+  const index = payload.documents.map((doc, i) => ({ document_id: String(doc.id ?? doc.document_id ?? ''),
+    doc_n: Number(doc.doc_n ?? i + 1), canonical_source_id: text(doc.canonical_source_id) }));
+  // This registry was snapshotted from engine findings before presentation.
+  // Neither report prose nor a writer-supplied verification object is trusted.
+  const trustedReviews = Array.isArray((payload as Row).citation_review_registry)
+    ? (payload as Row).citation_review_registry as PropositionReview[]
+    : findingCitationReviews(rows(payload.findings));
   const bindings = new Map<string, string[]>();
   const roots = [report, ...['findings', 'theories', 'opportunities', 'witnesses', 'trial_prep', 'work_product',
     'perspectives', 'evidence_intel', 'strategy', 'strategy_center', 'report_presentation'].map(k => (payload as Row)[k])];
@@ -212,21 +223,24 @@ export function canonicalizeReportCitations<T extends CaseExportData>(input: T):
     if (!statements.length || !quote || placeholder.test(quote) ||
       (ref.verification_status != null && String(ref.verification_status).toLowerCase() !== 'verified') ||
       (ref.proposition_supported != null && normalized(text(ref.proposition_supported)) !== normalized(statements[0]))) return;
-    const reviewed = parent.metadata?.semantic_support_review ? parent : rows(payload.findings).find(f =>
-      f.metadata?.mandatory_decision_core_id === parent.id && f.metadata?.semantic_support_review);
-    const proof = reviewed ? { claim: Object.fromEntries(['id','title','description','source_document_id','source_page','source_quote',
-      'speaker_role','proposition_type','adoption_status','legal_significance','potential_impact','rationale','audit_classification',
-      'finding_type','authority_level'].filter(k => reviewed[k] !== undefined).map(k => [k, reviewed[k]])) as any,
-      review: reviewed.metadata.semantic_support_review } : undefined;
+    const coreFinding = rows(payload.findings).find(f => f.metadata?.mandatory_decision_core_id === parent.id);
+    const stableId = ref.finding_id ?? ref.proposition_id ?? ref.evidence_id ?? ref.claim_id ?? coreFinding?.id;
+    const proof = typeof stableId === 'string' ? trustedReviews.find(review => review.claim.id === stableId) : undefined;
     const certified = createCanonicalCitation(ref, statements[0], pages, index, proof);
     if (!certified || statements.some(s => normalized(s) !== normalized(statements[0]))) return;
     Object.assign(ref, certified);
   };
   for (const root of roots) visit(root, (row, key, parent) => {
     if (['citation', 'citations', 'source_ref', 'source_refs', 'evidence_ref', 'evidence_refs'].includes(key)) {
+      const canonicalSource = index.find(doc => doc.document_id === row.document_id)?.canonical_source_id;
+      if (canonicalSource && !row.canonical_source_id) row.canonical_source_id = canonicalSource;
       const statement = publishedAssertion(parent, row, pages, index);
-      const statements = statement ? [statement] : (bindings.get(`${Number(row.doc_n)}:${Number(row.page ?? row.page_number)}`) ?? [])
-        .filter(bound => normalized(bound) === normalized(text(row.quote ?? row.excerpt ?? row.source_quote)));
+      const bound = bindings.get(`${Number(row.doc_n)}:${Number(row.page ?? row.page_number)}`) ?? [];
+      const literal = bound.filter(value => normalized(value) === normalized(text(row.quote ?? row.excerpt ?? row.source_quote)));
+      const stableId = row.finding_id ?? row.proposition_id ?? row.evidence_id ?? row.claim_id;
+      const reviewed = typeof stableId === 'string' ? trustedReviews.find(review => review.claim.id === stableId) : undefined;
+      const reviewedBound = reviewed ? bound.filter(value => normalized(value) === normalized(text(reviewed.claim.description))) : [];
+      const statements = statement ? [statement] : literal.length ? literal : reviewedBound;
       certify(row, statements, parent);
     }
     if (row.source_quote !== undefined) {

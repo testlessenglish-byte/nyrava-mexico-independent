@@ -274,6 +274,7 @@ export function mandatoryDecisionCoreToFindings(args: {
   core: MandatoryDecisionCoreItem[];
   caseId: string;
   userId: string;
+  executionId?: string | null;
   locale?: "es" | "en";
 }): NewFinding[] {
   const es = args.locale !== 'en';
@@ -337,6 +338,7 @@ export function mandatoryDecisionCoreToFindings(args: {
       source_doc_ids: docIds,
       evidence_refs: evidenceRefs,
       metadata: {
+        ...(args.executionId ? { execution_id: args.executionId } : {}),
         mandatory_decision_core: true,
         mandatory_decision_core_id: item.id,
         mandatory_decision_kind: item.kind,
@@ -363,7 +365,8 @@ export function alignDecisionCoreFindings<T extends Record<string, any>>(finding
     // A superseded outcome must not survive under its old stable identifier.
     // Other propositions retain their identity for the separate semantic gate.
     if(!item) return ['DISPOSITION','REMEDY'].includes(f.metadata?.mandatory_decision_kind) ? [] : [f];
-    const refreshed=mandatoryDecisionCoreToFindings({core:[item],caseId:f.case_id,userId:f.user_id,locale})[0];
+    const refreshed=mandatoryDecisionCoreToFindings({core:[item],caseId:f.case_id,userId:f.user_id,
+      executionId:f.execution_id ?? f.metadata?.execution_id ?? null,locale})[0];
     return [{...f,...refreshed,metadata:{...f.metadata,...refreshed.metadata}} as T];
   });
 }

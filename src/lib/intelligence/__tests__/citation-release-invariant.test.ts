@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   reconcileCitationsAndDependentClaims,
+  diagnoseReleaseCitationLocations,
   attemptCitationFuzzyOrPageOffset,
 } from "../final-claim-publication";
 import { resolveFinalReleaseDecision } from "../../reporting/final-release-decision";
@@ -28,6 +29,30 @@ describe("Priority #1 & #2 Release Invariant — Citation Verification and Claim
   ];
 
   const docIndex = [{ doc_n: 1, document_id: "doc-1" }];
+
+  it("keeps mixed valid and false report content intact and blocks the release audit", async () => {
+    const valid = { document_id: "doc-1", doc_n: 1, page: 2,
+      quote: "La Justicia de la Unión ampara y protege a la parte quejosa contra el acto reclamado." };
+    const invalid = { document_id: "doc-1", doc_n: 1, page: 99,
+      quote: "Una resolución inventada que no consta en el expediente." };
+    const reportRow: Record<string, any> = {
+      citations: [valid, invalid],
+      full_report: { mandatory_decision_core: { items: [{ id: "core", text: invalid.quote, source_refs: [invalid] }] } },
+    };
+    const original = structuredClone(reportRow);
+    const result = await diagnoseReleaseCitationLocations({
+      reportRow,
+      findings: [{ id: "valid", title: valid.quote, description: valid.quote, evidence_refs: [valid] }],
+      pages,
+      docIndex,
+    });
+    expect(result.hasVerifiedContent).toBe(true);
+    expect(result.locationsAudit.ok).toBe(false);
+    expect(result.locationsAudit.citation_audit_status).toBe("CITATIONS_UNVERIFIED");
+    expect(reportRow).toEqual(original);
+    expect(reportRow.citations).toHaveLength(2);
+    expect(reportRow.full_report.mandatory_decision_core.items).toHaveLength(1);
+  });
 
   it("attempts fuzzy/page-offset verification and recovers quote when page offset by 1", () => {
     // Quote is on page 2, but citation claimed page 1

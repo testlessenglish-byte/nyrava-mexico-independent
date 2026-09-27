@@ -84,13 +84,38 @@ describe('upstream canonical citation production', () => {
     expect(() => assertWriterCitationReferences(prose, catalog)).not.toThrow();
     expect(() => assertWriterCitationReferences('Otra afirmación [DOC 1 p.27]', catalog)).toThrow();
     expect(() => assertWriterCitationReferences(quote + ' [DOC 1 p.99]', catalog)).toThrow();
-    // Regression test for off-by-one physical page vs extracted page indexing
-    expect(() => assertWriterCitationReferences(quote + ' [DOC 1 p.26]', catalog)).not.toThrow();
-    expect(() => assertWriterCitationReferences(quote + ' [DOC 1 p.28]', catalog)).not.toThrow();
-    const payload: any = { case: {}, documents: [{ id: 'doc', doc_n: 1 }], report: { executive_summary: prose,
+    // The quote exists only on physical PDF page 27. An adjacent number alone
+    // is never evidence of a valid extracted-page offset.
+    expect(() => assertWriterCitationReferences(quote + ' [DOC 1 p.26]', catalog)).toThrow();
+    expect(() => assertWriterCitationReferences(quote + ' [DOC 1 p.28]', catalog)).toThrow();
+    const payload: any = { case: {}, documents: [{ id: 'doc', doc_n: 1, canonical_source_id: 'doc' }], report: { executive_summary: prose,
       citations: catalog, full_report: { pre_release_source_pages: pages } } };
     expect(auditReportCitationIntegrity(payload).ok).toBe(true);
     payload.report.citations[0].quote = 'Texto inexistente.';
     expect(auditReportCitationIntegrity(payload).ok).toBe(false);
+  });
+  it('resolves a reviewed paraphrase through its stable finding ID and exact source binding', () => {
+    const claim = { id: 'reviewed-finding', title: 'Determinación', description: 'Se desecha el recurso de revisión.',
+      source_document_id: 'doc', source_page: 27, source_quote: quote };
+    const review: any = { version: 1, verdict: 'supported', hash: supportInput(claim, pages).hash,
+      supporting_quote: quote, reason: 'Fuente cotejada.' };
+    const input: any = { case: { case_type: 'civil' }, documents: [{ id: 'doc', doc_n: 1 }],
+      agents: [], analysis: null, score: null,
+      findings: [{ ...claim, metadata: { semantic_support_review: review } }],
+      report: { executive_summary: 'Resumen documental de la resolución y sus efectos en el asunto civil. '.repeat(3),
+        citations: [{ ...ref, finding_id: claim.id }],
+        full_report: { pre_release_source_pages: pages,
+          source_audit: { canonical_sources: [{ document_id: 'doc', canonical_source_id: 'doc',
+            original_filename: 'source.pdf', display_name: 'source.pdf', source_aliases: [] }] },
+          prose: { legal_analysis: `${claim.description} [DOC 1 p.27]` } } } };
+    const composed = composeFinalReportPayload(input);
+    const citation = composed.report!.citations[0] as any;
+    expect(citation).toMatchObject({ proposition_supported: claim.description, verification_status: 'verified' });
+    expect(auditReportCitationIntegrity(composed).errors.filter(error => error.includes('inline_'))).toEqual([]);
+
+    const forged = structuredClone(input);
+    forged.report.citations[0].finding_id = 'nonexistent-finding';
+    const blocked = composeFinalReportPayload(forged);
+    expect(validateFinalReportContract(blocked).blocking_errors.join(' ')).toContain('inline_proposition_not_supported');
   });
 });

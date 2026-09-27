@@ -49,6 +49,16 @@ export async function runReportReleaseWatchdog(
 
     for (const c of cases) {
       const caseId = c.id;
+      // An active worker owns finalization. A watchdog tick must never race
+      // that worker or infer a release from an intermediate report row.
+      if (c.worker_lease_until && new Date(c.worker_lease_until).getTime() > Date.now()) {
+        results.push({ caseId, recovered: false, action: "none", details: "Active worker lease" });
+        continue;
+      }
+      if (c.status === "needs_revision") {
+        results.push({ caseId, recovered: false, action: "already_terminal" });
+        continue;
+      }
 
       // 1. Fetch corresponding report row
       const { data: initialReportRow } = await (db as any)
@@ -62,6 +72,10 @@ export async function runReportReleaseWatchdog(
       if (!reportRow) {
         // No report generated yet for this case
         results.push({ caseId, recovered: false, action: "none", details: "No report row present" });
+        continue;
+      }
+      if (!c.execution_id || !reportRow.execution_id || c.execution_id !== reportRow.execution_id) {
+        results.push({ caseId, recovered: false, action: "none", details: "Report execution does not match case" });
         continue;
       }
 
@@ -80,27 +94,35 @@ export async function runReportReleaseWatchdog(
         continue;
       }
 
-      // 1.5 Apply Claim-Level Reconciliation (NYRAVA RELEASE INVARIANT)
-      const { reconcileCaseFindingsClaims } = await import("@/lib/intelligence/claim-level-reconciliation.server");
-      await reconcileCaseFindingsClaims(db, caseId, (c as any).execution_id);
-
-      // Re-fetch reportRow after reconciliation
-      const { data: refreshedReport } = await (db as any)
-        .from("reports")
-        .select("*")
-        .eq("case_id", caseId)
-        .maybeSingle();
-      if (refreshedReport) {
-        reportRow = refreshedReport;
+      // The final review already reconciled claims and validated the actual
+      // source snapshot. A watchdog cannot create a new approval verdict.
+      const contract = fullReport.final_report_contract_validation;
+      const finalReview = fullReport.final_review;
+      if (!contract || typeof contract.ok !== "boolean" ||
+          !Array.isArray(contract.blocking_errors) ||
+          !finalReview || typeof finalReview.released !== "boolean") {
+        results.push({ caseId, recovered: false, action: "none", details: "Final review incomplete" });
+        continue;
       }
-
-      // 2. Evaluate release readiness
+      const recordedGates = fullReport.release_gate?.gates;
+      const completeGateRecord = recordedGates && typeof recordedGates === "object" &&
+        ["report", "qa", "judge", "hallucination"].every(
+          (key) => typeof recordedGates[key] === "boolean",
+        );
       const decision = resolveFinalReleaseDecision({
         report: reportRow,
-        contract: { ok: true, blocking_errors: [] },
-        gates: (reportRow.full_report || {}).final_review_progress?.outcomes || {},
+        contract,
+        ...(completeGateRecord ? { gates: recordedGates } : {}),
         errors: reportRow.quality_block_reasons || [],
       });
+      const approvedSnapshot =
+        finalReview.released === true &&
+        fullReport.release_gate?.ok === true &&
+        completeGateRecord &&
+        Array.isArray(fullReport.release_gate?.missing_required_engines) &&
+        fullReport.release_gate.missing_required_engines.length === 0 &&
+        ["PASS", "PASS_WITH_WARNINGS"].includes(fullReport.release_decision);
+      const canRelease = approvedSnapshot && decision.released;
 
       const nowIso = new Date().toISOString();
       const reportAt = c.report_at || reportRow.updated_at || nowIso;
@@ -115,27 +137,13 @@ export async function runReportReleaseWatchdog(
       }
 
       // If the case is stuck in reporting/processing/intelligence_running or needs terminal transition:
-      if (decision.released) {
+      if (canRelease) {
         const targetOutcome = decision.release_outcome;
         const msg = targetOutcome === "RELEASED_WITH_WARNINGS"
           ? "Final review passed with warnings — report released and downloadable."
           : "Final review passed — report released and downloadable.";
 
-        await (db as any)
-          .from("reports")
-          .update({
-            quality_blocked: false,
-            quality_block_reasons: [],
-            full_report: {
-              ...fullReport,
-              release_decision: decision.decision,
-              release_outcome: targetOutcome,
-              final_review: { status: "released", decision: decision.decision, released: true },
-            },
-          })
-          .eq("id", reportRow.id);
-
-        await (db as any)
+        const caseUpdate = (db as any)
           .from("cases")
           .update({
             status: "released",
@@ -147,7 +155,16 @@ export async function runReportReleaseWatchdog(
             status_message: msg,
             error: null,
           })
-          .eq("id", caseId);
+          .eq("id", caseId)
+          .eq("execution_id", c.execution_id)
+          .eq("status", c.status);
+        const { data: changed, error: caseErr } = await (c.worker_lease_until
+          ? caseUpdate.eq("worker_lease_until", c.worker_lease_until)
+          : caseUpdate.is("worker_lease_until", null)).select("id");
+        if (caseErr || !changed?.length) {
+          results.push({ caseId, recovered: false, action: "none", details: "Case changed during watchdog review" });
+          continue;
+        }
 
         results.push({
           caseId,
@@ -156,12 +173,11 @@ export async function runReportReleaseWatchdog(
           details: msg,
         });
       } else {
-        // VERIFICATION_FAILED outcome: Report is complete, but failed strict evidence verification.
-        // As required: Do NOT delete report or leave case stuck. PDF must be downloadable
-        // with the prominent banner: "EVIDENCE VERIFICATION FAILED — DO NOT FILE AS-IS".
-        const blockingReasons = Array.isArray(reportRow.quality_block_reasons) && reportRow.quality_block_reasons.length > 0
-          ? reportRow.quality_block_reasons
-          : ["Certain assertions or citations could not be fully verified against evidence."];
+        // A completed final review rejected this draft. Keep its diagnostic
+        // content and mark the case for revision without claiming approval.
+        const blockingReasons = decision.errors.length
+          ? decision.errors
+          : ["Final review did not approve this report."];
 
         const updatedFull = {
           ...fullReport,
@@ -170,19 +186,10 @@ export async function runReportReleaseWatchdog(
           verification_failed: true,
           verification_banner: "EVIDENCE VERIFICATION FAILED — DO NOT FILE AS-IS",
           verification_reasons: blockingReasons,
-          final_review: { status: "needs_revision", decision: "VERIFICATION_FAILED", released: false },
+          final_review: { ...finalReview, status: "needs_revision", decision: "BLOCKED", released: false },
         };
 
-        await (db as any)
-          .from("reports")
-          .update({
-            quality_blocked: true,
-            quality_block_reasons: blockingReasons,
-            full_report: updatedFull,
-          })
-          .eq("id", reportRow.id);
-
-        await (db as any)
+        const caseUpdate = (db as any)
           .from("cases")
           .update({
             status: "needs_revision",
@@ -190,16 +197,34 @@ export async function runReportReleaseWatchdog(
             report_at: reportAt,
             worker_lease_until: null,
             next_stage: null,
-            status_message: "Report complete — Evidence verification failed (review required before filing; PDF downloadable).",
+            status_message: "Report verification failed — review required before filing.",
             error: blockingReasons.join("; ").slice(0, 2000),
           })
-          .eq("id", caseId);
+          .eq("id", caseId)
+          .eq("execution_id", c.execution_id)
+          .eq("status", c.status);
+        const { data: changed, error: caseErr } = await (c.worker_lease_until
+          ? caseUpdate.eq("worker_lease_until", c.worker_lease_until)
+          : caseUpdate.is("worker_lease_until", null)).select("id");
+        if (caseErr || !changed?.length) {
+          results.push({ caseId, recovered: false, action: "none", details: "Case changed during watchdog review" });
+          continue;
+        }
+        await (db as any)
+          .from("reports")
+          .update({
+            quality_blocked: true,
+            quality_block_reasons: blockingReasons,
+            full_report: updatedFull,
+          })
+          .eq("id", reportRow.id)
+          .eq("execution_id", c.execution_id);
 
         results.push({
           caseId,
           recovered: true,
           action: "verification_failed",
-          details: "Transitioned to VERIFICATION_FAILED terminal state with downloadable PDF enabled.",
+          details: "Transitioned to needs_revision after a completed blocked review.",
         });
       }
     }

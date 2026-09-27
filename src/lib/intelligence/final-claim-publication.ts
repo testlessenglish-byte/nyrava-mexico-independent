@@ -1207,6 +1207,27 @@ export interface ReconcileCitationsOutput {
   };
 }
 
+/** Inspect the entire release-bearing report without pruning an unsupported
+ * claim, reference, or decision-core item merely to make the contract pass.
+ * The existing reconciliation logic runs on isolated copies for diagnostics;
+ * the caller keeps and validates the original content. */
+export async function diagnoseReleaseCitationLocations(input: Omit<ReconcileCitationsInput, "db">) {
+  const result = await reconcileCitationsAndDependentClaims({
+    ...input,
+    reportRow: structuredClone(input.reportRow),
+    findings: structuredClone(input.findings),
+  });
+  const failed = result.locationsAudit.failed_refs;
+  return {
+    hasVerifiedContent: result.hasVerifiedContent,
+    locationsAudit: {
+      ...result.locationsAudit,
+      ok: failed.length === 0,
+      citation_audit_status: failed.length ? "CITATIONS_UNVERIFIED" : "ALL_CITATIONS_VERIFIED",
+    },
+  };
+}
+
 /**
  * Priority #1 & #2 Invariant: Strict on claims, permissive on report release.
  *

@@ -15,6 +15,7 @@ import esLocale from "@/i18n/locales/es.json";
 import enLocale from "@/i18n/locales/en.json";
 import { withStageTimeout } from "@/lib/execution/blocking-stage-guard.server";
 import { stageAttemptStatus } from "@/lib/execution/stage-attempt-status";
+import { decideStageFailureAction, terminalStageFailurePatch } from "./pipeline-queue-policy";
 
 type Db = SupabaseClient<Database>;
 
@@ -965,7 +966,7 @@ async function _runPipelineForCase(
           supabase,
           { caseId, userId, engine: ENGINE.hallucination, executionId },
           async () => ({
-            value: await hal.runHallucinationReview({ db: supabase, caseId }),
+            value: await hal.runHallucinationReview({ db: supabase, caseId, executionId }),
           }),
         ),
     },
@@ -1146,7 +1147,7 @@ async function _runPipelineForCase(
       const promoted = await addGatedFindings(
         supabase,
         caseId,
-        mandatoryDecisionCoreToFindings({ core, caseId, userId }),
+        mandatoryDecisionCoreToFindings({ core, caseId, userId, executionId }),
       );
       trace("case.mandatory_decision_core_promoted", {
         required: core.length,
@@ -1597,8 +1598,7 @@ async function _runPipelineForCase(
     resumeKey: string = s.key,
   ): Promise<
     | { kind: "skipped" | "blocked" | "success" | "failed" }
-    | { kind: "checkpoint_before_start" | "checkpoint" | "cancelled" | "checkpoint_loop_aborted"; index: number }
-    | { kind: "fatal_failed"; message: string }
+    | { kind: "checkpoint_before_start" | "checkpoint" | "cancelled" | "checkpoint_loop_aborted" | "terminal_stage_failure"; index: number }
   > {
     if (engineForStage(s.key as PipelineStageKey) === "report_generator") {
       const { getReportReadiness } = await import("@/lib/execution/canonical");
@@ -1975,37 +1975,24 @@ async function _runPipelineForCase(
         /* noop */
       }
       if (stageRequirement(key) !== "optional") stageFailures.push({ key: s.key, error: msg });
-      if (FATAL_STAGES.has(key)) {
-        const isSubstantive = /REPORT_WRITER_CITATION_UNRESOLVED|CITATION_INTEGRITY|hallucination|not supported|verificable|sin pasaje/i.test(msg);
-        if (!isSubstantive) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const { data: cRow } = await (supabase as any).from("cases").select("stall_auto_retry_count").eq("id", caseId).maybeSingle();
-          const retries = cRow?.stall_auto_retry_count ?? 0;
-          if (retries < 3) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            await (supabase as any).from("cases").update({ stall_auto_retry_count: retries + 1 }).eq("id", caseId);
-            console.warn(`[pipeline] Technical failure at ${s.key}, auto-retrying (${retries + 1}/3): ${msg}`);
-            try {
-              const { requeueForContinuation } = await import("@/lib/pipeline-stall.server");
-              await requeueForContinuation(supabase, caseId, s.key);
-            } catch (rqErr) {
-              console.warn(`[pipeline] re-queue failed after technical error`, rqErr);
-            }
-            return { kind: "checkpoint", index: i };
-          }
+      if (key === "report" || FATAL_STAGES.has(key)) {
+        // A legal/citation failure is a terminal revision. Return it directly
+        // so the worker's generic infrastructure catch cannot requeue it.
+        // Known transport failures keep their bounded same-stage retry.
+        const { data: cRow } = await (supabase as any).from("cases")
+          .select("stall_auto_retry_count").eq("id", caseId).maybeSingle();
+        const retries = Number(cRow?.stall_auto_retry_count ?? 0);
+        const action = decideStageFailureAction(msg, retries);
+        if (action === "retry") {
+          await (supabase as any).from("cases")
+            .update({ stall_auto_retry_count: retries + 1 }).eq("id", caseId);
+          const { requeueForContinuation } = await import("@/lib/pipeline-stall.server");
+          await requeueForContinuation(supabase, caseId, s.key);
+          trace("stage.technical_retry", { stage: s.key, attempt: retries + 1 });
+          return { kind: "checkpoint", index: i };
         }
-        await updateCase(
-          {
-            status: "failed",
-            status_message: key === "report"
-              ? "Revisión requerida: el informe requiere atención."
-              : `Revisión requerida en ${s.label}`,
-            error: msg.slice(0, 2000),
-            next_stage: s.key,
-          },
-          `stage.failed:${s.key}`,
-        );
-        return { kind: "fatal_failed", message: `[${s.label}] ${msg}` };
+        await updateCase(terminalStageFailurePatch(s.key, action, msg), `stage.failed:${s.key}`);
+        return { kind: "terminal_stage_failure", index: i };
       }
       console.warn(`[pipeline] non-fatal failure at ${s.key}: ${msg}`);
       return { kind: "failed" };
@@ -2038,6 +2025,8 @@ async function _runPipelineForCase(
           completedStages: outcome.index,
         };
       case "checkpoint_loop_aborted":
+        return { ok: false, failedAt: stages[outcome.index].key, completedStages: outcome.index };
+      case "terminal_stage_failure":
         return { ok: false, failedAt: stages[outcome.index].key, completedStages: outcome.index };
       case "checkpoint":
         return {
@@ -2096,8 +2085,8 @@ async function _runPipelineForCase(
         (o) => o.kind === "checkpoint" || o.kind === "checkpoint_before_start",
       );
       if (checkpointed) return earlyReturnFor(checkpointed)!;
-      const fatal = outcomes.find((o) => o.kind === "fatal_failed");
-      if (fatal && fatal.kind === "fatal_failed") throw new Error(fatal.message);
+      const terminal = outcomes.find((o) => o.kind === "terminal_stage_failure");
+      if (terminal) return earlyReturnFor(terminal)!;
 
       // Advance next_stage after successful batch execution
       const allSuccessOrSkipped = outcomes.every((o) => o.kind === "success" || o.kind === "skipped");
@@ -2119,7 +2108,6 @@ async function _runPipelineForCase(
     if (key === "extraction" && outcome.kind === "success") {
       await ensureAndPromoteDecisionCore();
     }
-    if (outcome.kind === "fatal_failed") throw new Error(outcome.message);
     const early = earlyReturnFor(outcome);
     if (early) return early;
 

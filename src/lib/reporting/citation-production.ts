@@ -1,9 +1,10 @@
 import { auditSourceLocations } from './source-location-audit';
+import { sha256HexSync } from '../intelligence/sha256';
 import { evaluateClaimEntailment } from '../intelligence/claim-evidence-entailment';
 import { supportInput, type SupportClaim, type SupportVerdict } from '../intelligence/claim-support-review';
 import type { MatterSourcePage } from '../intelligence/source-matter-audit';
 type Row = Record<string, any>;
-type Index = Array<{ document_id: string; doc_n: number }>;
+type Index = Array<{ document_id: string; doc_n: number; canonical_source_id?: string }>;
 export type PropositionReview = { claim: SupportClaim; review: SupportVerdict };
 export function reviewedAttributionMatches(value: Row, claim: SupportClaim): boolean {
   const canonical = (key: string, v: unknown) => key === 'proposition_type' && v === 'court_holding' ? 'holding' : v;
@@ -57,12 +58,17 @@ export function createCanonicalCitation(ref: Row, proposition: string, pages: Ma
   const candidate = { ...ref, document_id: ref.document_id ?? ref.doc_id ?? ref.source_document_id,
     page: ref.page ?? ref.page_number ?? ref.source_page, quote,
     ...(proof ? { proposition_verification: proof } : {}) };
+  const registered = index.find(doc => doc.document_id === candidate.document_id);
+  if (candidate.canonical_source_id && (!registered?.canonical_source_id ||
+      candidate.canonical_source_id !== registered.canonical_source_id)) return null;
   const audit = auditSourceLocations([candidate], pages, index);
   if (!audit.ok || audit.verified.length !== 1) return null;
   const located = audit.verified[0];
   if (!citationPropositionVerified({ ...candidate, ...located }, proposition, pages, proof ? [proof] : [])) return null;
   const doc = index.find(d => d.document_id === located.document_id);
-  return { ...candidate, ...located, doc_n: doc?.doc_n, page_number: located.page, page_located: located.page,
+  return { ...candidate, ...located, doc_n: doc?.doc_n,
+    ...(doc?.canonical_source_id ? { canonical_source_id: doc.canonical_source_id } : {}),
+    page_number: located.page, page_located: located.page,
     proposition_supported: proposition, verification_status: 'verified' };
 }
 
@@ -86,7 +92,46 @@ export function writerCitationCatalog(refs: Row[], pages: MatterSourcePage[], in
     const citation = createCanonicalCitation(ref, String(ref.quote ?? ref.excerpt ?? ref.source_quote ?? ''), pages, index);
     return citation ? [citation] : [];
   });
-  return [...new Map(checked.map(c => [c.document_id + ':' + c.page + ':' + citationText(c.quote), c])).values()];
+  return [...new Map(checked.map(c => [c.document_id + ':' + c.page + ':' + citationText(c.quote), c])).values()]
+    .map(c => ({ ...c, writer_ref_id: 'cite_' + sha256HexSync(JSON.stringify([
+      c.canonical_source_id, c.document_id, c.page, citationText(c.proposition_supported), citationText(c.quote),
+    ])).slice(0, 24) }));
+}
+
+/** The Writer names a verified catalog object, never a document/page pair.
+ * Resolve the source identity and display page from that object only. A raw
+ * Writer-authored [DOC N p.M] or an unsupported assertion is a producer error.
+ * This is deliberately run before writing any generated report section. */
+export function resolveWriterCitationReferences<T>(
+  value: T, catalog: Row[], validateAttribution?: (precedingText: string, citation: Row) => void,
+): { value: T; citations: Row[] } {
+  const referenced = new Map<string, Row>();
+  const resolve = (part: unknown): unknown => {
+    if (typeof part === 'string') {
+      if (/\bDOC\s+\d+\s+p\.\s*\d+\b/i.test(part))
+        throw new Error('REPORT_WRITER_CITATION_UNRESOLVED: raw document/page reference');
+      return part.replace(/\[(?:CITE|DOC)\b[^\]]*\]/gi, (token, offset: number) => {
+        const parsed = /^\[CITE\s+(cite_[a-f0-9]{24})\]$/i.exec(token);
+        if (!parsed) throw new Error('REPORT_WRITER_CITATION_UNRESOLVED: ' + token);
+        const matches = catalog.filter(c => c.writer_ref_id === parsed[1] && c.verification_status === 'verified');
+        if (matches.length !== 1) throw new Error('REPORT_WRITER_CITATION_UNRESOLVED: ' + token);
+        const citation = matches[0];
+        const proposition = inlineCitationStatement(part.slice(0, offset));
+        if (citationText(proposition) !== citationText(citation.proposition_supported) ||
+          !Number.isSafeInteger(citation.doc_n) || !Number.isSafeInteger(citation.page))
+          throw new Error('REPORT_WRITER_PROPOSITION_UNSUPPORTED: ' + token);
+        validateAttribution?.(part.slice(Math.max(0, offset - 350), offset), citation);
+        referenced.set(citation.writer_ref_id, citation);
+        return `[DOC ${citation.doc_n} p.${citation.page}]`;
+      });
+    }
+    if (Array.isArray(part)) return part.map(resolve);
+    if (part && typeof part === 'object') return Object.fromEntries(Object.entries(part).map(([key, child]) =>
+      [key, ['quote', 'source_quote', 'excerpt', 'proposition_supported', 'proposition_verification'].includes(key)
+        ? child : resolve(child)]));
+    return part;
+  };
+  return { value: resolve(value) as T, citations: [...referenced.values()] };
 }
 
 export function inlineCitationStatement(before: string): string {
@@ -108,7 +153,7 @@ export function assertWriterCitationReferences(value: unknown, catalog: Row[]): 
     for (const match of value.matchAll(/\[(DOC\s+[^\]]+)\]/gi)) {
       const statement = inlineCitationStatement(value.slice(0, match.index));
       const pairs = [...match[1].matchAll(/DOC\s+(\d+)\s+p\.\s*(\d+)/gi)];
-      if (!pairs.length || pairs.some(pair => !catalog.some(c => c.doc_n === Number(pair[1]) && (c.page === Number(pair[2]) || c.page === Number(pair[2]) - 1 || c.page === Number(pair[2]) + 1) &&
+      if (!pairs.length || pairs.some(pair => !catalog.some(c => c.doc_n === Number(pair[1]) && c.page === Number(pair[2]) &&
         c.verification_status === 'verified' && citationText(c.proposition_supported) === citationText(statement))))
         throw new Error('REPORT_WRITER_CITATION_UNRESOLVED: ' + match[0]);
     }

@@ -1,4 +1,5 @@
 import type { CaseExportData } from "../export";
+import { composeFinalReportPayload } from "./final-report-contract";
 
 /** Load every auxiliary input consumed by the workspace/export section renderers.
  * Query errors fail closed; an empty table is valid, an unread table is not.
@@ -23,4 +24,29 @@ export async function loadFinalReportSections(db: any, caseId: string): Promise<
   const results=await Promise.all(tasks);
   for(const [key,result] of results) if(result.error) throw new Error("REPORT_SECTION_UNAVAILABLE:"+key+":"+result.error.message);
   return Object.fromEntries(results.map(([key,result])=>[key,result.data]));
+}
+
+/** The report-stage checkpoint must see the same stored sections as the final
+ * release check. Canonical case, source, report and finding snapshots supplied
+ * by the current execution take precedence over auxiliary database rows. */
+export async function composeReportStagePayload(
+  db: any,
+  caseId: string,
+  current: Pick<CaseExportData, "case" | "documents" | "report" | "findings">,
+  sourceReviewFindings = current.findings,
+) {
+  const sections = await loadFinalReportSections(db, caseId);
+  const report = current.report && {
+    ...current.report,
+    full_report: {
+      ...((current.report.full_report as Record<string, unknown> | undefined) ?? {}),
+      reviewed_sections: sections,
+    },
+  };
+  return composeFinalReportPayload({
+    analysis: null, agents: [], score: null,
+    ...sections,
+    ...current,
+    report,
+  }, sourceReviewFindings);
 }

@@ -431,6 +431,12 @@ export function composeFinalReportPayload(input: CaseExportData, sourceReviewFin
 
 function assessmentPresentation(payload: FinalReportPayload): FinalReportPayload {
   payload = canonicalizeReportCitations(payload);
+  // The final content transform may have changed a finding into a source-
+  // attribution wrapper. Bind that exact published assertion after transform.
+  bindAttributedFindingCitations(payload);
+  payload.report_presentation.finding_cards.forEach((card, index) => {
+    if (payload.findings?.[index]) card.finding = payload.findings[index];
+  });
   const citationAudit = auditReportCitationIntegrity(payload);
   const full = obj(payload.report!.full_report);
   full.assessment_limitations = { ...obj(full.assessment_limitations), material_citations_unresolved: citationAudit.unresolved.length > 0 };
