@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { subscriberAssessment } from "@/lib/reporting/qualitative-assessment";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
@@ -35,7 +36,7 @@ function StrategyPage() {
   const detFallback = isDeterministicFallback(report);
 
   const rawTheories = (data?.theories ?? []) as any[];
-  const strategies = (data?.strategy ?? []) as any[];
+  const strategies = subscriberAssessment(data?.strategy ?? []) as any[];
   const rawOpps = (data?.opportunities ?? []) as any[];
   const rawAttack = strategies.filter((s) => /attack|prosecut/i.test(s.perspective));
   const rawDefense = strategies.filter((s) => /defense|defend/i.test(s.perspective));
@@ -129,9 +130,6 @@ function StrategyPage() {
                       <article key={s.id} className="rounded-xl border border-border bg-card/60 p-4">
                         <div className="flex items-baseline justify-between">
                           <h3 className="font-semibold capitalize">{s.perspective}</h3>
-                          {!scoresSuppressed && s.case_strength_score != null ? (
-                            <span className="text-[11px] text-muted-foreground">{t("mod.strategy.strength")} {s.case_strength_score}/100</span>
-                          ) : null}
                         </div>
                         {s.summary ? <p className="mt-2 text-sm whitespace-pre-wrap">{s.summary}</p> : null}
                         {Array.isArray(s.next_actions) && s.next_actions.length > 0 ? (

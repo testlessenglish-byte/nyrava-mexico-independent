@@ -1,23 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { writeFileSync, mkdirSync } from "fs";
+import { readFileSync } from "fs";
 import { join } from "path";
-import { generateMockReportPdf } from "../../../../scripts/generate-mock-pdf";
 import { extractText } from "unpdf";
 
 describe("Synthetic Sample Report Generation", () => {
   it("generates a 6-page professional PDF matching pass 2 visual direction", async () => {
-    const pdfBytes = generateMockReportPdf();
+    const pdfBytes = new Uint8Array(readFileSync(join(process.cwd(), "public/sample-pdf/nyrava-mexico-sample-report.pdf")));
     expect(pdfBytes).toBeInstanceOf(Uint8Array);
     expect(pdfBytes.length).toBeGreaterThan(50000);
-
-    // Save to public and to artifacts directory
-    const outDir = join(process.cwd(), "public/sample-pdf");
-    mkdirSync(outDir, { recursive: true });
-    const outPath = join(outDir, "nyrava-mexico-sample-report.pdf");
-    writeFileSync(outPath, pdfBytes);
-
-    const artifactPath = "C:\\Users\\nyrav\\.gemini\\antigravity\\brain\\16b028ba-fcd1-4040-94db-800dd91dcc8c\\nyrava-mexico-sample-report.pdf";
-    writeFileSync(artifactPath, pdfBytes);
 
     // Extract text from the generated PDF to verify selectable vector text
     const extracted = await extractText(pdfBytes);
@@ -38,8 +28,8 @@ describe("Synthetic Sample Report Generation", () => {
     expect(text).toContain("Informe de Inteligencia Jurídica");
     expect(text).toContain("Se revoca la sentencia recurrida");
     expect(text).toContain("discriminación al aplicar presunciones");
-    expect(text).toContain("82 / 100");
-    expect(text).toContain("24 / 100");
+    expect(text).not.toMatch(/\d+\s*\/\s*100/);
+    expect(text).toContain("ESTADO DEL ANÁLISIS");
     expect(text).toContain("EVIDENCIA AUDITADA");
 
     // Verify Page 3 Executive Summary

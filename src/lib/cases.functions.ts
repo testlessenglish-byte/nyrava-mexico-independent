@@ -1,3 +1,4 @@
+import { assessCase } from "./reporting/qualitative-assessment";
 import { parseDocumentAnalysisPurpose, buildDocumentAnalysisMetadata, parseLegalQuestion, parseTestFixture, matterAnalysisScopeChanged } from "./intelligence/document-analysis-purpose";
 import { parseApplicableLawState, parseProceedingStartedOn, parseCivilFamilyProceeding, legalScopeChanged } from "./legal/case-law-configuration";
 // Client-safe server-function module. Handlers run on the server only.
@@ -2723,7 +2724,7 @@ export const listCases = createServerFn({ method: "GET" })
       supabase
         .from("reports")
         .select(
-          "case_id,case_strength_score,risk_score,findings_count,contradictions_struct,missing_evidence_struct",
+          "case_id,full_report,citations,findings_count,contradictions_struct,missing_evidence_struct",
         )
         .in("case_id", ids),
       supabase
@@ -2762,8 +2763,7 @@ export const listCases = createServerFn({ method: "GET" })
         : null;
       return {
         ...c,
-        score: r?.case_strength_score ?? null,
-        risk_score: r?.risk_score ?? null,
+        case_assessment: assessCase(r),
         findings_count: r?.findings_count ?? null,
         high_priority_findings: highPriorityByCase.get(c.id) ?? 0,
         witness_count: witnessCountByCase.get(c.id) ?? 0,

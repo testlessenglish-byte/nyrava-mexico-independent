@@ -1,3 +1,4 @@
+import { assessCase, assessmentLabels } from './qualitative-assessment';
 import type { MatterSourcePage } from '../intelligence/source-matter-audit';
 import type { MigratorioDisposition } from '../intelligence/migratorio-disposition';
 import { auditSourceLocations, relocateSourceRefs } from './source-location-audit';
@@ -74,19 +75,12 @@ export function quarantineDispositionConflicts<T>(input:T, disposition?:Migrator
 /** Strength and risk are different metrics. Bind the explanatory text to the
  * actual persisted metrics, not to a model's stale dashboard prose. */
 export function reconcileReportScorePresentation(report:Row, scoresAllowed:boolean, language='es') {
-  if (!scoresAllowed) return;
-  const full = report.full_report ?? {};
-  const dimensions = Object.values(full.deterministic_scorecard?.dimensions ?? {}) as Row[];
-  const scores = dimensions.map(d=>d.score).filter(n=>typeof n==='number' && Number.isFinite(n));
-  if (!scores.length) return;
-  const strength = Math.round(scores.reduce((a,b)=>a+b,0)/scores.length);
-  report.case_strength_score = strength;
-  const risk = full.deterministic_algorithms?.risk?.score ?? report.risk_score;
-  if (typeof risk === 'number') report.risk_score = risk;
-  const baselineOnly = dimensions.every(d=>d.contributor_count === 0);
-  report.score_breakdown = language === 'en'
-    ? `Case strength: ${strength}/100 (mean of ${scores.length} deterministic dimensions).${typeof risk==='number' ? ` Risk: ${risk}/100; a separate measure, not the case-strength score.` : ''}${baselineOnly?' All dimensions remain at their baselines; no verified finding contributed to score movement.':''}`
-    : `Fortaleza del expediente: ${strength}/100 (promedio de ${scores.length} dimensiones deterministas).${typeof risk==='number' ? ` Riesgo: ${risk}/100; es una medida distinta de la fortaleza del expediente.` : ''}${baselineOnly?' Todas las dimensiones permanecen en su valor base; ningún hallazgo verificado contribuyó a modificar la puntuación.':''}`;
+  // Numeric dimensions remain in full_report for internal QA only.
+  report.case_strength_score = null;
+  report.risk_score = null;
+  report.full_report ??= {};
+  report.full_report.case_assessment = assessCase(report);
+  report.score_breakdown = assessmentLabels(report.full_report.case_assessment, language).caseStrength;
 }
 
 /** A rejected pair must stop affecting the risk meter as well as the table. */

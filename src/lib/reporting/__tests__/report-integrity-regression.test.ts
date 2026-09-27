@@ -18,13 +18,14 @@ function input(): any {
       contradictions_struct:[{title:'Constitucionalidad del artículo 111',document_a:{doc_n:1,page:1,quote:order},quote_verified:true}]}};
 }
 describe('report boundary regressions',()=>{
-  it('retains the deterministic mean when the model omitted its scalar',()=>{
+  it('retains internal deterministic diagnostics without publishing a legal score',()=>{
     expect(computeCaseStrengthDisagreement(null,[60,60,70,70,60])).toEqual({
       deterministic:64,delta:null,disagreement:false,
     });
     const out=composeFinalReportPayload(input());
-    expect(out.report!.case_strength_score).toBe(64);
-    expect(out.report!.risk_score).toBe(34);
+    expect(out.report!.case_strength_score).toBeUndefined();
+    expect(out.report!.full_report).toHaveProperty("case_assessment.state", "INSUFFICIENT_EVIDENCE");
+    expect(out.report!.risk_score).toBeUndefined();
   });
   it('continues to suppress scores when capability disallows them',()=>{
     const data=input();data.report.scores_suppressed=true;data.report.report_mode='LIMITED';

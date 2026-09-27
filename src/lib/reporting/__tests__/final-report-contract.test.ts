@@ -143,11 +143,16 @@ describe("actual renderer boundary", () => {
     const input=regressionInput();
     input.case!.report_language="es";
     input.report!.generated_language="es";
+    input.report!.case_strength_score=68;
+    input.report!.risk_score=0;
     await downloadPdf(input,"Synthetic regression");
     expect(rendered.pdf).not.toBeNull();
     const {extractText}=await import("unpdf");
     const result=await extractText(new Uint8Array(rendered.pdf!.slice(0)),{mergePages:true});
     expect(result.text).toContain("RESULTADO DEL RECURSO");
+    expect(result.text).toMatch(/Estado del análisis/i);
+    expect(result.text).toContain("Evidencia insuficiente para valorar");
+    expect(result.text).not.toMatch(/68\s*\/\s*100|Risk Score|Ventaja del Ministerio/);
     expect(result.text).toContain("PASOS DE VERIFICACIÓN DOCUMENTAL");
     expect(result.text).not.toContain("PRÓXIMAS ACCIONES RECOMENDADAS");
     expect(result.text).not.toContain("Reincidencia");

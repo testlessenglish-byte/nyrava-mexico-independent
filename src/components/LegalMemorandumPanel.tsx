@@ -161,12 +161,6 @@ export function LegalMemorandumPanel({
             </div>
           )}
           <div className="summary-grid">
-            {exec.case_strength && (
-              <p>
-                <strong>Case Strength: </strong>
-                <span className={strengthClass[exec.case_strength.toLowerCase()] ?? ""}>{exec.case_strength}</span>
-              </p>
-            )}
             {exec.primary_risk && (
               <p>
                 <strong>Primary Risk: </strong>

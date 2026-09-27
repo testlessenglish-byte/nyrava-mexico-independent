@@ -1,3 +1,4 @@
+import { assessCase, assessmentLabels } from "./reporting/qualitative-assessment";
 import { reportRenderTimestamp } from "./reporting/reviewed-sections";
 import { translateLegalTerm } from "./pdf/enum-translation";
 import { resolveReportIdentity, cleanClientMatterName, isUserInstructionOrPrompt } from "./pdf/identity-resolver";
@@ -2363,48 +2364,7 @@ function renderCover(
 
   renderDecisionCore(b, data);
 
-  // === Executive Intelligence Dashboard ===
-  const scores = getScores(getReportRow(data));
-  const hasScores =
-    mode !== "LIMITED" && typeof scores.strength === "number" && typeof scores.risk === "number";
-
-  if (hasScores) {
-    const strength = scores.strength as number;
-    const risk = scores.risk as number;
-
-    const scoreObj = asObj(data.score);
-    const breakdowns = asObj(scoreObj.dimension_breakdowns);
-    const fullReport = asObj(r.full_report);
-    const caseType = asStr(fullReport.case_type) || asStr(breakdowns.case_type);
-    // FIX (2026-07-29): this only checked the retired English case-type
-    // keys ("criminal", "civil_rights") — never the actual Mexican
-    // taxonomy key "penal" — so isCriminal was always false for every
-    // real case in this platform, and the prosecution/defense framing
-    // below never fired. Same class of bug found and fixed elsewhere
-    // this session (practice-areas.ts's UNIVERSAL_FINDING_MODULES,
-    // export.ts's own isCriminal check a few hundred lines down).
-    const isCriminal =
-      caseType === "penal" || caseType === "criminal" || caseType === "civil_rights";
-
-    const riskLevel = risk >= 60 ? "Riesgo Alto" : risk >= 35 ? "Riesgo Moderado" : "Riesgo Bajo";
-    const advantage = isCriminal
-      ? strength < 50
-        ? "Ventaja de la Defensa"
-        : "Ventaja del Ministerio Público"
-      : "";
-    const headline = advantage ? `${riskLevel} — ${advantage}` : riskLevel;
-    const clientName = resolveReportIdentity(asObj(data.case)).client;
-    const perspectiveBase = clientName ? "Fortaleza de la posición de " + clientName : "Fortaleza de la posición";
-    const strengthCaption = isCriminal
-      ? `${perspectiveBase} ${strength} / 100 (caso del Ministerio Público; un valor menor favorece a la defensa)  •  Puntuación de riesgo ${risk} / 100`
-      : `${perspectiveBase} ${strength} / 100  •  Puntuación de riesgo ${risk} / 100`;
-    b.statusBanner(headline, strengthCaption, b.scoreColor(risk, true));
-
-    b.gaugeRow([
-      { label: clientName ? "Fortaleza de la posición" : "Fortaleza de la Posición", value: strength, color: b.scoreColor(strength) },
-      { label: "Puntuación de Riesgo", value: risk, color: b.scoreColor(risk, true) },
-    ]);
-  }
+  renderAnalysisStatus(b, data);
 
   // filterExecutiveDashboardEligible keeps a rejected/superseded lower-
   // instance holding (e.g. a Tribunal Colegiado position the SCJN's
@@ -2431,7 +2391,6 @@ function renderCover(
   const cards: Array<{ label: string; value: string; color?: [number, number, number] }> = [];
   if (mode === "LIMITED") {
     cards.push({ label: "Status", value: "Limited", color: DANGER });
-    cards.push({ label: "Scores", value: "Suppressed", color: MUTED });
     cards.push({ label: "Recommendations", value: "Suppressed", color: MUTED });
   }
   cards.push({ label: rt("Documents Analyzed"), value: String(data.documents.length) });
@@ -2512,8 +2471,8 @@ function buildMissingDocumentChecklist(data: CaseExportData): { checklistText: s
     return {
       checklistText:
         locale === "en"
-          ? "To upgrade this matter to a full analysis, supply: (1) the certified first-instance judgment (sentencia de primera instancia), (2) the brief of grounds of appeal (escrito de agravios), (3) certified copies of the trial-court record referenced in the judgment. Each additional verified source increases the ESS score and unlocks deterministic scoring."
-          : "Para elevar este asunto a un análisis completo, aporte: (1) la sentencia de primera instancia certificada, (2) el escrito de agravios, (3) copias certificadas de las constancias del expediente de origen referidas en la sentencia. Cada fuente verificada adicional incrementa el puntaje ESS y habilita la evaluación determinista.",
+          ? "To upgrade this matter to a full analysis, supply: (1) the certified first-instance judgment (sentencia de primera instancia), (2) the brief of grounds of appeal (escrito de agravios), (3) certified copies of the trial-court record referenced in the judgment. Additional verified sources improve the evidence available for analysis."
+          : "Para elevar este asunto a un análisis completo, aporte: (1) la sentencia de primera instancia certificada, (2) el escrito de agravios, (3) copias certificadas de las constancias del expediente de origen referidas en la sentencia. Las fuentes verificadas adicionales amplían la evidencia disponible para el análisis.",
     };
   }
 
@@ -2524,8 +2483,8 @@ function buildMissingDocumentChecklist(data: CaseExportData): { checklistText: s
     return {
       checklistText:
         locale === "en"
-          ? "To upgrade this matter to a full analysis, supply additional primary sources: pleadings and their responses, notifications, contracts and amendments, expert opinions, and any documentary evidence referenced in the existing record. Each additional verified source increases the ESS score and unlocks deterministic scoring."
-          : "Para elevar este asunto a un análisis completo, aporte fuentes primarias adicionales: promociones y sus contestaciones, notificaciones, contratos y convenios modificatorios, dictámenes periciales, y cualquier prueba documental referida en el expediente. Cada fuente verificada adicional incrementa el puntaje ESS y habilita la evaluación determinista.",
+          ? "To upgrade this matter to a full analysis, supply additional primary sources: pleadings and their responses, notifications, contracts and amendments, expert opinions, and any documentary evidence referenced in the existing record. Additional verified sources improve the evidence available for analysis."
+          : "Para elevar este asunto a un análisis completo, aporte fuentes primarias adicionales: promociones y sus contestaciones, notificaciones, contratos y convenios modificatorios, dictámenes periciales, y cualquier prueba documental referida en el expediente. Las fuentes verificadas adicionales amplían la evidencia disponible para el análisis.",
     };
   }
 
@@ -2535,8 +2494,8 @@ function buildMissingDocumentChecklist(data: CaseExportData): { checklistText: s
   return {
     checklistText:
       locale === "en"
-        ? `To upgrade this matter to a full analysis, supply: ${listEn}, and any other documentary evidence referenced in the existing record. Each additional verified source increases the ESS score, unlocks deterministic scoring, and enables the engine to draft motion outlines with supporting citations.`
-        : `Para elevar este asunto a un análisis completo, aporte: ${listEs}, y cualquier otra prueba documental referida en el expediente. Cada fuente verificada adicional incrementa el puntaje ESS, habilita la evaluación determinista, y permite al motor esbozar promociones con citas de apoyo.`,
+        ? `To upgrade this matter to a full analysis, supply: ${listEn}, and any other documentary evidence referenced in the existing record. Additional verified sources support analysis and motion outlines with supporting citations.`
+        : `Para elevar este asunto a un análisis completo, aporte: ${listEs}, y cualquier otra prueba documental referida en el expediente. Las fuentes verificadas adicionales sustentan el análisis y los borradores de promociones con citas de apoyo.`,
   };
 }
 
@@ -2738,60 +2697,7 @@ function renderExecutive(b: PdfBuilder, data: CaseExportData, mode: ReportMode) 
     }
   }
 
-  // Read scores through canonical.ts, not the raw row. getScores() also
-  // honors ESS suppression, which r.case_strength_score alone does not.
-  // Uses gaugeRow — the SAME circular gauge widget the cover page uses for
-  // these identical two numbers — rather than the flatter meterPair bars.
-  // Showing Case Strength / Risk Score as a bar chart here and a radial
-  // gauge one page earlier was the exact "different sections feel like
-  // separate documents" problem: same numbers, two different chart types,
-  // one page apart.
-  const scores = getScores(getReportRow(data));
-  const gauges: Array<{ label: string; value: number; color: [number, number, number] }> = [];
-  if (typeof scores.strength === "number")
-    gauges.push({
-      label: rt("Case Strength"),
-      value: scores.strength,
-      color: b.scoreColor(scores.strength),
-    });
-  if (typeof scores.risk === "number")
-    gauges.push({
-      label: rt("Risk Score"),
-      value: scores.risk,
-      color: b.scoreColor(scores.risk, true),
-    });
-  // Compact horizontal strip — the cover page already renders these same
-  // numbers as prominent radial gauges. Repeating a second large radial
-  // widget one page later was pure visual repetition; the compact strip
-  // keeps the numbers visible without the duplication.
-  b.compactScoreStrip(gauges);
-
-  const ce = processProseCitations(asStr(r.score_breakdown));
-  if (ce && typeof scores.strength === "number") {
-    // score_breakdown is free-text prose written by an earlier scoring pass
-    // and is not guaranteed to stay in sync with case_strength_score if the
-    // deterministic scorecard is ever recalculated without a full narrative
-    // regeneration. Guard against rendering a stale number (e.g. the report
-    // showing "Case Strength: 60/100" and this prose separately saying
-    // "the case score is 35") by refusing to print the prose verbatim if it
-    // contains a different score than the live value.
-    const mentionedScores = ce.match(/\bscore (?:is|of)\s+(\d{1,3})\b/i);
-    const staleMismatch = mentionedScores && Number(mentionedScores[1]) !== scores.strength;
-    if (staleMismatch) {
-      b.h2("Razonamiento de la Puntuación");
-      b.text(
-        `Case strength is ${scores.strength} / 100. (Narrative reasoning for this score was not regenerated after ` +
-          "the most recent scorecard update and has been withheld to avoid displaying a stale figure.)",
-        { color: MUTED },
-      );
-    } else {
-      b.h2("Razonamiento de la Puntuación");
-      b.text(ce);
-    }
-  } else if (ce) {
-    b.h2("Razonamiento de la Puntuación");
-    b.text(ce);
-  }
+  renderAnalysisStatus(b, data);
 }
 
 // The "money page." Ranked motions, immediate next actions, top strategic
@@ -3457,23 +3363,8 @@ function renderDiscoveryAnalysis(b: PdfBuilder, data: CaseExportData) {
 }
 
 function renderRiskAnalysis(b: PdfBuilder, data: CaseExportData) {
-  const risk = reportText(data, "risk_analysis") || reportText(data, "score_breakdown");
-  const r = asObj(data.report);
-  const canonicalRisk = getScores(getReportRow(data)).risk;
+  const risk = reportText(data, "risk_analysis");
   b.h1("Análisis de Riesgo");
-  if (typeof canonicalRisk === "number" && !r.scores_suppressed) {
-    // Compact score strip — the risk score is already displayed as a
-    // prominent radial gauge on the cover page. A second large radial
-    // repeat here creates visual repetition; the strip preserves the
-    // number and its color coding without another full-height widget.
-    b.compactScoreStrip([
-      {
-        label: rt("Risk Score"),
-        value: canonicalRisk,
-        color: b.scoreColor(canonicalRisk, true),
-      },
-    ]);
-  }
   if (risk) b.text(risk, { size: 10.5, gap: 8 });
   else
     b.text(
@@ -3560,121 +3451,17 @@ function renderCrossExamination(b: PdfBuilder, data: CaseExportData) {
   }
 }
 
-function renderScorecard(b: PdfBuilder, data: CaseExportData) {
-  const score = asObj(data.score);
-  const breakdowns = asObj(score.dimension_breakdowns);
-  const det = asObj(breakdowns.deterministic);
-  const dimensions = asObj(det.dimensions);
-  const report = asObj(data.report);
-  const fullReport = asObj(report.full_report);
-  const caseType =
-    asStr(fullReport.case_type) || asStr(asObj(breakdowns).case_type);
-  const isCriminal = caseType === "penal" || caseType === "criminal" || caseType === "civil_rights";
+function renderAnalysisStatus(b: PdfBuilder, data: CaseExportData) {
+  const a = assessCase(data.report, data.findings);
+  const labels = assessmentLabels(a, getReportTemplateLocale());
+  b.h2(labels.title);
+  b.statusBanner(labels.caseStrengthTitle, labels.caseStrength, PRIMARY);
+  b.text(labels.explanation, { size: 9, color: MUTED, gap: 6 });
+  b.table([[labels.title, getReportTemplateLocale() === 'en' ? 'Status' : 'Estado']], labels.rows);
+}
 
-  if (Object.keys(dimensions).length === 0 && !Object.keys(score).length) return;
-  b.h1("Tablero de Puntuación del Caso");
-  b.text(asStr(score.methodology, "Puntuación determinista basada en reglas."), {
-    size: 10,
-    color: MUTED,
-    gap: 4,
-  });
-  b.text(`Tipo de caso: ${caseType.replace(/_/g, " ")}`, { size: 9, color: MUTED, gap: 10 });
-  const rows: (string | number)[][] = [];
-  for (const [, val] of Object.entries(dimensions)) {
-    const v = asObj(val);
-    rows.push([
-      asStr(v.dimension),
-      `${asStr(v.score, "—")} / 100`,
-      asStr(v.baseline, "—"),
-      `${asStr(v.raw_delta, "0")}`,
-      asStr(v.contributor_count, "0"),
-    ]);
-  }
-  if (rows.length) {
-    // Deliberately no plain-number table here: the Dimension Detail section
-    // below renders these exact same dimensions as color-coded bars, and
-    // showing both was pure redundancy (the reader had to parse the same
-    // nine numbers twice — once as a bare table, once as bars). The bar
-    // version is strictly more scannable, so it's now the single canonical
-    // view of dimension scores.
-  } else {
-    // Fallback to legacy fields — gated by case type so civil reports never
-    // show "Cadena de Custodia", "Cumplimiento Constitucional", "Riesgo de
-    // Condena" or "Riesgo de Apelación".
-    const legacy: [string, unknown][] = isCriminal
-      ? [
-          ["Fortaleza de la evidencia", score.evidence_strength],
-          ["Confiabilidad de testigos", score.witness_reliability],
-          ["Integridad cronológica", score.timeline_integrity],
-          ["Cadena de custodia", score.chain_of_custody],
-          ["Cumplimiento constitucional", score.constitutional_compliance],
-          ["Integridad de la investigación", score.investigation_completeness],
-          ["Riesgo de condena", score.conviction_risk],
-          ["Riesgo de apelación", score.appeal_risk],
-        ]
-      : [
-          ["Fortaleza de la evidencia", score.evidence_strength],
-          ["Confiabilidad de testigos", score.witness_reliability],
-          ["Integridad cronológica", score.timeline_integrity],
-          [
-            "Confiabilidad documental",
-            (score as Record<string, unknown>).documentation_reliability,
-          ],
-          ["Cumplimiento probatorio", (score as Record<string, unknown>).discovery_compliance],
-          ["Integridad de la investigación", score.investigation_completeness],
-          ["Riesgo litigioso", (score as Record<string, unknown>).litigation_risk],
-        ];
-    b.table(
-      [["Dimensión", "Puntuación"]],
-      legacy.filter(([, v]) => typeof v === "number").map(([k, v]) => [k, `${v} / 100`]),
-    );
-  }
-  // Per-dimension breakdown. The scoring formula is identical for every
-  // dimension, so state it once here instead of repeating it under each
-  // one — that repetition was the main thing making this section read as
-  // a wall of text. Each dimension then gets a single scannable bar row
-  // plus (at most) a one-line summary of what moved the score, rather
-  // than a full 3-column table per dimension.
-  const dimEntries = Object.entries(dimensions);
-  if (dimEntries.length) {
-    b.h2("Detalle por Dimensión");
-    const firstFormula = asStr(asObj(dimEntries[0][1]).formula);
-    b.text(
-      firstFormula ||
-        "score = clamp(baseline + sum(severity_weight x confidence x polarity), 0, 100); severity_weights = critical:25, high:15, medium:8, low:3, info:1",
-      { size: 8, color: MUTED, gap: 12 },
-    );
-    for (const [, val] of dimEntries) {
-      const v = asObj(val);
-      const scoreNum = Number(v.score ?? 0);
-      // Keep the dimension label + bar together with its contributors so
-      // a dimension doesn't split across pages with its label orphaned.
-      b.ensureSpace(58);
-      b.dimensionRow(asStr(v.dimension), scoreNum);
-      const neg = asArr(v.negatives)
-        .slice(0, 4)
-        .map((c) => `${asStr(c.title)} (${asStr(c.severity)})`);
-      const pos = asArr(v.positives)
-        .slice(0, 3)
-        .map((c) => `${asStr(c.title)} (${asStr(c.severity)})`);
-      if (neg.length) {
-        b.text("Primary contributors — weakens", { size: 8, bold: true, color: MUTED, gap: 2 });
-        b.bullets(neg);
-      }
-      if (pos.length) {
-        b.text("Primary contributors — strengthens", {
-          size: 8,
-          bold: true,
-          color: SUCCESS,
-          gap: 2,
-        });
-        b.bullets(pos);
-      }
-      // Consistent breathing room between dimensions so the section
-      // doesn't collapse into a continuous wall of compressed rows.
-      b.y += neg.length || pos.length ? 10 : 12;
-    }
-  }
+function renderScorecard(b: PdfBuilder, data: CaseExportData) {
+  renderAnalysisStatus(b, data);
 }
 
 function renderKeyFindings(b: PdfBuilder, data: CaseExportData) {
@@ -3894,31 +3681,8 @@ function renderPerspectives(b: PdfBuilder, data: CaseExportData) {
     "Independent analysis from each side of the dispute. All perspectives are produced regardless of which side counsel represents.",
     { size: 10, color: MUTED, gap: 8 },
   );
-  // Each perspective's strength_score is produced by a separate LLM call
-  // with no visibility into the deterministic case scorecard, so it can
-  // diverge sharply from the case-level Case Strength shown on the cover
-  // page and in the Executive Summary — e.g. a "Prosecution Strength: 78"
-  // sitting a few pages after "Case Strength: 25 — Defense Advantage" with
-  // nothing explaining the gap. Surface that explicitly instead of letting
-  // two unreconciled numbers imply the report contradicts itself.
-  const canonicalStrength = getScores(getReportRow(data)).strength;
   for (const p of ps) {
     b.h2(asStr(p.perspective, "Perspective").toUpperCase());
-    if (typeof p.strength_score === "number") b.label("Fortaleza", `${p.strength_score} / 100`);
-    if (typeof p.risk_score === "number") b.label("Riesgo", `${p.risk_score} / 100`);
-    if (
-      typeof p.strength_score === "number" &&
-      typeof canonicalStrength === "number" &&
-      Math.abs(p.strength_score - canonicalStrength) >= 25
-    ) {
-      b.text(
-        `Note: this perspective's strength score (${p.strength_score}/100) diverges substantially from the ` +
-          `case-level Case Strength (${canonicalStrength}/100). Perspective scores reflect the best case that ` +
-          `side can argue from its own vantage point and are not directly comparable to the deterministic ` +
-          `case-level score — treat them as separate measures rather than a contradiction.`,
-        { size: 9, color: MUTED, gap: 4 },
-      );
-    }
     if (p.summary) b.text(asStr(p.summary), { size: 10.5, gap: 4 });
     const sec = (label: string, key: string, color: [number, number, number]) => {
       const arr = Array.isArray((p as Record<string, unknown>)[key])
@@ -5007,16 +4771,8 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
     {
       id: "impact_dashboard",
       title: "Panel de Impacto Litigioso",
-      // Same data as "scorecard" (the deterministic dimension scores), just
-      // reframed as case-type-specific cards — gated the same way scorecard
-      // and action_center already are, since it disappears exactly when
-      // the underlying scores would.
       gatedInLimited: true,
-      available: (d) => {
-        const reportRow = (d.report ?? {}) as Record<string, unknown>;
-        const dashboard = buildLitigationImpactDashboard(reportRow);
-        return !dashboard.suppressed && dashboard.cards.length > 0;
-      },
+      available: () => false,
       renderPdf: (b, d) => renderLitigationImpactDashboard(b, d),
     },
     {
@@ -5042,13 +4798,9 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
     },
     {
       id: "scorecard",
-      title: "Tablero de Puntuación del Caso",
-      gatedInLimited: true,
-      available: (d) => {
-        const score = asObj(d.score);
-        const dims = asObj(asObj(asObj(score.dimension_breakdowns).deterministic).dimensions);
-        return Object.keys(dims).length > 0 || Object.keys(score).length > 0;
-      },
+      title: "Estado del análisis",
+      gatedInLimited: false,
+      available: () => false, // Already shown in the executive dashboard.
       renderPdf: (b, d) => renderScorecard(b, d),
     },
     {
@@ -5056,7 +4808,7 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       title: "Análisis de Riesgo",
       gatedInLimited: true,
       available: (d) =>
-        !!reportText(d, "risk_analysis").trim() || typeof asObj(d.report).risk_score === "number",
+        !!reportText(d, "risk_analysis").trim(),
       renderPdf: (b, d) => renderRiskAnalysis(b, d),
     },
     {

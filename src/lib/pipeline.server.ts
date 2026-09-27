@@ -6782,8 +6782,8 @@ async function _runReportInner(args: {
   "next_actions": [
     { "order": number, "action": string, "owner": "attorney"|"investigator"|"paralegal"|"expert"|"client", "deadline_hint": string, "depends_on": string[], "why": string }
   ],
-  "case_strength_score": number,
-  "risk_score": number,
+  "case_strength_score": null,
+  "risk_score": null,
   "score_rationale": string,
   "legal_memorandum": {
     "caption": { "title": string, "date": string, "re": string },
@@ -7086,8 +7086,8 @@ ${corpus.slice(0, REPORT_STAGE_CORPUS_CHARS)}${resolutivoAnchorBlock}${penalDisp
   "cross_examination": [ { "witness": string, "objective": string, "lines": [ { "topic": string, "questions": string[], "impeachment_with": string|null, "citation": { "doc_n": number, "page": number, "quote": string }|null } ] } ],
   "strategy_recommendations": [ { "title": string, "rationale": string, "category": "investigation"|"motions"|"negotiation"|"trial"|"discovery"|"expert"|"client", "priority": "low"|"medium"|"high"|"critical", "expected_impact": string, "side_benefits": string } ],
   "next_actions": [ { "order": number, "action": string, "owner": "attorney"|"investigator"|"paralegal"|"expert"|"client", "deadline_hint": string, "depends_on": string[], "why": string } ],
-  "case_strength_score": number,
-  "risk_score": number,
+  "case_strength_score": null,
+  "risk_score": null,
   "score_rationale": string
 }`;
 
@@ -7309,7 +7309,7 @@ ${corpus.slice(0, REPORT_STAGE_CORPUS_CHARS)}${resolutivoAnchorBlock}${penalDisp
   const memoSysSuffix = `You generate ONLY the legal_memorandum object in this call. ${isCriminalOrCivilRights ? "Constitutional analysis IS relevant when supported by the corpus — ground it in Art. 20 CPEUM (derechos del imputado y la víctima), the Art. 19 CPEUM catálogo de prisión preventiva oficiosa, and CNPP chain-of-custody rules (Arts. 227-230), NEVER in U.S. doctrine (Miranda, Brady/Giglio, U.S. constitutional amendments)." : "This is NOT criminal/civil-rights — focus on Mexican civil procedure, ofrecimiento de pruebas (evidence offering), and dispositive procedural vehicles under Mexican law. Do NOT manufacture constitutional issues, and do NOT use U.S. terms (discovery, dispositive motions)."} IRAC format is mandatory for every legal_analysis entry. The executive summary, high-level risk assessment, and primary recommendations already exist — see CANONICAL REPORT CONTEXT below. Do not rewrite or restate them. Reference them by summary only. Your job is ONLY the legal memorandum: IRAC legal analysis, motion drafts, evidence appendix, risk matrix detail, and next actions specific to litigation execution.`;
 
   const intelSysSuffix =
-    "You generate ONLY structured intelligence outputs (citations, evidence_index, contradictions, missing_evidence, constitutional_issues, motion_opportunities, cross_examination, strategy_recommendations, next_actions, case_strength_score, risk_score, score_rationale). Return the shape below and nothing else. The executive summary, high-level risk narrative, constitutional discussion, and contradiction/missing-evidence summaries already exist — see CANONICAL REPORT CONTEXT below. Do NOT restate them in prose form. Your job is ONLY structured data: turn the underlying findings into citations, scorecards, contradiction matrix entries, and evidence classifications. Numeric scores (case_strength_score, risk_score) are new — the canonical context has no numeric risk score yet, so you own computing it.";
+    "You generate ONLY structured intelligence outputs (citations, evidence_index, contradictions, missing_evidence, constitutional_issues, motion_opportunities, cross_examination, strategy_recommendations, next_actions, case_strength_score, risk_score, score_rationale). Return the shape below and nothing else. The executive summary, high-level risk narrative, constitutional discussion, and contradiction/missing-evidence summaries already exist — see CANONICAL REPORT CONTEXT below. Do NOT restate them in prose form. Your job is ONLY structured data: turn the underlying findings into citations, scorecards, contradiction matrix entries, and evidence classifications. Do not calculate legal case-strength or risk scores. Return null for legacy numeric score fields. Do not infer party advantage or win/loss probability. Preserve evidence-grounded risks and strategic analysis.";
 
   // --- STAGE 1: narrative runs alone first ---------------------------
   // Narrative owns the executive summary, facts/timeline, high-level risk,
@@ -9285,19 +9285,8 @@ ${paginationTail}`;
   const reportRiskScore = reportIsPenal
     ? gatedScore(reportPenalPerspectiveScores!.reversal_risk.score)
     : gatedScore(parsed.risk_score);
-  const { enforceRiskNarrative } = await import("./score-bands");
-  const reportRiskConsistency =
-    typeof reportRiskScore === "number"
-      ? enforceRiskNarrative(
-          reportRiskScore,
-          pick("risk_analysis"),
-          reportGeneratedLanguage === "en" ? "en" : "es",
-        )
-      : {
-          text: pick("risk_analysis"),
-          rewritten: false,
-          band: null,
-        };
+  // Legal risks remain evidence-grounded prose; QA numbers must not rewrite them.
+  const reportRiskConsistency = { text: pick("risk_analysis"), rewritten: false, band: null };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const reportRow: any = {
@@ -9737,8 +9726,8 @@ ${paginationTail}`;
     cross_examination: isLimited ? ([] as unknown as J) : (crossExam as J),
     strategy_recommendations: isLimited ? ([] as unknown as J) : (strategy as J),
     next_actions: isLimited ? ([] as unknown as J) : (nextActions as J),
-    case_strength_score: reportCaseStrengthScore,
-    risk_score: reportRiskScore,
+    case_strength_score: null,
+    risk_score: null,
     scores_suppressed: isLimited,
     motions_suppressed: isLimited,
     // FIX (2026-08-04): reports.report_mode and reports.findings_count are
@@ -10477,7 +10466,8 @@ ${paginationTail}`;
     if (!(key in (finalPayload.report ?? {})))
       (reportRow as any)[key] = Array.isArray((reportRow as any)[key]) ? [] : null;
   }
-  Object.assign(reportRow, finalPayload.report);
+  const { preserveInternalAssessmentMetrics } = await import("./reporting/qualitative-assessment");
+  Object.assign(reportRow, preserveInternalAssessmentMetrics(reportRow, finalPayload.report ?? {}));
   const {resolveFinalReleaseDecision} = await import("./reporting/final-release-decision");
   const release = resolveFinalReleaseDecision({report:reportRow,contract:finalContract});
   (reportRow as any).quality_blocked = release.quality_blocked;
@@ -10536,7 +10526,7 @@ ${paginationTail}`;
         if (!(key in (refreshedPayload.report ?? {})))
           (reportRow as any)[key] = Array.isArray((reportRow as any)[key]) ? [] : null;
       }
-      Object.assign(reportRow, refreshedPayload.report);
+      Object.assign(reportRow, preserveInternalAssessmentMetrics(reportRow, refreshedPayload.report ?? {}));
       (reportRow.full_report as any).final_report_contract_validation = refreshedContract;
       (reportRow.full_report as any).final_governance_validation = refreshedContract;
     }

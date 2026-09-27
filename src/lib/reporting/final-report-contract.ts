@@ -1,3 +1,4 @@
+import { assessCase, subscriberAssessment } from './qualitative-assessment';
 import { withReviewedSections } from "./reviewed-sections";
 import type { CaseExportData } from "../export";
 import { validateMigratorioPreRelease } from './migratorio-pre-release';
@@ -367,7 +368,7 @@ export function composeFinalReportPayload(input: CaseExportData): FinalReportPay
   // Content-policy transforms can remove one side, so check the final pair
   // after every transform, not only on the model's original response.
   const finalReport = obj(final.report), finalFull = obj(finalReport.full_report);
-  if (!migratorio && !arr(finalFull.pre_release_source_pages).length) return final;
+  if (!migratorio && !arr(finalFull.pre_release_source_pages).length) return assessmentPresentation(final);
   const pairAudit = verifyContradictionPairs(arr(finalReport.contradictions_struct), arr(finalFull.pre_release_source_pages) as any,
     final.documents.map((d,i)=>({document_id:String(d.id),doc_n:Number(d.doc_n ?? i+1)})));
   finalReport.contradictions_struct = pairAudit.accepted.filter(c=>c.kind==='factual');
@@ -408,8 +409,13 @@ export function composeFinalReportPayload(input: CaseExportData): FinalReportPay
   finalFull.integrity_audit = {...obj(finalFull.integrity_audit), contradiction_rejections:[
     ...arr(obj(finalFull.integrity_audit).contradiction_rejections), ...pairAudit.rejected,
   ]};
-  return final;
+  return assessmentPresentation(final);
 
+}
+
+function assessmentPresentation(payload: FinalReportPayload): FinalReportPayload {
+  payload.report!.full_report!.case_assessment = assessCase(payload.report, payload.findings);
+  return subscriberAssessment(payload);
 }
 
 export function validateFinalReportContract(payload: FinalReportPayload, capability = payload.report_presentation.capability, governance = payload.report_presentation.governance) {
@@ -612,7 +618,9 @@ export function preflightFinalReportPayload(input: CaseExportData): FinalReportP
 }
 function validatePayload(input: CaseExportData, preflight: boolean): FinalReportPayload {
   if (!preflight && input.report?.quality_blocked === true) throw new Error("REPORT_BLOCKED: report failed its release gate");
-  let payload = (input as FinalReportPayload).report_presentation ? input as FinalReportPayload : composeFinalReportPayload(input);
+  let payload = (input as FinalReportPayload).report_presentation
+    ? assessmentPresentation(structuredClone(input as FinalReportPayload))
+    : composeFinalReportPayload(input);
   let validation = validateFinalReportContract(payload);
   // REMEDIATE -> REVALIDATE before BLOCK. An uncited absolute absence sentence
   // (typically report_writer:missing_evidence) is rewritten into qualified

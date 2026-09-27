@@ -1227,7 +1227,8 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
 
   // One transaction writes all release mirrors; failure cannot leave a released
   // case alongside a blocked report. The database repeats the blocking invariant.
-  const fullRep = finalReport.full_report ?? {};
+  const { preserveInternalAssessmentMetrics } = await import("@/lib/reporting/qualitative-assessment");
+  const fullRep = preserveInternalAssessmentMetrics(reportRow as Record<string, any>, finalReport).full_report ?? {};
   const persistedFull = {...fullRep,
     narrative_semantic_review:narrativeManifest ?? null,
     qa_statuses:release.qa_statuses,

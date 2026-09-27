@@ -251,7 +251,7 @@ export async function projectCanonical(
     .maybeSingle();
   if (scoresRow) {
     analysis.Scores = {
-      case_strength: (scoresRow.case_quality as number | null) ?? null,
+      case_strength: null, // Legacy schema retained; no subscriber legal-strength number.
       evidence_strength: (scoresRow.evidence_strength as number | null) ?? null,
       witness_reliability: (scoresRow.witness_reliability as number | null) ?? null,
       timeline_integrity: (scoresRow.timeline_integrity as number | null) ?? null,
