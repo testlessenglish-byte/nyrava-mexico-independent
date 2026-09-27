@@ -295,7 +295,10 @@ const US_TERM_RULES: readonly TermRule[] = [
 
 /** Hard US-jurisdiction references — never auto-rewritten, always blocking. */
 const US_JURISDICTION_PATTERNS: readonly { re: RegExp; detail: string }[] = [
-  {re:/\b(?:OSHA|\d+\s+C\.?F\.?R\.?|Brady\s+v\.?\s+Maryland|Miranda\s+v\.?\s+Arizona|Federal Rules of (?:Evidence|Civil Procedure))\b/gi,detail:'Autoridad estadounidense no aplicable al análisis jurídico mexicano.'},
+  {re:/\b(?:OSHA|Brady\s+v\.?\s+Maryland|Miranda\s+v\.?\s+Arizona|Federal Rules of (?:Evidence|Civil Procedure))\b/gi,detail:'Autoridad estadounidense no aplicable al análisis jurídico mexicano.'},
+  // Exempt the Mexican journal cross-reference, while retaining whole-title,
+  // Part and section CFR references as blocking US authority.
+  {re:/\b\d+\s+C\.?F\.?R\b(?!\.?\s+Semanario\b)\.?/gi,detail:'Cita al Code of Federal Regulations estadounidense.'},
   {re:/\b(?:cuarta|quinta|sexta|decimocuarta)\s+enmienda\b/gi,detail:'Enmienda estadounidense; verificar el fundamento mexicano aplicable.'},
   {
     re: /\b(first|second|fourth|fifth|sixth|eighth|fourteenth)\s+amendment\b/gi,

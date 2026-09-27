@@ -139,7 +139,9 @@ arbitraria.`;
     );
     const decision = decideRenderedReportRelease(issues);
     expect(issues.some((i) => i.code === "SPANISH_CASE_TYPE_LEAK")).toBe(false);
-    expect(issues.some((i) => i.code === "SPANISH_CASE_TYPE_CONTEXTUAL")).toBe(true);
+    expect(issues.some((i) => i.code === "SPANISH_CASE_TYPE_CONTEXTUAL")).toBe(false);
+    expect(validateRenderedReport({ executive_summary: passage }, "migratorio")
+      .some(i => i.code === "SPANISH_CASE_TYPE_CONTEXTUAL")).toBe(true);
     expect(decision.blocked).toBe(false);
   });
 

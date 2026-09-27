@@ -1138,7 +1138,11 @@ async function _runPipelineForCase(
         "./intelligence/mandatory-decision-core"
       );
       const { addGatedFindings } = await import("./intelligence/findings.server");
-      const core = buildMandatoryDecisionCore(reconstruction);
+      const { loadCaseSourcePages } = await import("./intelligence/source-matter-audit.server");
+      const { relocateSourceRefs } = await import("./reporting/source-location-audit");
+      const sourcePages = await loadCaseSourcePages(supabase, caseId);
+      const core = buildMandatoryDecisionCore(reconstruction).map(item => ({ ...item,
+        source_refs: relocateSourceRefs(item.source_refs, sourcePages, []) }));
       const promoted = await addGatedFindings(
         supabase,
         caseId,

@@ -1,7 +1,17 @@
 import {expect,it} from 'vitest';
-import {supportInput,resolveSupportVerdicts,supportSnapshotValid} from '../claim-support-review';
+import {supportInput,resolveSupportVerdicts,supportSnapshotValid,restoreFindingSourceContext} from '../claim-support-review';
 const page={document_id:'doc',page:14,text:'El Tribunal determinó que los artículos 281 y 282 no contienen el vicio de inconstitucionalidad alegado.'};
 const claim={id:'f',title:'Los artículos 281 y 282 son inconstitucionales',source_document_id:'doc',source_page:14,source_quote:'El Tribunal determinó que los artículos 281 y 282'};
+it('restores a missing physical page only from one exact matching page in the identified document',()=>{
+  expect(restoreFindingSourceContext({...claim,source_page:null},[page]).source_page).toBe(14);
+  expect(restoreFindingSourceContext({...claim,source_page:null},[page,{...page,page:15}]).source_page).toBeNull();
+  expect(restoreFindingSourceContext({...claim,source_page:13},[page]).source_page).toBe(13);
+  expect(restoreFindingSourceContext({...claim,source_page:null,source_document_id:'other'},[page]).source_page).toBeNull();
+  const restored = restoreFindingSourceContext({...claim,source_page:null,evidence_refs:[{
+    document_id:'doc',quote:claim.source_quote,label:'p.9',chunk_index:2,
+  }]},[page]);
+  expect(restored.evidence_refs[0]).toMatchObject({page:14,label:'p.14',chunk_index:2,page_extraction_ref:'doc:14'});
+});
 it('includes the omitted negation after a matching truncated quotation',()=>{
   expect(supportInput(claim,[page]).context).toContain('no contienen el vicio');
 });

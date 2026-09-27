@@ -72,7 +72,7 @@ export function contentRestriction(value: any, key: string, parent: Record<strin
 export function transformReportContent<T>(input: T, capability: ReportCapability, governance: ImmutableReportGovernance): T {
   const walk = (v: any, key = "", parent: Record<string, any> = {}): any => {
     // Evidence used by the release gate is not generated report prose.
-    if (key === 'pre_release_source_pages' || key === 'pre_release_validation') return v;
+    if (key === 'pre_release_source_pages' || key === 'pre_release_validation' || key === 'proposition_verification' || key === 'citation_review_registry') return v;
     const restriction = contentRestriction(v, key, parent, capability, governance);
     if (restriction) {
       if (restriction === "unverifiedAbsencePresent" && typeof v === "string")

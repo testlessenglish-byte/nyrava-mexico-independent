@@ -44,6 +44,10 @@ function makeFakeDb(inserts: { table: string; row: Record<string, unknown> }[]) 
               return Promise.resolve({ data: null, error: null });
             },
             then: (resolve: (v: unknown) => void) => {
+              if (table === "document_pages") {
+                resolve({ data: [{ document_id: "doc-1", page: 1, text: docText }], error: null });
+                return;
+              }
               if (table === "documents") {
                 resolve({
                   data: [{ id: "doc-1", filename: "sentencia.pdf", extracted_text: docText }],

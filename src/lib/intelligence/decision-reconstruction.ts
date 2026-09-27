@@ -45,6 +45,18 @@ export type EvidenceRef = {
   doc_id?: string;
   quote?: string;
   label?: string;
+  page?: number;
+  page_number?: number;
+  page_located?: number;
+  page_extraction_ref?: string;
+  chunk_index?: number | null;
+  chunk_hash?: string | null;
+  start_offset?: number | null;
+  end_offset?: number | null;
+  document_hash?: string | null;
+  citation_hash?: string | null;
+  verification_status?: string;
+  proposition_supported?: string;
 };
 
 export type SourceStatus = "PRESENT" | "NOT_FOUND_IN_CORPUS" | "UNCERTAIN" | "NOT_APPLICABLE";

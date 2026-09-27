@@ -1,6 +1,7 @@
 import { assessCase, subscriberAssessment } from './qualitative-assessment';
 import { prepareCivilReport, auditCivilReport } from '../civil/report-contract';
-import { auditReportCitationIntegrity, canonicalizeReportCitations } from './citation-integrity';
+import { auditReportCitationIntegrity, canonicalizeReportCitations, bindAttributedFindingCitations } from './citation-integrity';
+import { findingCitationReviews } from './citation-production';
 import { withReviewedSections } from "./reviewed-sections";
 import type { CaseExportData } from "../export";
 import { validateMigratorioPreRelease } from './migratorio-pre-release';
@@ -104,14 +105,15 @@ const PROBABILITY_FIELDS = new Set(["probability", "success_probability", "likel
 
 /** Build the presentation once, before any PDF/DOCX/HTML renderer receives it.
  * This replaces renderer-side reconstruction. Raw DB records are not mutated. */
-export function composeFinalReportPayload(input: CaseExportData): FinalReportPayload {
+export function composeFinalReportPayload(input: CaseExportData, sourceReviewFindings = input.findings): FinalReportPayload {
   input = withReviewedSections(input);
   const originalFull = obj(obj(input.report).full_report);
   const currentNumbers = arr(originalFull.proceeding_registry).filter(p => /sentencia analizada|current judgment/i.test(p.relationship ?? '')).map(p => String(p.number));
   const integrity = quarantineDispositionConflicts(input, originalFull.migratorio_disposition, currentNumbers);
   const data = relocateReportReferences(structuredClone(integrity.data),arr(originalFull.pre_release_source_pages) as any,
     input.documents.map((d,i)=>({document_id:String(d.id),doc_n:Number(d.doc_n??i+1)}))) as FinalReportPayload;
-  prepareCivilReport(data);
+  // Snapshot authoritative engine records, never embedded writer review objects.
+  (data as Row).citation_review_registry = findingCitationReviews(arr(sourceReviewFindings));
   const report = obj(data.report), full = obj(report.full_report), c = obj(data.case);
   const stored = obj(full.report_governance);
   const governance = resolveReportGovernance({
@@ -167,7 +169,7 @@ export function composeFinalReportPayload(input: CaseExportData): FinalReportPay
     }
   }
   const withheld: ReportPresentation["withheld_findings"] = [];
-  const findings = arr(data.findings).map((f): Row | null => {
+  let findings = arr(data.findings).map((f): Row | null => {
     if (historicalFindingIds.has(f.id)) return null;
     if (
       f.lifecycle_status === 'superseded' ||
@@ -297,6 +299,16 @@ export function composeFinalReportPayload(input: CaseExportData): FinalReportPay
     : Number(({critical:4,high:3,medium:2,low:1} as Record<string,number>)[String(b.severity)] ?? 0) -
       Number(({critical:4,high:3,medium:2,low:1} as Record<string,number>)[String(a.severity)] ?? 0));
   data.findings = findings;
+  // Publish the underlying claims before adding Civil's attribution notices.
+  // Alignment/publication must not overwrite safe text, and a pending notice
+  // is presentation metadata rather than a new source factual proposition.
+  prepareCivilReport(data);
+  bindAttributedFindingCitations(data);
+  findings = arr(data.findings);
+  for (const finding of findings) {
+    finding.speaker_role = resolveReportSpeaker(finding, core);
+    finding.speaker_role_label = formatSpeakerRoleBadge(finding);
+  }
   if (full.intelligence) full.intelligence.consolidated_findings = findings;
   // Canonical recommendation candidates own all action lanes. Retired raw
   // prose/agent next_actions are never resurrected for an older report.
@@ -342,7 +354,7 @@ export function composeFinalReportPayload(input: CaseExportData): FinalReportPay
       !(!capability.scores_allowed && SCORE_FIELDS.has(key)) &&
       !(!capability.probabilities_allowed && PROBABILITY_FIELDS.has(key)) &&
       key !== "final_renderer_payload" && key !== "report_presentation"
-    ).map(([key, v]) => [key, project(v)]));
+    ).map(([key, v]) => [key, ['proposition_verification','citation_review_registry'].includes(key) ? structuredClone(v) : project(v)]));
   };
   const projected = project(data) as FinalReportPayload;
   projected.report ??= {};
@@ -459,7 +471,7 @@ export function validateFinalReportContract(payload: FinalReportPayload, capabil
   // memo, prose, and sections. Audit-only booleans and score suppression flags are
   // not numeric scores or output recommendations.
   const visit = (v: any, key = "", path = "$", parent: Row = {}) => {
-    if (key === 'pre_release_source_pages' || key === 'pre_release_validation') return;
+    if (key === 'pre_release_source_pages' || key === 'pre_release_validation' || key === 'civil_rule_context' || key === 'proposition_verification' || key === 'citation_review_registry') return;
     inspected_nodes++;
     if (typeof v==='string' && !/\.(?:documents|agent_logs|integrity_audit)(?:\[|\.)/.test(path)) {
       const foreign=auditText(v,{profile:mxProfileOrNull(payload.case?.case_type)??'civil',locale:payload.case?.report_language==='en'?'en':'es'})

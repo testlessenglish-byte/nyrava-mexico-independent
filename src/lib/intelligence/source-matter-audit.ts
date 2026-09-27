@@ -1,5 +1,5 @@
 /** Document captions identify the matter; cited precedents do not. No model output is trusted here. */
-export type MatterSourcePage = { document_id: string; filename: string; page: number; text: string };
+export type MatterSourcePage = { document_id: string; filename: string; page: number; text: string; document_scope?: unknown };
 export type MatterCaption = { value: string; proceeding: string; number: string; document_id: string; filename: string; page: number; quote: string };
 const caption = /(?:^|\n)\s*(AMPARO DIRECTO EN REVISI[ÓO]N|AMPARO EN REVISI[ÓO]N|AMPARO INDIRECTO|AMPARO DIRECTO|JUICIO DE AMPARO|PROCEDIMIENTO ADMINISTRATIVO MIGRATORIO|EXPEDIENTE ADMINISTRATIVO|EXPEDIENTE)\s*(?:N[ÚU]MERO|N[ÚU]M\.?|NO\.?)?\s*:?\s*(\d+[A-Z]?\s*\/\s*\d{4})/gim;
 const fold = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toUpperCase();

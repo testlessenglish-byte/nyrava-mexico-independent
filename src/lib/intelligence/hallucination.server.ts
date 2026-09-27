@@ -25,6 +25,7 @@ type Finding = SupportClaim & {
   source_page: number | null;
   source_quote: string | null;
   source_doc_ids: string[] | null;
+  evidence_refs?: Record<string, any>[];
   speaker_role?: string | null;
   proposition_type?: string | null;
   adoption_status?: string | null;
@@ -504,13 +505,15 @@ export async function runHallucinationReview(args: { db: Db; caseId: string; use
   const { db, caseId } = args;
 
   const snapshot=await loadReviewSourceSnapshot(db,caseId);
-  const findings = (snapshot.findings as Array<Finding & { source_module: string; metadata?: Record<string, unknown> }>)
+  let findings = (snapshot.findings as Array<Finding & { source_module: string; metadata?: Record<string, unknown> }>)
     .filter(f=>!String(f.source_module ?? '').startsWith(PROJECTION_LIKE.replace(/%$/,'')))
     .filter(f=>f.finding_status!=="suppressed" && !f.superseded_at && f.lifecycle_status!=="superseded" && f.metadata?.provisional!==true);
 
   const proseReconciliation = await reconcileSavedReportProse(db, caseId);
 
   const pages = scopedReviewPages(snapshot);
+  const { restoreFindingSourceContext } = await import('./claim-support-review');
+  findings = findings.map(f => restoreFindingSourceContext(f, pages));
   const findingsById=new Map(findings.map(f=>[f.id,f]));
   const persistBatch=async (batch:ReadonlyMap<string,SupportVerdict>)=>{
     for(const [id,verdict] of batch){
@@ -518,6 +521,8 @@ export async function runHallucinationReview(args: { db: Db; caseId: string; use
       const status=!finding.source_quote || !finding.source_document_id ? 'no_citation'
         : verdict.verdict==='supported' ? 'verified' : 'unverified';
       const {data:written,error}=await db.from('case_findings').update({
+        source_document_id: finding.source_document_id, source_page: finding.source_page, source_quote: finding.source_quote,
+        evidence_refs: finding.evidence_refs,
         verification_status:status,verification_notes:`${verdict.verdict}: ${verdict.reason}`,
         verified_at:new Date().toISOString(),metadata:{...finding.metadata,semantic_support_review:verdict},
       } as any).eq('id',id).eq('updated_at',finding.updated_at).select('id,updated_at');

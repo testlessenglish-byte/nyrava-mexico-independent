@@ -88,6 +88,11 @@ function* walkStrings(node: unknown, path: string): Generator<{ path: string; va
   }
   if (typeof node === "object") {
     for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+      // Retained source/verification inputs are not rendered assertions.
+      // Published copies (including final render_output.text) are still checked.
+      if (['pre_release_source_pages', 'civil_rule_context', 'pre_release_validation',
+        'source_location_audit', 'claim_entailment_audit', 'citation_audit',
+        'narrative_semantic_review', 'proposition_verification', 'rendered_qa', 'metadata'].includes(k)) continue;
       yield* walkStrings(v, path ? `${path}.${k}` : k);
     }
   }

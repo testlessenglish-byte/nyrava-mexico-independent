@@ -279,6 +279,7 @@ export function mandatoryDecisionCoreToFindings(args: {
   const es = args.locale !== 'en';
   const labels:Record<MandatoryDecisionKind,string>={DISPOSITION:'RESULTADO',COURT_HOLDING:'DETERMINACIÓN DEL TRIBUNAL',REJECTED_HOLDING:'DETERMINACIÓN RECHAZADA',CONTROLLING_ISSUE:'CUESTIÓN CONTROLANTE',REMEDY:'EFECTO DE LA RESOLUCIÓN'};
   return args.core.map((item) => {
+    const primary = item.source_refs.find(r => r.quote);
     const docIds = [
       ...new Set(item.source_refs.map((r) => r.doc_id ?? r.document_id).filter(Boolean)),
     ] as string[];
@@ -330,7 +331,9 @@ export function mandatoryDecisionCoreToFindings(args: {
       adoption_status: adoption,
       audit_classification: audit,
       evidence_relationship: isHolding || item.kind === "REMEDY" ? "SOURCE_HOLDING" : "SOURCE_FACT",
-      source_quote: item.source_refs.find((r) => r.quote)?.quote ?? null,
+      source_quote: primary?.quote ?? null,
+      source_document_id: primary?.document_id ?? primary?.doc_id ?? null,
+      source_page: primary?.page ?? primary?.page_number ?? null,
       source_doc_ids: docIds,
       evidence_refs: evidenceRefs,
       metadata: {
