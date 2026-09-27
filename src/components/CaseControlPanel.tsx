@@ -1,6 +1,7 @@
 import { DocumentAnalysisPurposeFields, MatterAnalysisFields } from "@/components/DocumentAnalysisPurposeFields";
 import { CivilFamilyProcedureFields } from "./CivilFamilyProcedureFields";
 import { needsCivilFamilyProcedure } from "@/lib/legal/case-law-configuration";
+import { ApplicableLawStateField } from "./ApplicableLawStateField";
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -699,6 +700,7 @@ function CollapsedCaseSettings({
           </div>
 
           {needsCivilFamilyProcedure(ct, um) && <CivilFamilyProcedureFields startedOn={startedOn} proceeding={proceeding} onStartedOnChange={setStartedOn} onProceedingChange={setProceeding} locale={locale} disabled={disabled} />}
+          {ct !== "migratorio" && <ApplicableLawStateField value={lawState} onChange={setLawState} locale={locale} disabled={disabled} />}
           <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
             <div className="flex items-start gap-2">
               <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
