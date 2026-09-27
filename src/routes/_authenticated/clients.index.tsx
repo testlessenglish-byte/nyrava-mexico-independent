@@ -1,9 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { listClients, createClientFn } from "@/lib/clients.functions";
-import { Search, Plus, Users, Building2, User } from "lucide-react";
+import { Search, Plus, Users, Building2, User, ChevronLeft, ChevronRight } from "lucide-react";
 import { ClientCard } from "@/components/crm/ClientCard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 
 export const Route = createFileRoute("/_authenticated/clients/")({
-  head: () => ({ meta: [{ title: "Clientes â€” Nyrava" }] }),
+  head: () => ({ meta: [{ title: "Clientes — Nyrava" }] }),
   component: ClientsPage,
 });
 
@@ -21,10 +21,16 @@ function ClientsPage() {
   const createClient = useServerFn(createClientFn);
   const queryClient = useQueryClient();
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("active");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [page, setPage] = useState(1);
   const [isNewClientOpen, setIsNewClientOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newClient, setNewClient] = useState({ display_name: "", client_type: "individual", email: "" });
+
+  // Reset to page 1 when search or status changes
+  useEffect(() => {
+    setPage(1);
+  }, [query, statusFilter]);
 
   async function handleCreateClient(e: React.FormEvent) {
     e.preventDefault();
@@ -46,29 +52,15 @@ function ClientsPage() {
     }
   }
 
-  const { data: clients, isLoading } = useQuery({
-    queryKey: ["clients"],
-    queryFn: () => fetchClients(),
+  const { data, isLoading } = useQuery({
+    queryKey: ["clients", { query, statusFilter, page }],
+    queryFn: () => fetchClients({ data: { search: query, status: statusFilter, page } }),
     refetchInterval: 10000,
   });
 
-  const filtered = useMemo(() => {
-    let result = [...(clients ?? [])];
-    if (statusFilter !== "all") {
-      result = result.filter((c: any) => c.status === statusFilter);
-    }
-    if (query) {
-      const q = query.toLowerCase();
-      result = result.filter(
-        (c: any) =>
-          c.display_name?.toLowerCase().includes(q) ||
-          c.legal_name?.toLowerCase().includes(q) ||
-          c.email?.toLowerCase().includes(q) ||
-          c.rfc?.toLowerCase().includes(q)
-      );
-    }
-    return result.sort((a: any, b: any) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
-  }, [clients, statusFilter, query]);
+  const filtered = data?.clients ?? [];
+  const totalCount = data?.totalCount ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / 25));
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 md:px-8 md:py-10">
@@ -166,26 +158,57 @@ function ClientsPage() {
         <div className="rounded-xl border border-dashed border-border bg-card p-12 text-center">
           <Users className="mx-auto h-12 w-12 text-muted-foreground/50" />
           <h2 className="mt-4 text-lg font-medium text-foreground">
-            {clients && clients.length > 0 ? "No se encontraron resultados" : "No tienes clientes aÃºn"}
+            {query || statusFilter !== "all" ? "No se encontraron resultados" : "No tienes clientes aún"}
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            {clients && clients.length > 0 ? "Intenta con otros tÃ©rminos de bÃºsqueda." : "Agrega tu primer cliente para comenzar."}
+            {query || statusFilter !== "all" ? "Intenta con otros términos de búsqueda." : "Agrega tu primer cliente para comenzar."}
           </p>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((client: any) => (
-            <ClientCard
-              key={client.id}
-              id={client.id}
-              displayName={client.display_name}
-              clientType={client.client_type as "individual" | "company"}
-              caseCount={client.case_count || 0}
-              email={client.email}
-              status={client.status as "active" | "inactive" | "archived"}
-            />
-          ))}
-        </div>
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {filtered.map((client: any) => (
+              <ClientCard
+                key={client.id}
+                id={client.id}
+                displayName={client.display_name}
+                clientType={client.client_type as "individual" | "company"}
+                caseCount={client.case_count || 0}
+                email={client.email}
+                status={client.status as "active" | "inactive" | "archived"}
+              />
+            ))}
+          </div>
+
+          <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-border pt-4">
+            <div className="text-sm text-muted-foreground">
+              Mostrando {(page - 1) * 25 + 1}–{Math.min(page * 25, totalCount)} de {totalCount} clientes
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+              >
+                <ChevronLeft className="mr-1 h-4 w-4" />
+                Anterior
+              </Button>
+              <div className="text-sm font-medium">
+                Página {page} de {totalPages}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+              >
+                Siguiente
+                <ChevronRight className="ml-1 h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

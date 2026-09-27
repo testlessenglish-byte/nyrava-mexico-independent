@@ -41,15 +41,23 @@ export const listClients = createServerFn({ method: "GET" })
     z.object({
       search: z.string().optional(),
       status: z.string().optional(),
+      page: z.number().int().min(1).optional().default(1),
     }).optional().parse(d),
   )
   .handler(async ({ data, context }) => {
     const ctx = context as { supabase: Db; userId: string };
     await getAuthedUserId(ctx);
 
-    let query = clientsTable(ctx.supabase).select("*").order("updated_at", { ascending: false });
+    const limit = 25;
+    const page = data?.page ?? 1;
+    const offset = (page - 1) * limit;
 
-    if (data?.status) {
+    let query = clientsTable(ctx.supabase)
+      .select("*", { count: "exact" })
+      .order("display_name", { ascending: true })
+      .order("id", { ascending: true });
+
+    if (data?.status && data.status !== "all") {
       query = query.eq("status", data.status);
     }
     if (data?.search) {
@@ -65,7 +73,9 @@ export const listClients = createServerFn({ method: "GET" })
       }
     }
 
-    const { data: clients, error } = await query;
+    query = query.range(offset, offset + limit - 1);
+
+    const { data: clients, count, error } = await query;
     if (error) throw new Error(error.message);
 
     // Fetch case counts per client in a second query
@@ -81,10 +91,15 @@ export const listClients = createServerFn({ method: "GET" })
       }
     }
 
-    return (clients ?? []).map((client: Record<string, unknown>) => ({
-      ...client,
-      case_count: caseCounts[(client as { id: string }).id] ?? 0,
-    }));
+    return {
+      clients: (clients ?? []).map((client: Record<string, unknown>) => ({
+        ...client,
+        case_count: caseCounts[(client as { id: string }).id] ?? 0,
+      })),
+      totalCount: count ?? 0,
+      page,
+      limit,
+    };
   });
 
 // ---------------------------------------------------------------------------
