@@ -947,6 +947,12 @@ async function _runPipelineForCase(
             const gen = value.verification?.total ?? rows;
             const acc = value.verification?.clean ?? rows;
             const rej = (value.verification?.rejected ?? 0) + (value.verification?.empty ?? 0);
+            try {
+              const { runCompletedCaseAudit } = await import("@/lib/intelligence/completed-case-audit.server");
+              await runCompletedCaseAudit(supabase, caseId, userId, apiKey, keys);
+            } catch (auditErr) {
+              console.warn("[completed-case-audit] audit in work_product stage failed", auditErr);
+            }
             return {
               value,
               stats: {
@@ -1477,7 +1483,7 @@ async function _runPipelineForCase(
   }
 
   const total = stages.length;
-  const FATAL_STAGES = new Set<PipelineStageKey>(["extraction", "analyzers", "agents", "report"]);
+  const FATAL_STAGES = new Set<PipelineStageKey>(["extraction", "analyzers", "agents"]);
   const stageFailures: Array<{ key: string; error: string }> = [];
   const completed = new Set<PipelineStageKey>();
   // Stages walked past this tick because a prior tick already finished them.
@@ -2005,7 +2011,17 @@ async function _runPipelineForCase(
         /* noop */
       }
       if (stageRequirement(key) !== "optional") stageFailures.push({ key: s.key, error: msg });
-      if (key === "report" || FATAL_STAGES.has(key)) {
+      if (key === "report") {
+        console.warn(`[pipeline] report rendering failed: ${msg}`);
+        await updateCase({
+          status: "needs_revision",
+          status_message: `Report generation requires revision: ${msg.slice(0, 300)}`,
+          next_stage: "report",
+          error: msg.slice(0, 500),
+        }, `stage.failed:report`);
+        return { kind: "failed" };
+      }
+      if (FATAL_STAGES.has(key)) {
         // A legal/citation failure is a terminal revision. Return it directly
         // so the worker's generic infrastructure catch cannot requeue it.
         // Known transport failures keep their bounded same-stage retry.

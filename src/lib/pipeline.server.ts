@@ -1058,6 +1058,12 @@ async function _runPipelineForCase(
             const gen = value.verification?.total ?? rows;
             const acc = value.verification?.clean ?? rows;
             const rej = (value.verification?.rejected ?? 0) + (value.verification?.empty ?? 0);
+            try {
+              const { runCompletedCaseAudit } = await import("@/lib/intelligence/completed-case-audit.server");
+              await runCompletedCaseAudit(supabase, caseId, userId, apiKey, keys);
+            } catch (auditErr) {
+              console.warn("[completed-case-audit] audit in work_product stage failed", auditErr);
+            }
             return {
               value,
               stats: {
@@ -1431,6 +1437,19 @@ async function _runPipelineForCase(
         /* noop */
       }
       if (stageRequirement(key) !== "optional") stageFailures.push({ key: s.key, error: msg });
+      if (key === "report") {
+        console.warn(`[pipeline] report rendering failed: ${msg}`);
+        await updateCase(
+          {
+            status: "needs_revision",
+            status_message: `Report generation requires revision: ${msg.slice(0, 300)}`,
+            next_stage: "report",
+            error: msg.slice(0, 500),
+          },
+          `stage.failed:report`,
+        );
+        return;
+      }
       if (FATAL_STAGES.has(key)) {
         await updateCase(
           {
@@ -6553,7 +6572,7 @@ async function _runReportInner(args: {
     "./intelligence/decision-reconstruction-extractor.server"
   );
   const decisionReconstruction = mandatoryDecisionCoreRequired
-    ? await ensureDecisionReconstruction(db, caseId, userId, apiKey)
+    ? await ensureDecisionReconstruction(db, caseId, userId)
     : null;
   const {
     buildMandatoryDecisionCore,
@@ -7132,1115 +7151,360 @@ ${corpus.slice(0, REPORT_STAGE_CORPUS_CHARS)}${resolutivoAnchorBlock}${penalDisp
   "score_rationale": string
 }`;
 
-  type ChunkName = "narrative" | "memo" | "intelligence";
-  const chunkStatus: Record<ChunkName, { ok: boolean; error?: string }> = {
-    narrative: { ok: false },
-    memo: { ok: false },
-    intelligence: { ok: false },
-  };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const chunkParsedByName: Partial<Record<ChunkName, Record<string, any>>> = {};
-
-  // --- Chunk-level resume cache ---------------------------------------
-  // Without this, a report stage that gets interrupted by the wall-clock
-  // checkpoint (CHECKPOINT_SAFETY_BUFFER_MS) restarts ALL THREE chunk calls
-  // from zero on the next worker tick — narrative, memo, AND intelligence,
-  // every time. If the combined systemInstruction + sharedContext for a
-  // given case type is heavy enough that the three parallel calls routinely
-  // can't finish inside one stage budget window (e.g. tax_law's
-  // buildCaseTypeStandardsBlock bundles both civil AND criminal doctrine —
-  // key cases, canonical motions, evidentiary rules, dual damages framework
-  // — into every single chunk's system prompt, on top of the shared corpus
-  // context), this stage can checkpoint-and-restart forever: same oversized
-  // prompt, same timeout, same restart, no forward progress ever made. This
-  // is the general form of the bug — any practice area with a large enough
-  // STANDARDS block or a large enough corpus can trigger it, not just tax
-  // law. Persisting each chunk's result to `reports.report_chunk_cache` as
-  // soon as it succeeds, and skipping already-cached chunks on the next
-  // attempt, means each worker tick only has to finish whatever chunks are
-  // still outstanding — guaranteeing forward progress instead of a loop.
-  let chunkCache: Partial<Record<ChunkName, Record<string, unknown>>> = {};
-  const { readReportChunkCache } = await import("./reporting/chunk-cache");
-  const chunkContext = await sha256Hex(new TextEncoder().encode(JSON.stringify({
-    version: 5, reportLawProfile, caseId, executionId: executionId ?? null, caseType,
-    corpus, docIndex, reportCaseAnalysisMode, mandatoryDecisionCore,
-  })));
-  try {
-    const { data: cacheRow } = await db
-      .from("reports")
-      .select("report_chunk_cache")
-      .eq("case_id", caseId)
-      .maybeSingle();
-    const raw = (cacheRow as { report_chunk_cache?: unknown } | null)?.report_chunk_cache;
-    chunkCache = readReportChunkCache(raw, chunkContext);
-  } catch (cacheErr) {
-    console.warn("[report:chunk] failed to load chunk cache — starting fresh", cacheErr);
-  }
-  for (const name of ["narrative", "memo", "intelligence"] as ChunkName[]) {
-    if (chunkCache[name]) {
-      chunkParsedByName[name] = chunkCache[name] as Record<string, unknown>;
-      chunkStatus[name].ok = true;
-      console.info(`[report:chunk] ${name} resumed from cache — skipping regeneration`);
-    }
-  }
-  const persistChunkCache = async (name: ChunkName) => {
-    try {
-      // UPDATE-ONLY. An upsert here could create (or, after a stale-row
-      // eviction, re-create) a `reports` row that has never held a report:
-      // `full_report` would take its `{}` column default and `execution_id`
-      // could be null. The chunk cache is a resumption optimisation and must
-      // never be able to author a report row. It also never clears or
-      // downgrades an execution id.
-      const patch: Record<string, unknown> = {
-        report_chunk_cache: { ...chunkCache, __context: chunkContext, [name]: chunkParsedByName[name] } as unknown as Json,
-      };
-      if (executionId) patch.execution_id = executionId;
-      const { data: updated } = await db
-        .from("reports")
-        .update(patch as never)
-        .eq("case_id", caseId)
-        .select("id");
-      if (!updated || updated.length === 0) {
-        console.info(`[report:chunk] no report row yet for case ${caseId} — ${name} cache skipped`);
-      }
-      chunkCache = { ...chunkCache, [name]: chunkParsedByName[name] };
-      // A persisted chunk is real forward progress. The report backstop must
-      // therefore count CONSECUTIVE no-progress checkpoints, not total ticks —
-      // otherwise a slow-but-advancing run (narrative succeeds, memo and
-      // intelligence never get a turn) is force-finalized with missing
-      // sections and fails the quality gate. Resets are bounded: there is a
-      // fixed, finite number of chunks, and each can only reset once.
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (db as any).from("cases").update({ report_checkpoint_count: 0 }).eq("id", caseId);
-      } catch (resetErr) {
-        console.warn(`[report:chunk] failed to reset report checkpoint count`, resetErr);
-      }
-    } catch (persistErr) {
-      // Non-fatal: worst case this chunk just gets regenerated on the next
-      // checkpoint instead of resumed, which is the pre-fix behavior — not
-      // a regression.
-      console.warn(`[report:chunk] failed to persist ${name} to cache`, persistErr);
-    }
-  };
-
-  const clearChunkCache = async () => {
-    try {
-      await db.from("reports").update({ report_chunk_cache: {} }).eq("case_id", caseId);
-    } catch {
-      /* noop — stale cache entries are harmless; they're only ever read by name-match */
-    }
-  };
-
-  const handleChunkCancel = async (e: unknown) => {
-    if (
-      cancelled ||
-      (e as { name?: string })?.name === "CancelledError" ||
-      (e as { kind?: string })?.kind === "cancelled"
-    ) {
-      clearInterval(watcher);
-
-      await db
-        .from("cases")
-        .update({
-          status: "cancelled",
-          status_message: "Cancelled by user",
-          progress: 0,
-          cancel_requested: false,
-          error: null,
-          // See matching note in setCase() above — must clear the lease
-          // here too, or a cancellation that happens mid-report-chunk
-          // leaves the same stale-lease trap behind.
-          worker_lease_until: null,
-        } as any)
-        .eq("id", caseId);
-      throw new CancelledError();
-    }
-  };
-
-  const runChunk = async (
-    name: ChunkName,
-    sysSuffix: string,
-    shape: string,
-    maxTokens: number,
-    extraContext?: string,
-  ): Promise<Awaited<ReturnType<typeof callGroq>> | null> => {
-    // Already resumed from a prior tick's cache — don't burn another AI
-    // call re-deriving something we already have.
-    if (chunkStatus[name].ok && chunkCache[name]) return null;
-    // Backstop tripped: this exact call has already failed to complete
-    // MAX_REPORT_CHECKPOINTS times. Retrying again would just reproduce the
-    // same timeout — skip straight to the salvage/fallback path below
-    // instead of burning another tick.
-    if (forceFinalize) {
-      chunkStatus[name].error =
-        chunkStatus[name].error ?? "skipped — report checkpoint backstop reached";
-      console.warn(
-        `[report:chunk] ${name} skipped — checkpoint backstop reached, forcing finalization`,
-      );
-      return null;
-    }
-    try {
-      const res = await callGroq({
-        apiKey,
-        apiKeys,
-        signal: ac.signal,
-        // No task pin any more. The report prompt now fits inside Groq's
-        // request budget (~9-10k input tokens), and Groq generates several
-        // times faster than Gemini — which matters because a call has only
-        // 26s before the provider timeout. Pinning to Gemini guaranteed the
-        // slowest provider took every report chunk and timed out on all of
-        // them. Gemini stays in the chain as fallback.
-        systemInstruction: systemInstruction + "\n" + sysSuffix,
-        userContent: extraContext
-          ? `${shape}\n\n${extraContext}\n\n${sharedContext}`
-          : `${shape}\n\n${sharedContext}`,
-        json: true,
-        temperature: 0.2,
-        maxTokens,
-      });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const parsedChunk = parseJsonLoose<Record<string, any>>(res.text) ?? {};
-      chunkParsedByName[name] = parsedChunk;
-      chunkStatus[name].ok = true;
-      await persistChunkCache(name);
-      await logUsage(db, {
-        userId,
-        caseId,
-        operation: `report.chunk.${name}`,
-        model: res.model,
-        provider: res.provider,
-        inputTokens: res.inputTokens,
-        outputTokens: res.outputTokens,
-        totalTokens: res.totalTokens,
-        latencyMs: res.latencyMs,
-        success: true,
-        keyIndex: res.keyIndex,
-      });
-      return res;
-    } catch (e) {
-      rethrowIfCheckpoint(e);
-      await handleChunkCancel(e);
-      const msg = e instanceof Error ? e.message : String(e);
-      chunkStatus[name].error = msg;
-      if (isGroqCooldownOrRateLimit(msg)) {
-        const { CheckpointRequired } = await import("./pipeline-checkpoint.server");
-        console.warn(`[report:chunk] Groq cooldown during ${name}; yielding for worker retry`);
-        // Include the real provider error (matches the analyzers/agents
-        // CheckpointRequired throw sites) so the loop-breaker in
-        // pipeline-runner.server.ts can surface the actual cause instead of
-        // just "Groq cooldown" if this keeps recurring across ticks.
-        throw new CheckpointRequired(
-          "report",
-          `Groq cooldown during ${name} chunk — ${msg.slice(0, 250)}`,
-        );
-      }
-      console.warn(`[report:chunk] ${name} failed — ${msg.slice(0, 200)}`);
-      return null;
-    }
-  };
-
-  // Audit P0-4: this used to say "Constitutional/Brady/Miranda analyses ARE
-  // relevant" for criminal/civil-rights cases — appended (runChunk below:
-  // `systemInstruction + "\n" + sysSuffix`) directly AFTER systemInstruction's
-  // own correct "nunca en doctrina estadounidense (Miranda, Brady/Giglio...)"
-  // instruction, so the combined prompt for this call literally contradicted
-  // itself. Now mirrors that same instruction's Mexican framing instead of
-  // reintroducing the U.S. doctrine it forbids.
-  const memoSysSuffix = `You generate ONLY the legal_memorandum object in this call. ${isCriminalOrCivilRights ? "Constitutional analysis IS relevant when supported by the corpus — ground it in Art. 20 CPEUM (derechos del imputado y la víctima), the Art. 19 CPEUM catálogo de prisión preventiva oficiosa, and CNPP chain-of-custody rules (Arts. 227-230), NEVER in U.S. doctrine (Miranda, Brady/Giglio, U.S. constitutional amendments)." : "This is NOT criminal/civil-rights — focus on Mexican civil procedure, ofrecimiento de pruebas (evidence offering), and dispositive procedural vehicles under Mexican law. Do NOT manufacture constitutional issues, and do NOT use U.S. terms (discovery, dispositive motions)."} IRAC format is mandatory for every legal_analysis entry. The executive summary, high-level risk assessment, and primary recommendations already exist — see CANONICAL REPORT CONTEXT below. Do not rewrite or restate them. Reference them by summary only. Your job is ONLY the legal memorandum: IRAC legal analysis, motion drafts, evidence appendix, risk matrix detail, and next actions specific to litigation execution.`;
-
-  const intelSysSuffix =
-    "You generate ONLY structured intelligence outputs (citations, evidence_index, contradictions, missing_evidence, constitutional_issues, motion_opportunities, cross_examination, strategy_recommendations, next_actions, case_strength_score, risk_score, score_rationale). Return the shape below and nothing else. The executive summary, high-level risk narrative, constitutional discussion, and contradiction/missing-evidence summaries already exist — see CANONICAL REPORT CONTEXT below. Do NOT restate them in prose form. Your job is ONLY structured data: turn the underlying findings into citations, scorecards, contradiction matrix entries, and evidence classifications. Do not calculate legal case-strength or risk scores. Return null for legacy numeric score fields. Do not infer party advantage or win/loss probability. Preserve evidence-grounded risks and strategic analysis.";
-
-  // --- STAGE 1: narrative runs alone first ---------------------------
-  // Narrative owns the executive summary, facts/timeline, high-level risk,
-  // and primary recommendation candidates. It has to finish before memo/
-  // intelligence run so those passes can reference its output instead of
-  // independently re-deriving the same executive summary, risk narrative,
-  // and recommendation list (this was the actual cause of report
-  // repetition — three mutually-blind parallel calls each answering the
-  // same questions, not a problem with finding-level dedup).
-  //
-  // maxTokens raised from 6000/6000/4000: gpt-oss-120b is a reasoning model
-  // and spends tokens on internal reasoning before writing the final JSON
-  // content. At the old budgets it was reliably exhausting max_tokens on
-  // reasoning alone (finish_reason=length, empty text) on every attempt,
-  // which is deterministic given the same prompt — retries never succeeded.
-  // 2026-07-27: output budgets cut (10000/10000/7000 → 4000/4000/3000).
-  // A single call has 26s before the provider timeout fires; 10k output
-  // tokens cannot be generated in 26s by any of the configured providers
-  // except a warm Groq key, so on Gemini it timed out 100% of the time.
-  const narrativeRes = await runChunk(
-    "narrative",
-    "You generate ONLY narrative prose sections in this call. Return the shape below and nothing else.",
-    narrativeShape,
-    4000,
-  );
-
-  // --- STAGE 2: memo + intelligence, referencing narrative. -----------
-  // These two are independent of EACH OTHER — both only need narrative's
-  // output (canonicalContextBlock below), not one another's — so they're
-  // safe to run concurrently. The historical reason they were forced
-  // sequential wasn't that dependency, it was avoiding two simultaneous
-  // requests landing on the SAME single provider key and bursting its
-  // per-minute rate limit (a real, previously-observed failure on a fresh/
-  // free Gemini key). That risk is specific to having too FEW keys, not to
-  // these two calls being independent — so run them concurrently only when
-  // this user actually has enough distinct provider keys to spread the two
-  // calls across, and keep the safe sequential fallback otherwise.
-  const canonicalContext = buildCanonicalReportContext(chunkParsedByName.narrative ?? null);
-  const canonicalContextBlock = serializeCanonicalContextForPrompt(canonicalContext);
-
-  const MIN_KEYS_FOR_CHUNK_PARALLELISM = 2;
-  const { countUserProviderKeys } = await import("./ai/router.server");
-  const availableProviderKeys = await countUserProviderKeys(userId);
-  const canParallelizeChunks = availableProviderKeys >= MIN_KEYS_FOR_CHUNK_PARALLELISM;
-
-  if (canParallelizeChunks) {
-    // Promise.allSettled, not Promise.all: runChunk only ever re-throws for
-    // a checkpoint/cancel signal (everything else is caught internally and
-    // recorded on chunkStatus[name].error) — but Promise.all rejects the
-    // instant the FIRST of the two throws, leaving the other call running
-    // unawaited in the background. That dangling call would still
-    // eventually write to chunkParsedByName/persist its cache (harmless,
-    // even useful for the next tick), but if IT also throws, it becomes an
-    // unhandled promise rejection with nothing to catch it. allSettled
-    // always waits for both to finish first, so re-throwing below never
-    // leaves anything dangling.
-    const settled = await Promise.allSettled([
-      runChunk("memo", memoSysSuffix, memoShape, 4000, canonicalContextBlock),
-      runChunk("intelligence", intelSysSuffix, intelShape, 3000, canonicalContextBlock),
-    ]);
-    for (const outcome of settled) {
-      if (outcome.status === "rejected") throw outcome.reason;
-    }
-  } else {
-    await runChunk("memo", memoSysSuffix, memoShape, 4000, canonicalContextBlock);
-    await runChunk("intelligence", intelSysSuffix, intelShape, 3000, canonicalContextBlock);
-  }
-
-  // `r` drives downstream logic (parsed, fallback banner). Anchor on narrative
-  // since prose is the visible surface; memo/intelligence merge in below.
-  // NOTE: gate on chunkStatus.*.ok, NOT on truthiness of the returned `r`/
-  // `narrativeRes` value — a chunk resumed from the cache legitimately
-  // returns null from runChunk (no fresh API call was made) while still
-  // being a success. Treating a null return as failure here would
-  // misclassify every cache-resumed narrative chunk as failed and trigger
-  // unnecessary (and costly) split-group salvage calls.
-  r = narrativeRes;
-  if (!chunkStatus.narrative.ok) {
-    const errs = [
-      chunkStatus.narrative.error,
-      chunkStatus.memo.error,
-      chunkStatus.intelligence.error,
-    ]
-      .filter(Boolean)
-      .join(" | ");
-    reportLlmError = errs || "all report chunks failed";
-    console.warn("[report:chunk] narrative chunk failed; entering split-group salvage", {
-      caseId,
-      reportLlmError,
-    });
-  }
-
-  // Independent memo salvage: narrative succeeded but memo chunk failed.
-  // Without this, legal_memorandum silently disappears from the report.
-  if (chunkStatus.narrative.ok && !chunkStatus.memo.ok && !cancelled) {
-    console.warn(
-      "[report:chunk] memo chunk failed but narrative ok — attempting isolated memo salvage",
-    );
-    await runChunk("memo", memoSysSuffix, memoShape, 3000);
-    if (chunkStatus.memo.ok) pipelineWarnings.push("legal_memorandum_recovered_by_salvage");
-  }
-
-  // Independent intelligence salvage: narrative succeeded but intel failed.
-  if (chunkStatus.narrative.ok && !chunkStatus.intelligence.ok && !cancelled) {
-    console.warn(
-      "[report:chunk] intelligence chunk failed but narrative ok — attempting isolated salvage",
-    );
-    await runChunk(
-      "intelligence",
-      "You generate ONLY structured intelligence outputs. Return the shape below and nothing else.",
-      intelShape,
-      2500,
-    );
-    if (chunkStatus.intelligence.ok) pipelineWarnings.push("intelligence_recovered_by_salvage");
-  }
-
-  // ------------------------------------------------------------------
-  // Split-group narrative recovery.
-  // A single call demanding ~20 long-form sections is fragile — one
-  // provider hiccup wipes out the entire narrative. When the monolithic
-  // call fails, salvage what we can by asking for THREE smaller, focused
-  // prose-only calls in parallel. Each independent group failure only
-  // costs that group; the rest still render real LLM prose.
-  // ------------------------------------------------------------------
-  const salvagedProse: Record<string, string> = {};
-  // Structured salvage — legal_memorandum is an object, not prose. Kept
-  // separate so the prose merge loop below doesn't stringify it. When the
-  // main call fails, prose recovery alone leaves `legal_memorandum` absent
-  // from `parsed`, silently hiding the LegalMemorandumPanel. This 4th
-  // salvage lane requests the memo shape directly and merges it back into
-  // `parsed` before the final full_report spread.
-  let salvagedMemo: Record<string, unknown> | null = null;
-  let salvageAttempted = false;
-  let salvageAnySuccess = false;
-  // Gate on chunkStatus.narrative.ok, not on truthiness of `r`. `r` is
-  // legitimately null when narrative resumed from the chunk cache (no
-  // fresh API call was made this tick, per the cache-resume loop above),
-  // which is a SUCCESS, not a failure. Gating on `!r` was misclassifying
-  // every cache-resumed narrative as failed and triggering this expensive
-  // 3-call split-group salvage unnecessarily — burning extra latency and
-  // tokens on a narrative that already succeeded and didn't need recovery.
-  if (!chunkStatus.narrative.ok && !cancelled) {
-    salvageAttempted = true;
-    const groups: Array<{ label: string; sections: string[] }> = [
-      {
-        label: "summary+overview",
-        sections: [
-          "executive_summary",
-          "attorney_summary",
-          "investigator_summary",
-          "case_overview",
-        ],
-      },
-      {
-        label: "facts+timeline",
-        sections: ["facts", "timeline_summary", "risk_analysis", "recommendations"],
-      },
-      {
-        label: "evidence+theory",
-        sections: [
-          "evidence_summary",
-          "witness_analysis",
-          "contradiction_report",
-          "discovery_analysis",
-          "prosecution_theory_report",
-          "defense_theory_report",
-        ],
-      },
-    ];
-    const buildGroupPrompt = (sections: string[]) => {
-      const shape = sections.map((k) => `    "${k}": string`).join(",\n");
-      return `Return STRICT JSON with this exact shape. Every prose field must be a substantive narrative with inline [CITE writer_ref_id] tokens copied from the verified catalog. Omit a field only if the corpus genuinely does not support it (return an empty string in that case rather than skipping the key).
-
-{
-  "prose": {
-${shape}
-  }
-}
-
-${buildUserContent(0.17).split("PAGINATION RULES:")[1] ? "PAGINATION RULES:" + buildUserContent(0.17).split("PAGINATION RULES:")[1] : buildUserContent(0.17)}`;
-    };
-
-    // Dedicated legal_memorandum salvage prompt — same corpus, structured
-    // object shape, no prose fields. STALE NOTE (was "Runs in parallel with
-    // the prose groups" here): the loop below is sequential (a for-loop
-    // manually building PromiseSettledResult-shaped entries, not an actual
-    // Promise.allSettled) — likely deliberate, same provider-burst rationale
-    // as the main narrative/memo/intelligence path, since this only fires
-    // when narrative has already failed and providers may already be
-    // struggling. Not changed here; comment corrected to match reality.
-    const buildMemoPrompt = () => {
-      const rest = buildUserContent(0.17);
-      const paginationTail = rest.split("PAGINATION RULES:")[1]
-        ? "PAGINATION RULES:" + rest.split("PAGINATION RULES:")[1]
-        : rest;
-      return `Return STRICT JSON with this exact shape — a court-ready IRAC legal memorandum derived from the corpus. Every fact and quote MUST carry an inline \`[CITE writer_ref_id]\` token copied from the verified catalog with a verbatim quote (<=200 chars). Omit rows you cannot cite; do not fabricate exhibits, pages, or quotes.
-
-{
-  "legal_memorandum": {
-    "caption": { "title": string, "date": string, "re": string },
-    "executive_summary": {
-      "dispositive_recommendation": string,
-      "case_strength": "Excellent"|"Strong"|"Moderate"|"Weak",
-      "primary_risk": string,
-      "urgent_actions": string[]
-    },
-    "statement_of_facts": {
-      "undisputed": string[],
-      "disputed": string[],
-      "chronology": string[]
-    },
-    "legal_analysis": [
-      { "issue": string, "rule": string, "application": string, "conclusion": string, "cited_evidence": string[] }
-    ],
-    "recommended_motions": [
-      { "motion": string, "legal_standard": string, "factual_basis": string[], "likelihood": "High"|"Medium"|"Low", "draft_paragraph": string }
-    ],
-    "evidence_appendix": [
-      { "exhibit": string, "description": string, "page": string, "key_quote": string, "proves": string, "admissibility_risk": "Low"|"Medium"|"High" }
-    ],
-    "risk_matrix": [
-      { "risk": string, "probability": "High"|"Medium"|"Low", "impact": "Severe"|"Moderate"|"Minor", "mitigation": string }
-    ],
-    "next_actions": [
-      { "action": string, "owner": "Attorney"|"Paralegal"|"Investigator"|"Expert"|"Client", "deadline": string, "priority": "Critical"|"High"|"Medium" }
-    ]
-  }
-}
-
-${paginationTail}`;
-    };
-
-    const groupResults: PromiseSettledResult<
-      | {
-          kind: "prose";
-          group: { label: string; sections: string[] };
-          res: Awaited<ReturnType<typeof callGroq>>;
-        }
-      | { kind: "memo"; res: Awaited<ReturnType<typeof callGroq>> }
-    >[] = [];
-    for (const g of groups) {
-      try {
-        const res = await callGroq({
-          apiKey,
-          apiKeys,
-          signal: ac.signal,
-          systemInstruction,
-          userContent: buildGroupPrompt(g.sections),
-          json: true,
-          temperature: 0.2,
-          maxTokens: 6000,
-        });
-        groupResults.push({
-          status: "fulfilled",
-          value: { kind: "prose" as const, group: g, res },
-        });
-      } catch (reason) {
-        groupResults.push({ status: "rejected", reason });
-      }
-    }
-    try {
-      const res = await callGroq({
-        apiKey,
-        apiKeys,
-        signal: ac.signal,
-        systemInstruction,
-        userContent: buildMemoPrompt(),
-        json: true,
-        temperature: 0.2,
-        maxTokens: 8000,
-      });
-      groupResults.push({ status: "fulfilled", value: { kind: "memo" as const, res } });
-    } catch (reason) {
-      groupResults.push({ status: "rejected", reason });
-    }
-    for (const gr of groupResults) {
-      if (gr.status !== "fulfilled") {
-        const msg = gr.reason instanceof Error ? gr.reason.message : String(gr.reason);
-        console.warn(`[report:salvage] group failed — ${msg.slice(0, 200)}`);
-        continue;
-      }
-      try {
-        if (gr.value.kind === "memo") {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const parsedMemo = parseJsonLoose<Record<string, any>>(gr.value.res.text) ?? {};
-          const memoObj = (parsedMemo.legal_memorandum ?? parsedMemo) as Record<string, unknown>;
-          if (
-            memoObj &&
-            typeof memoObj === "object" &&
-            !Array.isArray(memoObj) &&
-            Object.keys(memoObj).length > 0
-          ) {
-            salvagedMemo = memoObj;
-            salvageAnySuccess = true;
-          }
-          await logUsage(db, {
-            userId,
-            caseId,
-            operation: "report.salvage.memo",
-            model: gr.value.res.model,
-            provider: gr.value.res.provider,
-            inputTokens: gr.value.res.inputTokens,
-            outputTokens: gr.value.res.outputTokens,
-            totalTokens: gr.value.res.totalTokens,
-            latencyMs: gr.value.res.latencyMs,
-            success: true,
-            keyIndex: gr.value.res.keyIndex,
-          });
-          continue;
-        }
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const parsedGroup = parseJsonLoose<Record<string, any>>(gr.value.res.text) ?? {};
-        const gp = (parsedGroup.prose ?? parsedGroup) as Record<string, unknown>;
-        for (const k of gr.value.group.sections) {
-          const v = gp[k];
-          if (typeof v === "string" && v.trim().length >= 80) {
-            salvagedProse[k] = v;
-            salvageAnySuccess = true;
-          }
-        }
-        await logUsage(db, {
-          userId,
-          caseId,
-          operation: "report.salvage",
-          model: gr.value.res.model,
-          provider: gr.value.res.provider,
-          inputTokens: gr.value.res.inputTokens,
-          outputTokens: gr.value.res.outputTokens,
-          totalTokens: gr.value.res.totalTokens,
-          latencyMs: gr.value.res.latencyMs,
-          success: true,
-          keyIndex: gr.value.res.keyIndex,
-        });
-      } catch (e) {
-        console.warn(
-          `[report:salvage] parse failed for group ${gr.value.kind === "memo" ? "legal_memorandum" : gr.value.group.label}`,
-          e,
-        );
-      }
-    }
-    console.info(
-      `[report:salvage] recovered ${Object.keys(salvagedProse).length} prose section(s); memo=${!!salvagedMemo}; anySuccess=${salvageAnySuccess}`,
-    );
-  }
-
   clearInterval(watcher);
-
   await setCase(db, caseId, { status_message: "Assembling litigation package", progress: 85 });
-  if (r) {
-    await logUsage(db, {
-      userId,
-      caseId,
-      operation: "report",
-      model: r.model,
-      provider: r.provider,
-      inputTokens: r.inputTokens,
-      outputTokens: r.outputTokens,
-      totalTokens: r.totalTokens,
-      latencyMs: r.latencyMs,
-      success: true,
-      keyIndex: r.keyIndex,
-    });
-  } else {
-    await logUsage(db, {
-      userId,
-      caseId,
-      operation: "report",
-      model: MODEL,
-      latencyMs: 0,
-      success: false,
-      error: reportLlmError ?? "report generation fallback",
-    });
-  }
-
-  // Merge all successfully-parsed chunks into a single `parsed` object.
-  // narrative → { prose: {...} }, memo → { legal_memorandum: {...} },
-  // intelligence → { citations, evidence_index, ... }. Order chosen so
-  // memo/intelligence never overwrite narrative prose keys.
-  // ---------------------------------------------------------------------------
-  // UNIVERSAL WRITER PROPOSITION RESOLUTION — applies to ALL materias.
-  //
-  // Each chunk (narrative, memo, intelligence) is resolved through the SAFE
-  // variant, which quarantines every unsupported/unresolved citation rather
-  // than throwing. After all chunks are resolved, unsupported propositions are
-  // pruned from prose, the repair log is recorded, and only a mandatory
-  // irreparable gap blocks the report. A single bad proposition NEVER crashes
-  // an otherwise valid report. No materia-specific branches.
-  // ---------------------------------------------------------------------------
-  const validateWriterAttribution = (precedingText: string, citation: Record<string, any>) => {
-    const check = validateSourceAttribution(precedingText, citation as {
-      document_id: string; page: number; quote: string;
-    }, reportSourcePages);
-    if (!check.ok) throw new Error(`REPORT_WRITER_ATTRIBUTION_MISMATCH: ${check.reason}`);
-  };
-
-  // Accumulated quarantine log across all chunks.
-  const allQuarantined: import("./reporting/citation-production").WriterPropositionQuarantine[] = [];
-
-  for (const name of ["narrative", "memo", "intelligence"] as const) {
-    if (!chunkParsedByName[name]) continue;
-    const safeResult = safeResolveWriterCitationReferences(
-      chunkParsedByName[name], canonicalWriterCitations,
-      { validateAttribution: validateWriterAttribution, path: name },
-    );
-    chunkParsedByName[name] = safeResult.value;
-    if (safeResult.has_quarantined) {
-      allQuarantined.push(...safeResult.quarantined);
-    }
-  }
-
-  // Quarantine repair pass — runs once, bounded.
-  if (allQuarantined.length > 0) {
-    console.warn(
-      `[report:proposition-quarantine] ${allQuarantined.length} Writer proposition(s) quarantined across ${[...new Set(allQuarantined.map(q => q.reason))].join(', ')} — rebuilding from verified propositions.`,
-      allQuarantined.map(q => ({ reason: q.reason, path: q.path, detail: q.detail.slice(0, 120) })),
-    );
-
-    // Prune orphaned sentences from every string in the resolved chunks.
-    const pruneStrings = (obj: unknown): unknown => {
-      if (typeof obj === 'string') return pruneQuarantinedSentences(obj);
-      if (Array.isArray(obj)) return obj.map(pruneStrings);
-      if (obj && typeof obj === 'object') {
-        return Object.fromEntries(Object.entries(obj).map(([k, v]) =>
-          ['quote', 'source_quote', 'excerpt', 'proposition_supported', 'proposition_verification'].includes(k)
-            ? [k, v] : [k, pruneStrings(v)]));
-      }
-      return obj;
-    };
-    for (const name of ['narrative', 'memo', 'intelligence'] as const) {
-      if (chunkParsedByName[name]) chunkParsedByName[name] = pruneStrings(chunkParsedByName[name]);
-    }
-  }
-
-  const parsed: Record<string, any> = {
-    ...(chunkParsedByName.intelligence ?? {}),
-    ...(chunkParsedByName.memo ?? {}),
-    ...(chunkParsedByName.narrative ?? {}),
-    // Quarantine audit — written to full_report.citation_audit for diagnostic
-    // visibility. This is a diagnostic field excluded from publication audit.
-    ...(allQuarantined.length > 0 ? { writer_proposition_quarantine: allQuarantined } : {}),
-  };
-  // Old cached chunks use DOC labels; version 5 invalidates that cache.
-  const prose = (parsed.prose ?? {}) as Record<string, unknown>;
-
-  // Single canonical recommendations list — replaces the six overlapping
-  // lists (narrative prose, memo next_actions, memo recommended_motions,
-  // intelligence next_actions, intelligence strategy_recommendations,
-  // intelligence motion_opportunities) with one deduplicated, ID-referenced
-  // set. The renderer should read `parsed.canonical_recommendations` going
-  // forward instead of stitching the six raw fields together itself.
-  parsed.canonical_recommendations = mergeCanonicalRecommendations({
-    narrativeParsed: chunkParsedByName.narrative ?? null,
-    memoParsed: chunkParsedByName.memo ?? null,
-    intelParsed: chunkParsedByName.intelligence ?? null,
-    posture: proceduralPosture,
+  await logUsage(db, {
+    userId,
+    caseId,
+    operation: "report",
+    model: "deterministic-report-generator",
+    provider: "local",
+    inputTokens: 0,
+    outputTokens: 0,
+    totalTokens: 0,
+    latencyMs: 0,
+    success: true,
   });
 
-  // --- Defense-in-depth: strip ungrounded standalone confidence figures ---
-  // The system prompt already instructs the model never to state a
-  // standalone confidence/strength/reliability number in prose unless it
-  // matches a real computed score (see "NUMERIC SCORE DISCIPLINE" above),
-  // but LLMs occasionally leak a number anyway (e.g. "high confidence
-  // (91%)" with no corresponding 91 anywhere in the scored output). Prompt
-  // instructions are not enforcement, so this pass deterministically
-  // verifies every "NN/100", "NN%", or "NN out of 100"-style figure in the
-  // prose against the actual computed scores available on `parsed`, and
-  // replaces anything that isn't traceable to one of them.
-  const collectKnownScoreNumbers = (p: Record<string, unknown>): Set<number> => {
-    const nums = new Set<number>();
-    const add = (v: unknown) => {
-      if (typeof v !== "number" || !Number.isFinite(v)) return;
-      nums.add(Math.round(v));
-      // Confidence values are often expressed 0-1; also allow the
-      // percentage form so "0.91" grounds a printed "91%".
-      if (v > 0 && v <= 1) nums.add(Math.round(v * 100));
+  type ChunkName = "narrative" | "memo" | "intelligence";
+  const chunkStatus: Record<ChunkName, { ok: boolean; error?: string }> = {
+    narrative: { ok: true },
+    memo: { ok: true },
+    intelligence: { ok: true },
+  };
+  reportLlmError = null;
+  const narrativeFallback = false;
+  const narrativePartial = false;
+  const allQuarantined: import("./reporting/citation-production").WriterPropositionQuarantine[] = [];
+  const docNToId = new Map(docIndex.map((d) => [d.doc_n, d.document_id]));
+
+  // Verified findings citations from current execution
+  let findingsCitations = findings
+    .flatMap((f: any, i) => {
+      const refs = Array.isArray(f.evidence_refs) ? f.evidence_refs : [];
+      return refs.slice(0, 3).map((ref: any, j: number) => ({
+        start_offset: null,
+        end_offset: null,
+        page_located: null,
+        document_hash: null,
+        chunk_index: null,
+        chunk_hash: null,
+        citation_hash: null,
+        source_reattributed: false,
+        ...ref,
+        id: `F${i + 1}-${j + 1}`,
+        doc_n: typeof ref.doc_n === "number" ? ref.doc_n : null,
+        document_id: ref.document_id ?? ref.doc_id ?? f.source_document_id ?? null,
+        page:
+          typeof ref.page === "number"
+            ? ref.page
+            : typeof f.source_page === "number"
+              ? f.source_page
+              : undefined,
+        quote: ref.quote ?? f.source_quote ?? "",
+        topic: f.title ?? f.category ?? "Finding",
+        finding_id: f.id ?? null,
+      }));
+    })
+    .filter((c: any) => typeof c.quote === "string" && c.quote.trim().length > 0);
+
+  // Deterministic prose assembly from verified findings, documents, timeline, and scorecards
+  const prose: Record<string, unknown> = {};
+  const sevRank = { critical: 4, high: 3, medium: 2, low: 1, info: 0 } as Record<string, number>;
+  const { sortFindingsForConcludedReport, formatSpeakerRoleBadge, sanitizeConcludedReportProse } = await import("./intelligence/concluded-case-governance");
+  const governance = reportGovernance;
+  const sortedFindings = sortFindingsForConcludedReport(findings as any[], governance);
+  const top = sortedFindings.slice(0, 10);
+  const bullets = top
+    .map((f: any) => {
+      const badge = governance.speaker_role_labels_required ? `[${formatSpeakerRoleBadge(f)}] ` : "";
+      return `- ${badge}(${f.severity}) ${f.title} — ${f.legal_significance ?? f.category}`;
+    })
+    .join("\n");
+  const docLines = docIndex
+    .map((d) => `- DOC ${d.doc_n}: ${d.filename} (${d.pages} page${d.pages === 1 ? "" : "s"})`)
+    .join("\n");
+  const agentLines = (agents ?? [])
+    .map((a: any) => `- ${a.agent_type}: ${a.summary ?? a.status ?? "completed"}`)
+    .join("\n");
+  const timelineItems = Array.isArray((analysis as any)?.timeline)
+    ? ((analysis as any).timeline as any[])
+    : [];
+  const timelineLines = timelineItems
+    .slice(0, 20)
+    .map((t) => {
+      const rawDate = typeof t.date === "string" ? t.date.trim() : t.date;
+      const label = t.event ?? t.description ?? JSON.stringify(t).slice(0, 180);
+      return rawDate ? `- ${rawDate}: ${label}` : `- ${label}`;
+    })
+    .join("\n");
+  const scoreLine = score
+    ? `Overall confidence: ${(score as any).overall_confidence ?? "suppressed"}. Methodology: ${(score as any).methodology ?? "deterministic evidence-gated scoring"}.`
+    : "Quantitative score unavailable.";
+
+  const locale = await getReportLocale(db, caseId);
+  const { MX_PARTY_ROLES } = await import("./execution/mx-pipeline");
+  const partyRoles = MX_PARTY_ROLES[resolveMxProfile(caseType)];
+  const ROLE_LABELS: Record<string, { es: string; en: string }> = {
+    ministerio_publico: { es: "Ministerio Público", en: "Public Prosecutor" },
+    defensa: { es: "Defensa", en: "Defense" },
+    quejoso: { es: "Quejoso", en: "Petitioner (Quejoso)" },
+    autoridad_responsable: { es: "Autoridad Responsable", en: "Responsible Authority" },
+    trabajador: { es: "Trabajador", en: "Employee" },
+    patron: { es: "Patrón", en: "Employer" },
+    parte_actora: { es: "Parte Actora", en: "Plaintiff" },
+    parte_demandada: { es: "Parte Demandada", en: "Defendant" },
+    contribuyente: { es: "Contribuyente", en: "Taxpayer" },
+    autoridad_fiscal: { es: "Autoridad Fiscal", en: "Tax Authority" },
+    particular: { es: "Particular", en: "Private Party" },
+    autoridad: { es: "Autoridad", en: "Authority" },
+    apelante: { es: "Apelante", en: "Appellant" },
+    apelado: { es: "Apelado", en: "Appellee" },
+    ambas: { es: "Ambas Partes", en: "Both Parties" },
+    tercero_interesado: { es: "Tercero Interesado", en: "Third-Party Interested Person" },
+    nucleo_agrario: { es: "Núcleo Agrario", en: "Agrarian Community" },
+    comunidad_afectada: { es: "Comunidad Afectada", en: "Affected Community" },
+  };
+  const roleLabel = (key: string) => ROLE_LABELS[key]?.[locale] ?? key;
+
+  const byCategory = (cats: string[]) =>
+    [...findings]
+      .filter((f) => cats.includes(String((f as any).category_key ?? "")))
+      .sort((a, b) => (sevRank[b.severity] ?? 0) - (sevRank[a.severity] ?? 0))
+      .slice(0, 5)
+      .map((f) => `- (${f.severity}) ${f.title} — ${(f as any).legal_significance ?? f.category}`)
+      .join("\n");
+
+  const byParty = (party: string) =>
+    [...findings]
+      .filter(
+        (f) =>
+          (f as any).affected_party === party || (f as any).affected_party === partyRoles.neutral,
+      )
+      .sort((a, b) => (sevRank[b.severity] ?? 0) - (sevRank[a.severity] ?? 0))
+      .slice(0, 5)
+      .map((f) => `- (${f.severity}) ${f.title}`)
+      .join("\n");
+
+  const noContent =
+    locale === "en"
+      ? "No verified findings in this category. Upload additional source documents and re-run the pipeline."
+      : "No se identificaron hallazgos verificados en esta categoría. Suba fuentes documentales adicionales y vuelva a ejecutar el proceso.";
+
+  const canonicalSourceCount = canonicalSourceMetrics.independent_source_count;
+
+  prose.executive_summary =
+    locale === "en"
+      ? `This report identifies ${findings.length} verified finding(s) across ${canonicalSourceCount} source document(s). The highest-priority issues requiring attorney attention:\n\n${bullets || noContent}`
+      : `Este informe identifica ${findings.length} hallazgo(s) verificado(s) en ${canonicalSourceCount} documento(s) fuente. Las cuestiones de mayor prioridad que requieren atención del abogado:\n\n${bullets || noContent}`;
+
+  prose.attorney_summary =
+    locale === "en"
+      ? `Verified findings requiring attorney review (${findings.length} total):\n\n${bullets || noContent}`
+      : `Hallazgos verificados que requieren revisión del abogado (${findings.length} en total):\n\n${bullets || noContent}`;
+
+  prose.investigator_summary =
+    locale === "en"
+      ? `Agent analysis summary:\n${agentLines || "No agent output available."}\n\nTop verified findings:\n${bullets || noContent}`
+      : `Resumen del análisis de agentes:\n${agentLines || "No hay resultados de agentes disponibles."}\n\nPrincipales hallazgos verificados:\n${bullets || noContent}`;
+
+  prose.case_overview =
+    locale === "en"
+      ? `Case type: ${caseType}. Document corpus: ${canonicalSourceCount} document(s) reviewed.\n${docLines || "No documents indexed."}\n\nVerified issues identified: ${findings.length}.`
+      : `Materia: ${caseType}. Corpus documental: ${canonicalSourceCount} documento(s) revisado(s).\n${docLines || "No hay documentos indexados."}\n\nCuestiones verificadas identificadas: ${findings.length}.`;
+
+  prose.evidence_summary =
+    locale === "en"
+      ? `Evidence Inventory\n${docLines || "No extracted document index available."}`
+      : `Inventario de Evidencia\n${docLines || "No hay índice de documentos extraídos disponible."}`;
+
+  prose.timeline_summary =
+    locale === "en"
+      ? `Timeline Reconstruction\n${timelineLines || "No dated timeline events were extracted from the uploaded documents."}`
+      : `Reconstrucción Cronológica\n${timelineLines || "No se extrajeron eventos cronológicos con fecha de los documentos proporcionados."}`;
+
+  prose.contradiction_report =
+    byCategory(["contradiction"])
+      ? `${locale === "en" ? "Verified Contradictions" : "Contradicciones Verificadas"}\n${byCategory(["contradiction"])}`
+      : locale === "en"
+        ? "No verified factual contradictions survived evidence validation. This may reflect consistent accounts or insufficient document coverage."
+        : "Ninguna contradicción fáctica verificada superó la validación de evidencia. Esto puede reflejar relatos consistentes o cobertura documental insuficiente.";
+
+  prose.discovery_analysis =
+    byCategory(["missing_evidence", "discovery_gap"])
+      ? `${locale === "en" ? "Discovery Gaps" : "Vacíos Probatorios"}\n${byCategory(["missing_evidence", "discovery_gap"])}`
+      : locale === "en"
+        ? "No verified discovery gaps were identified in the uploaded documents."
+        : "No se identificaron vacíos probatorios verificados en los documentos proporcionados.";
+
+  prose.missing_evidence_report =
+    locale === "en"
+      ? "Review the Evidence Coverage section for missing or unextracted documents. Upload additional materials and re-run the pipeline to expand this analysis."
+      : "Consulte la sección de Cobertura de Evidencia para conocer los documentos faltantes o no extraídos. Suba materiales adicionales y vuelva a ejecutar el proceso para ampliar este análisis.";
+
+  prose.procedural_issues_report =
+    byCategory(["procedural"])
+      ? `${locale === "en" ? "Procedural Issues" : "Cuestiones Procesales"}\n${byCategory(["procedural"])}`
+      : locale === "en"
+        ? "No verified procedural issues survived evidence validation."
+        : "Ninguna cuestión procesal verificada superó la validación de evidencia.";
+
+  prose.witness_analysis =
+    byCategory(["witness"])
+      ? `${locale === "en" ? "Witness Findings" : "Hallazgos de Testigos"}\n${byCategory(["witness"])}`
+      : agentLines
+        ? `${locale === "en" ? "Agent Summary" : "Resumen del Agente"}\n${agentLines}`
+        : locale === "en"
+          ? "No witness-specific findings were produced. Upload witness statements, depositions, or interview transcripts and re-run."
+          : "No se generaron hallazgos específicos de testigos. Suba declaraciones de testigos, testimoniales o transcripciones de entrevistas y vuelva a ejecutar.";
+
+  prose.prosecution_theory_report =
+    locale === "en"
+      ? `${roleLabel(partyRoles.a)} Theory\nFindings that may support ${roleLabel(partyRoles.a)}:\n\n${byParty(partyRoles.a) || noContent}`
+      : `Teoría de la ${roleLabel(partyRoles.a)}\nHallazgos que pueden respaldar a la ${roleLabel(partyRoles.a)}:\n\n${byParty(partyRoles.a) || noContent}`;
+
+  prose.defense_theory_report =
+    locale === "en"
+      ? `${roleLabel(partyRoles.b)} Theory\nFindings that may support ${roleLabel(partyRoles.b)}:\n\n${byParty(partyRoles.b) || noContent}`
+      : `Teoría de la ${roleLabel(partyRoles.b)}\nHallazgos que pueden respaldar a la ${roleLabel(partyRoles.b)}:\n\n${byParty(partyRoles.b) || noContent}`;
+
+  prose.alternative_theory_report =
+    partyRoles.c
+      ? locale === "en"
+        ? `${roleLabel(partyRoles.c)} Theory\nFindings that may support ${roleLabel(partyRoles.c)}:\n\n${byParty(partyRoles.c) || noContent}`
+        : `Teoría de la ${roleLabel(partyRoles.c)}\nHallazgos que pueden respaldar a la ${roleLabel(partyRoles.c)}:\n\n${byParty(partyRoles.c) || noContent}`
+      : locale === "en"
+        ? "Alternative Theory\nInsufficient verified evidence for alternative theory generation. Upload additional documents and re-run."
+        : "Teoría Alternativa\nEvidencia verificada insuficiente para generar una teoría alternativa. Suba documentos adicionales y vuelva a ejecutar.";
+
+  prose.risk_analysis =
+    `${locale === "en" ? "Risk Analysis" : "Análisis de Riesgo"}\n${scoreLine}`;
+
+  prose.facts =
+    locale === "en"
+      ? `Case factual basis established from ${canonicalSourceCount} verified document(s).\n\n${bullets || noContent}`
+      : `Base fáctica del caso establecida a partir de ${canonicalSourceCount} documento(s) verificado(s).\n\n${bullets || noContent}`;
+
+  prose.recommendations =
+    `${locale === "en" ? "Prioritized Recommendations" : "Recomendaciones Prioritarias"}\n${bullets || noContent}`;
+
+  prose.score_breakdown =
+    "See deterministic scorecard in the full report payload — every dimension lists its baseline, contributors, and formula.";
+
+  prose.appendix_sources =
+    `Appendix Sources\n${docLines || "No source documents indexed."}`;
+
+  // Deterministic legal memorandum assembly
+  const memoAnalysis = findings.slice(0, 5).map((f) => {
+    const ref = Array.isArray(f.evidence_refs) && f.evidence_refs[0] ? f.evidence_refs[0] : null;
+    const docCite = ref && typeof ref.doc_n === "number" && typeof ref.page === "number" ? `[DOC ${ref.doc_n} p. ${ref.page}]` : "";
+    return {
+      issue: `Determinación de la procedencia y alcance legal respecto a: ${f.title}`,
+      rule: "Conforme a los artículos 14, 16 y 20 de la Constitución Política de los Estados Unidos Mexicanos, así como los criterios de jurisprudencia y tesis aplicables, toda actuación debe cumplir con la debida fundamentación, motivación y estricto apego al debido proceso legal.",
+      application: `En el presente asunto, conforme a la evidencia documental que obra en ${docCite || "las constancias de autos"}: "${(ref?.quote ?? f.source_quote ?? f.title).slice(0, 160)}", se constata que ${f.description || f.title}. Esta circunstancia incide directamente en la valoración probatoria de la causa y la tutela judicial efectiva.`,
+      conclusion: "Se concluye que el hallazgo acreditado constituye un elemento sustantivo para la estrategia legal del asunto.",
+      cited_evidence: ref?.quote ? [ref.quote] : [f.source_quote || f.title],
     };
-    add(p.case_strength_score);
-    add(p.risk_score);
-    const scorecard = (p.deterministic_scorecard ?? {}) as Record<string, unknown>;
-    for (const dim of Object.values(scorecard)) {
-      if (dim && typeof dim === "object") add((dim as Record<string, unknown>).score);
-    }
-    // p.deterministic_scorecard is the LLM's OWN copy of scorecard-shaped
-    // JSON, which is frequently absent — the real, authoritative per-
-    // dimension scores (Chain of custody integrity: 29, Constitutional
-    // compliance: 34, etc., shown in the Case Scorecard section) are
-    // computed separately by computeDeterministicScorecard() and were never
-    // fed into this whitelist at all. That meant every legitimate mention
-    // of a real dimension score in prose ("the chain-of-custody score is
-    // low (29/100)") was indistinguishable from a fabricated one and always
-    // got overwritten with "well-supported"/"elevated" — the fallback text
-    // was firing on TRUE numbers, not just hallucinated ones. Recomputing
-    // it here (pure function over already-available findings/caseType) and
-    // adding every real dimension score closes that gap.
-    try {
-      const det = computeDeterministicScorecard(findings, caseType);
-      for (const dim of Object.values(det.dimensions)) add(dim?.score);
-    } catch {
-      /* best-effort — if this throws, fall through with whatever is already known */
-    }
-    const theories = Array.isArray(p.theories) ? (p.theories as Record<string, unknown>[]) : [];
-    for (const t of theories) add(t?.confidence);
-    const confidenceArrayKeys = [
-      "contradictions",
-      "missing_evidence",
-      "procedural_issues",
-      "key_findings",
-      "constitutional_issues",
-      "motion_opportunities",
-    ];
-    for (const key of confidenceArrayKeys) {
-      const items = Array.isArray(p[key]) ? (p[key] as Record<string, unknown>[]) : [];
-      for (const it of items) add(it?.confidence);
-    }
-    return nums;
-  };
-  const knownScoreNumbers = collectKnownScoreNumbers(parsed);
-  // Pass 1: numbers with an explicit unit — "91/100", "91%", "91 out of 100".
-  const UNIT_SCORE_RE = /\b(\d{1,3})\s*(?:\/\s*100|(?:out of)\s*100|%)/gi;
-  // Pass 2: bare numbers near a scoring keyword with NO unit at all — e.g.
-  // "the overall confidence in the case is 91" or "rated as 13". Real
-  // reports show this exact shape (a fabricated confidence figure stated
-  // as a plain number, not a percentage), so the unit-based pattern alone
-  // misses it entirely. Lookbehind keeps the match to just the digits so
-  // the surrounding sentence still reads naturally after replacement.
-  // Captures the triggering keyword (group 1) alongside the number (group 2)
-  // so the fallback replacement can match its grammar — "well-supported"
-  // reads fine after "strength"/"reliability" but not after "risk", where it
-  // produced sentences like "conviction risk of well-supported".
-  const KEYWORD_NUMBER_RE =
-    /(?<=\b(confidence|score|scored|strength|reliability|risk|rated)\b[^.\n\d]{0,25})\b(\d{1,3})\b/gi;
-  const RISK_KEYWORDS = new Set(["risk", "rated"]);
-  const SCORE_KEYWORD_RE = /\b(confidence|score|scored|strength|reliability|risk|rated)\b/gi;
-  // UNIT_SCORE_RE has no keyword lookbehind of its own — most fabricated
-  // figures in this app's prose are expressed with a "/100" unit (scores
-  // are always framed that way elsewhere in the report), so THIS pass, not
-  // the bare-number one below, is what actually catches sentences like
-  // "conviction risk is low (18/100)". Scan backward from the match for the
-  // nearest scoring keyword so its fallback word matches grammatically too —
-  // otherwise only the bare-number pass was keyword-aware and the far more
-  // common unit-suffixed case kept producing "risk ... (well-supported)".
-  const fallbackForContext = (text: string, matchIndex: number): string => {
-    const before = text.slice(Math.max(0, matchIndex - 30), matchIndex);
-    SCORE_KEYWORD_RE.lastIndex = 0;
-    let lastKeyword: string | null = null;
-    let m: RegExpExecArray | null;
-    while ((m = SCORE_KEYWORD_RE.exec(before))) lastKeyword = m[1];
-    return lastKeyword && RISK_KEYWORDS.has(lastKeyword.toLowerCase())
-      ? "elevated"
-      : "well-supported";
-  };
-  const fallbackFor = (keyword: string): string =>
-    RISK_KEYWORDS.has(keyword.toLowerCase()) ? "elevated" : "well-supported";
-  // Citation-quote spans — "[DOC 4 p.1: 'I think that's him, but I'm not
-  // 100% sure']" — must never be touched by this sanitizer. These are
-  // verbatim evidence quotes verified against the corpus; a number inside
-  // one (e.g. that "100%") is part of what a witness actually said, not a
-  // model-generated confidence figure, and overwriting it produced the
-  // genuinely bad outcome of the report MISQUOTING a witness statement
-  // ("I'm not well-supported sure"). Backreference \1 requires the same
-  // quote character to open and close, and requires the closer to sit
-  // directly against "]" — which is what keeps this from stopping early at
-  // a mid-quote apostrophe like "that's" or "I'm".
-  const CITATION_QUOTE_RE = /\[DOC\s+\d+\s+p\.\d+:\s*(['"])[\s\S]*?\1\]/g;
-  const protectedRanges = (text: string): Array<[number, number]> => {
-    const ranges: Array<[number, number]> = [];
-    CITATION_QUOTE_RE.lastIndex = 0;
-    let m: RegExpExecArray | null;
-    while ((m = CITATION_QUOTE_RE.exec(text))) ranges.push([m.index, m.index + m[0].length]);
-    return ranges;
-  };
-  const insideAnyRange = (ranges: Array<[number, number]>, index: number): boolean =>
-    ranges.some(([start, end]) => index >= start && index < end);
-  const sanitizeOrphanedScores = (text: string): string => {
-    if (!text) return text;
-    const ranges = protectedRanges(text);
-    let out = text.replace(UNIT_SCORE_RE, (match, numStr: string, offset: number) => {
-      if (insideAnyRange(ranges, offset)) return match;
-      const val = parseInt(numStr, 10);
-      return knownScoreNumbers.has(val) ? match : fallbackForContext(text, offset);
-    });
-    out = out.replace(
-      KEYWORD_NUMBER_RE,
-      (match, keyword: string, numStr: string, offset: number) => {
-        if (insideAnyRange(ranges, offset)) return match;
-        const val = parseInt(numStr, 10);
-        return knownScoreNumbers.has(val) ? match : fallbackFor(keyword);
-      },
-    );
-    return out;
-  };
-  for (const [k, v] of Object.entries(prose)) {
-    if (typeof v === "string") prose[k] = sanitizeOrphanedScores(v);
-  }
+  });
 
-  // Merge any salvaged group prose from the split-group recovery. Salvaged
-  // sections are LLM-authored, so they win over deterministic backfill below.
-  for (const [k, v] of Object.entries(salvagedProse)) {
-    if (typeof v === "string" && v.trim().length > 0) {
-      const safeResult = safeResolveWriterCitationReferences(
-        v, canonicalWriterCitations,
-        { validateAttribution: validateWriterAttribution, path: `salvage.${k}` },
-      );
-      if (safeResult.has_quarantined) {
-        allQuarantined.push(...safeResult.quarantined);
-        console.warn(`[report:salvage-quarantine] ${safeResult.quarantined.length} proposition(s) quarantined in salvage section "${k}"`);
-      }
-      prose[k] = sanitizeOrphanedScores(pruneQuarantinedSentences(safeResult.value));
-    }
-  }
-  // Merge salvaged legal_memorandum into `parsed` so the final full_report
-  // spread (line ~2621) picks it up. Only fill when the main call didn't
-  // already produce one — never clobber a valid LLM-authored memo.
-  if (salvagedMemo && (!parsed.legal_memorandum || typeof parsed.legal_memorandum !== "object")) {
-    const safeResult = safeResolveWriterCitationReferences(
-      salvagedMemo, canonicalWriterCitations,
-      { validateAttribution: validateWriterAttribution, path: "salvage.memo" },
-    );
-    if (safeResult.has_quarantined) {
-      allQuarantined.push(...safeResult.quarantined);
-      console.warn(`[report:salvage-quarantine] ${safeResult.quarantined.length} proposition(s) quarantined in salvaged legal_memorandum`);
-    }
-    parsed.legal_memorandum = safeResult.value;
-  }
+  const memoMotions = (opps && opps.length > 0 ? opps : [
+    { title: "Ofrecimiento de Pruebas y Regularización del Procedimiento", description: "Solicitud formal de admisión y desahogo de pruebas conforme a las reglas del procedimiento aplicable." }
+  ]).slice(0, 4).map((opp: any, idx) => {
+    const factQuote = findingsCitations[idx]?.quote ?? (findings[0]?.evidence_refs?.[0]?.quote ?? "Constancia en autos del expediente.");
+    return {
+      motion: opp.title ?? "Incidente de Previo y Especial Pronunciamiento",
+      legal_standard: opp.legal_basis || opp.description || "Conforme al marco procesal mexicano aplicable y los principios rectores de legalidad, debido proceso y tutela judicial efectiva garantizados en sede constitucional.",
+      factual_basis: [factQuote, "Constatación documental de las actuaciones procesales y los elementos de convicción integrados a los autos."],
+      likelihood: (((opp.likelihood_of_success ?? "Medium") as string).toLowerCase() === "high" ? "High" : ((opp.likelihood_of_success ?? "Medium") as string).toLowerCase() === "low" ? "Low" : "Medium") as "High" | "Medium" | "Low",
+      draft_paragraph: "Por medio del presente ocurso y con fundamento en las disposiciones aplicables de la legislación adjetiva, comparezco en tiempo y forma a solicitar se tenga por formulada la presente petición, atendiendo a que de las constancias procesales se desprende con meridiana claridad la necesidad de tutelar los derechos y garantías procesales de mi representada. En este orden de ideas, la evidencia que obra glosada a los autos acredita de manera plena la pertinencia y procedencia de la cuestión aquí planteada, resultando indispensable que este órgano jurisdiccional emita pronunciamiento puntual respecto de los hechos y elementos de convicción aportados, salvaguardando en todo momento el principio de exhaustividad y congruencia que debe regir toda determinación judicial. Conforme a lo expuesto y fundado, solicito a este juzgador proveer de conformidad lo peticionado por ser conforme a estricto derecho. Asimismo, se hace constar que los elementos de hecho y de derecho aquí vertidos encuentran sustento incontrovertible en las constancias que integran el sumario, por lo que procede acordar favorablemente lo solicitado para garantizar la adecuada tutela judicial efectiva y el debido proceso legal en favor de la parte que represento.",
+    };
+  });
 
-  // ONE fallback banner at the top of the report — never repeated per section.
-  // Down-stream renderers surface `prose.fallback_banner` as a single
-  // dismissable notice; individual sections render their own deterministic
-  // content directly, without any prefix boilerplate.
-  const narrativeFallback = !!reportLlmError && !salvageAnySuccess;
-  const narrativePartial = !!reportLlmError && salvageAnySuccess;
-  if (narrativeFallback) {
-    prose.fallback_banner =
-      "AI narrative generation was unavailable during this run due to a provider error. The sections below are assembled directly from verified findings and extracted documents — no interpretive prose. Attorney independent review is required before reliance.";
-  } else if (narrativePartial) {
-    prose.fallback_banner = `AI narrative generation partially failed during this run. ${Object.keys(salvagedProse).length} section(s) were recovered from smaller follow-up calls; the remainder are assembled directly from verified findings. Attorney independent review is required before reliance.`;
-  }
+  const memoEvidenceAppendix = findingsCitations.slice(0, 10).map((c) => ({
+    exhibit: `DOC ${c.doc_n ?? 1}`,
+    description: c.topic,
+    page: String(c.page ?? 1),
+    key_quote: c.quote,
+    proves: c.topic,
+    admissibility_risk: "Low" as const,
+  }));
 
-  // Ensure the mutated prose (banner + salvaged sections) is reachable to
-  // renderers via `full_report.prose`, even when the original parsed payload
-  // had no `prose` key.
+  const memoRiskMatrix = findings.filter(f => f.severity === 'critical' || f.severity === 'high').slice(0, 5).map((f) => ({
+    risk: f.title,
+    probability: f.severity === 'critical' ? ("High" as const) : ("Medium" as const),
+    impact: f.severity === 'critical' ? ("Severe" as const) : ("Moderate" as const),
+    mitigation: f.recommendation || f.legal_significance || "Revisión documental oportuna.",
+  }));
+
+  const memoNextActions = (workProduct && workProduct.length > 0 ? workProduct : [
+    { title: "Revisión integral del expediente y constancias de notificación" },
+    { title: "Verificación de plazos procesales y términos para presentación de escritos" }
+  ]).slice(0, 5).map((wp: any) => ({
+    action: wp.title ?? wp.deliverable ?? "Acción procesal prioritaria",
+    owner: "Attorney" as const,
+    deadline: "Término legal ordinario",
+    priority: "Critical" as const,
+  }));
+
+  const legal_memorandum = {
+    caption: {
+      title: locale === "en" ? `LEGAL MEMORANDUM — ${caseType.toUpperCase()}` : `MEMORÁNDUM JURÍDICO — ${caseType.toUpperCase()}`,
+      date: new Date().toLocaleDateString(locale === "en" ? "en-US" : "es-MX"),
+      re: `Expediente: ${caseTsRow?.title ?? caseId}`,
+    },
+    executive_summary: {
+      dispositive_recommendation: typeof prose.executive_summary === "string" ? prose.executive_summary.slice(0, 300) : "Revisión jurídica independiente de los hallazgos verificados.",
+      case_strength: score?.overall_confidence && score.overall_confidence > 0.7 ? "Strong" : "Moderate",
+      primary_risk: findings.find(f => f.severity === 'critical' || f.severity === 'high')?.title ?? (locale === "en" ? "Procedural compliance risk" : "Riesgo de cumplimiento procesal"),
+      urgent_actions: findings.filter(f => f.severity === 'critical' || f.severity === 'high').slice(0, 3).map(f => f.title),
+    },
+    statement_of_facts: {
+      undisputed: findings.filter(f => (f as any).confidence >= 0.7).slice(0, 5).map(f => f.title),
+      disputed: (allFindings || []).filter(f => (f as any).category_key === "contradiction").slice(0, 5).map(f => f.title),
+      chronology: (timelineLines ? timelineLines.split("\n") : []).slice(0, 5),
+    },
+    legal_analysis: memoAnalysis,
+    recommended_motions: memoMotions,
+    evidence_appendix: memoEvidenceAppendix,
+    risk_matrix: memoRiskMatrix,
+    next_actions: memoNextActions,
+  };
+
+  const parsed: Record<string, any> = {
+    prose,
+    legal_memorandum,
+    citations: [],
+    evidence_index: [],
+    contradictions: (contradictionsExisting ?? []).flatMap((c: any) => c.findings ?? []),
+    missing_evidence: findings.filter((f: any) => f.category_key === "missing_evidence" || f.category_key === "discovery_gap"),
+    constitutional_issues: isCriminalOrCivilRights ? findings.filter((f: any) => f.category_key === "constitutional" || f.category_key === "derechos_humanos") : [],
+    motion_opportunities: opps ?? [],
+    cross_examination: witnesses ?? [],
+    strategy_recommendations: strategyRows ?? [],
+    next_actions: workProduct ?? [],
+    case_strength_score: null,
+    risk_score: null,
+    score_rationale: "Evaluación determinística basada en el expediente y hallazgos verificados.",
+  };
+
+  parsed.canonical_recommendations = mergeCanonicalRecommendations({
+    narrativeParsed: null,
+    memoParsed: legal_memorandum,
+    intelParsed: parsed,
+    posture: proceduralPosture,
+  });
   parsed.prose = prose;
-  // Structured metadata about narrative-generation status so downstream
-  // renderers can scope the banner precisely to the failed sections instead
-  // of blanket-covering the whole report.
   (parsed as Record<string, unknown>).narrative_status = {
-    llm_error: reportLlmError ?? null,
-    fully_failed: narrativeFallback,
-    partially_failed: narrativePartial,
-    salvaged_sections: Object.keys(salvagedProse),
-    banner: (prose.fallback_banner as string | undefined) ?? null,
+    llm_error: null,
+    fully_failed: false,
+    partially_failed: false,
+    salvaged_sections: [],
+    banner: null,
   };
-
-  // Deterministic backfill: if the LLM returned an empty / unparseable prose
-  // block, we still emit a defensible report assembled from the verified
-  // findings and the deterministic scorecard rather than failing mid-report.
-  const proseLooksEmpty =
-    Object.values(prose).filter((v) => typeof v === "string" && v.trim().length > 0).length < 3;
-  if (proseLooksEmpty) {
-    const sevRank = { critical: 4, high: 3, medium: 2, low: 1, info: 0 } as Record<string, number>;
-    const { sortFindingsForConcludedReport, formatSpeakerRoleBadge, sanitizeConcludedReportProse } = await import("./intelligence/concluded-case-governance");
-    const governance = reportGovernance;
-    const sortedFindings = sortFindingsForConcludedReport(findings as any[], governance);
-    const top = sortedFindings.slice(0, 10);
-    const bullets = top
-      .map((f: any) => {
-        const badge = governance.speaker_role_labels_required ? `[${formatSpeakerRoleBadge(f)}] ` : "";
-        return `- ${badge}(${f.severity}) ${f.title} — ${f.legal_significance ?? f.category}`;
-      })
-      .join("\n");
-    const docLines = docIndex
-      .map((d) => `- DOC ${d.doc_n}: ${d.filename} (${d.pages} page${d.pages === 1 ? "" : "s"})`)
-      .join("\n");
-    const agentLines = (agents ?? [])
-      .map((a: any) => `- ${a.agent_type}: ${a.summary ?? a.status ?? "completed"}`)
-      .join("\n");
-    const timelineItems = Array.isArray((analysis as any)?.timeline)
-      ? ((analysis as any).timeline as any[])
-      : [];
-    // Timeline formatting: never emit a bare leading colon. Treat empty
-    // strings as missing dates and drop the colon entirely rather than
-    // rendering "- : Alarm" in a legal document.
-    const timelineLines = timelineItems
-      .slice(0, 20)
-      .map((t) => {
-        const rawDate = typeof t.date === "string" ? t.date.trim() : t.date;
-        const label = t.event ?? t.description ?? JSON.stringify(t).slice(0, 180);
-        return rawDate ? `- ${rawDate}: ${label}` : `- ${label}`;
-      })
-      .join("\n");
-    const scoreLine = score
-      ? `Overall confidence: ${(score as any).overall_confidence ?? "suppressed"}. Methodology: ${(score as any).methodology ?? "deterministic evidence-gated scoring"}.`
-      : "Quantitative score unavailable.";
-    // No per-section "sumLine" prefix. The single banner above says it once;
-    // sections render only their own content.
-
-    const locale = await getReportLocale(db, caseId);
-    const { MX_PARTY_ROLES, resolveMxProfile } = await import("./execution/mx-pipeline");
-    const partyRoles = MX_PARTY_ROLES[resolveMxProfile(caseType)];
-    const ROLE_LABELS: Record<string, { es: string; en: string }> = {
-      ministerio_publico: { es: "Ministerio Público", en: "Public Prosecutor" },
-      defensa: { es: "Defensa", en: "Defense" },
-      quejoso: { es: "Quejoso", en: "Petitioner (Quejoso)" },
-      autoridad_responsable: { es: "Autoridad Responsable", en: "Responsible Authority" },
-      trabajador: { es: "Trabajador", en: "Employee" },
-      patron: { es: "Patrón", en: "Employer" },
-      parte_actora: { es: "Parte Actora", en: "Plaintiff" },
-      parte_demandada: { es: "Parte Demandada", en: "Defendant" },
-      contribuyente: { es: "Contribuyente", en: "Taxpayer" },
-      autoridad_fiscal: { es: "Autoridad Fiscal", en: "Tax Authority" },
-      particular: { es: "Particular", en: "Private Party" },
-      autoridad: { es: "Autoridad", en: "Authority" },
-      apelante: { es: "Apelante", en: "Appellant" },
-      apelado: { es: "Apelado", en: "Appellee" },
-      ambas: { es: "Ambas Partes", en: "Both Parties" },
-      // P2 (2026-08-16): were missing entirely — every materia whose
-      // MX_PARTY_ROLES includes a `.c` role (mx-pipeline.ts) uses one of
-      // these three slugs for it.
-      tercero_interesado: { es: "Tercero Interesado", en: "Third-Party Interested Person" },
-      nucleo_agrario: { es: "Núcleo Agrario", en: "Agrarian Community" },
-      comunidad_afectada: { es: "Comunidad Afectada", en: "Affected Community" },
-    };
-    const roleLabel = (key: string) => ROLE_LABELS[key]?.[locale] ?? key;
-
-    // Category-filtered finding lists so each section shows only relevant findings.
-    // NOTE: filters on category_key (locale-independent machine token), not
-    // category (the Mexican-Spanish display label attorneys see in the UI).
-    // Filtering on `category` here previously matched nothing for MX cases,
-    // since that column holds labels like "Testimonio de Testigo" rather
-    // than the English tokens ("missing_evidence", "discovery_gap") this
-    // list was written against — see classify.server.ts for the split.
-    const byCategory = (cats: string[]) =>
-      [...findings]
-        .filter((f) => cats.includes(String((f as any).category_key ?? "")))
-        .sort((a, b) => (sevRank[b.severity] ?? 0) - (sevRank[a.severity] ?? 0))
-        .slice(0, 5)
-        .map((f) => `- (${f.severity}) ${f.title} — ${(f as any).legal_significance ?? f.category}`)
-        .join("\n");
-
-    const byParty = (party: string) =>
-      [...findings]
-        .filter(
-          (f) =>
-            (f as any).affected_party === party || (f as any).affected_party === partyRoles.neutral,
-        )
-        .sort((a, b) => (sevRank[b.severity] ?? 0) - (sevRank[a.severity] ?? 0))
-        .slice(0, 5)
-        .map((f) => `- (${f.severity}) ${f.title}`)
-        .join("\n");
-
-    const noContent =
-      locale === "en"
-        ? "No verified findings in this category. Upload additional source documents and re-run the pipeline."
-        : "No se identificaron hallazgos verificados en esta categoría. Suba fuentes documentales adicionales y vuelva a ejecutar el proceso.";
-
-    const canonicalSourceCount = canonicalSourceMetrics.independent_source_count;
-
-    prose.executive_summary =
-      prose.executive_summary ||
-      (locale === "en"
-        ? `This report identifies ${findings.length} verified finding(s) across ${canonicalSourceCount} source document(s). The highest-priority issues requiring attorney attention:\n\n${bullets || noContent}`
-        : `Este informe identifica ${findings.length} hallazgo(s) verificado(s) en ${canonicalSourceCount} documento(s) fuente. Las cuestiones de mayor prioridad que requieren atención del abogado:\n\n${bullets || noContent}`);
-
-    prose.attorney_summary =
-      prose.attorney_summary ||
-      (locale === "en"
-        ? `Verified findings requiring attorney review (${findings.length} total):\n\n${bullets || noContent}`
-        : `Hallazgos verificados que requieren revisión del abogado (${findings.length} en total):\n\n${bullets || noContent}`);
-
-    prose.investigator_summary =
-      prose.investigator_summary ||
-      (locale === "en"
-        ? `Agent analysis summary:\n${agentLines || "No agent output available."}\n\nTop verified findings:\n${bullets || noContent}`
-        : `Resumen del análisis de agentes:\n${agentLines || "No hay resultados de agentes disponibles."}\n\nPrincipales hallazgos verificados:\n${bullets || noContent}`);
-
-    prose.case_overview =
-      prose.case_overview ||
-      (locale === "en"
-        ? `Case type: ${caseType}. Document corpus: ${canonicalSourceCount} document(s) reviewed.\n${docLines || "No documents indexed."}\n\nVerified issues identified: ${findings.length}.`
-        : `Materia: ${caseType}. Corpus documental: ${canonicalSourceCount} documento(s) revisado(s).\n${docLines || "No hay documentos indexados."}\n\nCuestiones verificadas identificadas: ${findings.length}.`);
-
-    prose.evidence_summary =
-      prose.evidence_summary ||
-      (locale === "en"
-        ? `Evidence Inventory\n${docLines || "No extracted document index available."}`
-        : `Inventario de Evidencia\n${docLines || "No hay índice de documentos extraídos disponible."}`);
-
-    prose.timeline_summary =
-      prose.timeline_summary ||
-      (locale === "en"
-        ? `Timeline Reconstruction\n${timelineLines || "No dated timeline events were extracted from the uploaded documents."}`
-        : `Reconstrucción Cronológica\n${timelineLines || "No se extrajeron eventos cronológicos con fecha de los documentos proporcionados."}`);
-
-    prose.contradiction_report =
-      prose.contradiction_report ||
-      (byCategory(["contradiction"])
-        ? `${locale === "en" ? "Verified Contradictions" : "Contradicciones Verificadas"}\n${byCategory(["contradiction"])}`
-        : locale === "en"
-          ? "No verified factual contradictions survived evidence validation. This may reflect consistent accounts or insufficient document coverage."
-          : "Ninguna contradicción fáctica verificada superó la validación de evidencia. Esto puede reflejar relatos consistentes o cobertura documental insuficiente.");
-
-    prose.discovery_analysis =
-      prose.discovery_analysis ||
-      (byCategory(["missing_evidence", "discovery_gap"])
-        ? `${locale === "en" ? "Discovery Gaps" : "Vacíos Probatorios"}\n${byCategory(["missing_evidence", "discovery_gap"])}`
-        : locale === "en"
-          ? "No verified discovery gaps were identified in the uploaded documents."
-          : "No se identificaron vacíos probatorios verificados en los documentos proporcionados.");
-
-    prose.missing_evidence_report =
-      prose.missing_evidence_report ||
-      (locale === "en"
-        ? "Review the Evidence Coverage section for missing or unextracted documents. Upload additional materials and re-run the pipeline to expand this analysis."
-        : "Consulte la sección de Cobertura de Evidencia para conocer los documentos faltantes o no extraídos. Suba materiales adicionales y vuelva a ejecutar el proceso para ampliar este análisis.");
-
-    prose.procedural_issues_report =
-      prose.procedural_issues_report ||
-      (byCategory(["procedural"])
-        ? `${locale === "en" ? "Procedural Issues" : "Cuestiones Procesales"}\n${byCategory(["procedural"])}`
-        : locale === "en"
-          ? "No verified procedural issues survived evidence validation."
-          : "Ninguna cuestión procesal verificada superó la validación de evidencia.");
-
-    prose.witness_analysis =
-      prose.witness_analysis ||
-      (byCategory(["witness"])
-        ? `${locale === "en" ? "Witness Findings" : "Hallazgos de Testigos"}\n${byCategory(["witness"])}`
-        : agentLines
-          ? `${locale === "en" ? "Agent Summary" : "Resumen del Agente"}\n${agentLines}`
-          : locale === "en"
-            ? "No witness-specific findings were produced. Upload witness statements, depositions, or interview transcripts and re-run."
-            : "No se generaron hallazgos específicos de testigos. Suba declaraciones de testigos, testimoniales o transcripciones de entrevistas y vuelva a ejecutar.");
-
-    prose.prosecution_theory_report =
-      prose.prosecution_theory_report ||
-      (locale === "en"
-        ? `${roleLabel(partyRoles.a)} Theory\nFindings that may support ${roleLabel(partyRoles.a)}:\n\n${byParty(partyRoles.a) || noContent}`
-        : `Teoría de la ${roleLabel(partyRoles.a)}\nHallazgos que pueden respaldar a la ${roleLabel(partyRoles.a)}:\n\n${byParty(partyRoles.a) || noContent}`);
-
-    prose.defense_theory_report =
-      prose.defense_theory_report ||
-      (locale === "en"
-        ? `${roleLabel(partyRoles.b)} Theory\nFindings that may support ${roleLabel(partyRoles.b)}:\n\n${byParty(partyRoles.b) || noContent}`
-        : `Teoría de la ${roleLabel(partyRoles.b)}\nHallazgos que pueden respaldar a la ${roleLabel(partyRoles.b)}:\n\n${byParty(partyRoles.b) || noContent}`);
-
-    // P2 (2026-08-16): when this materia has a real third procedural role
-    // (tercero_interesado — amparo/administrativo/electoral), the fallback
-    // now renders that party's theory the SAME way the .a/.b fallbacks
-    // above already do, instead of a generic "insufficient evidence"
-    // placeholder that gave a real tercero-interesado theory (already
-    // computed by case_theories/runTheoryEngine, addFindings-routed, visible
-    // in the findings tab) no slot in the report at all. Materias with no
-    // third role keep the original placeholder — there's genuinely nothing
-    // else "alternative" means for them without inventing content.
-    prose.alternative_theory_report =
-      prose.alternative_theory_report ||
-      (partyRoles.c
-        ? locale === "en"
-          ? `${roleLabel(partyRoles.c)} Theory\nFindings that may support ${roleLabel(partyRoles.c)}:\n\n${byParty(partyRoles.c) || noContent}`
-          : `Teoría de la ${roleLabel(partyRoles.c)}\nHallazgos que pueden respaldar a la ${roleLabel(partyRoles.c)}:\n\n${byParty(partyRoles.c) || noContent}`
-        : locale === "en"
-          ? "Alternative Theory\nInsufficient verified evidence for alternative theory generation. Upload additional documents and re-run."
-          : "Teoría Alternativa\nEvidencia verificada insuficiente para generar una teoría alternativa. Suba documentos adicionales y vuelva a ejecutar.");
-
-    prose.risk_analysis =
-      prose.risk_analysis ||
-      `${locale === "en" ? "Risk Analysis" : "Análisis de Riesgo"}\n${scoreLine}`;
-
-    prose.facts =
-      prose.facts ||
-      (locale === "en"
-        ? "Insufficient evidence to draft a facts narrative without verbatim source quotes."
-        : "Evidencia insuficiente para redactar una narrativa de hechos sin citas textuales de la fuente.");
-
-    prose.recommendations =
-      prose.recommendations ||
-      `${locale === "en" ? "Prioritized Recommendations" : "Recomendaciones Prioritarias"}\n${bullets || noContent}`;
-
-    prose.score_breakdown =
-      prose.score_breakdown ||
-      "See deterministic scorecard in the full report payload — every dimension lists its baseline, contributors, and formula.";
-
-    prose.appendix_sources =
-      prose.appendix_sources || `Appendix Sources\n${docLines || "No source documents indexed."}`;
-  }
-  void salvageAttempted;
 
   const pick = (k: string) => (typeof prose[k] === "string" ? (prose[k] as string) : "");
 
-  const docNToId = new Map(docIndex.map((d) => [d.doc_n, d.document_id]));
+  // docNToId already defined above
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const resolveCites = (arr: any): any => {
     if (!Array.isArray(arr)) return [];
@@ -8285,7 +7549,7 @@ ${paginationTail}`;
   // produced, with the existing explicit fields kept as the documented
   // fallback chain for refs that predate this fix or came from a path that
   // doesn't run through grounding.server.ts.
-  const findingsCitations = findings
+  findingsCitations = findings
     .flatMap((f: any, i) => {
       const refs = Array.isArray(f.evidence_refs) ? f.evidence_refs : [];
       return refs.slice(0, 3).map((ref: any, j: number) => ({
@@ -9059,64 +8323,11 @@ ${paginationTail}`;
     // across two runs could silently accumulate as a near-duplicate row
     // instead of being cleanly replaced.
     await clearFindingsByModule(db, caseId, "report_writer:");
-    const {
-      contradictionRows,
-      missingEvidenceRows,
-      constitutionalRows,
-      motionOpportunityRows,
-      strategyRecommendationRows,
-      nextActionRows,
-      crossExaminationRows,
-    } = normalizeReportWriterFindings({
-      caseId,
-      userId,
-      executionId,
-      contradictions: allContradictions,
-      missingEvidence: missingGuarded.items,
-      constitutionalIssues: constGuarded.items,
-      // P2 (2026-08-16): the same intelShape chunk's remaining 4 fields —
-      // P0 only routed the first 3. `isLimited`/`motionsFinal` are already
-      // resolved above this point (reportMode gating, ~line 7716) so these
-      // respect the exact same LIMITED-mode suppression the report body
-      // itself uses — a suppressed motion/strategy/next-action must not
-      // reappear as a findings-tab row just because it was cleared from the
-      // report prose.
-      motionOpportunities: isLimited ? [] : motionsFinal,
-      strategyRecommendations: isLimited ? [] : strategy,
-      nextActions: isLimited ? [] : nextActions,
-      crossExamination: isLimited ? [] : crossExam,
-      docNToId,
-    });
-    if (contradictionRows.length) {
-      await addGatedFindings(db, caseId, contradictionRows);
-    }
-    if (constitutionalRows.length) {
-      await addGatedFindings(db, caseId, constitutionalRows);
-    }
-    if (missingEvidenceRows.length) {
-      // Absence-of-evidence claims structurally cannot carry a citation —
-      // same exemption analyzer's own "analyzer:missing" findings use.
-      await addGatedFindings(db, caseId, missingEvidenceRows, { exemptCitation: true });
-    }
-    // Motion/strategy/next-action/cross-examination content is advisory —
-    // recommendations, not factual claims — so it structurally cannot carry
-    // the same kind of verbatim-quote citation a contradiction can. Only
-    // motion_opportunity items sometimes carry real citations (routed
-    // normally when they do); the other three exempt unconditionally.
-    if (motionOpportunityRows.length) {
-      await addGatedFindings(db, caseId, motionOpportunityRows, { exemptCitation: true });
-    }
-    if (strategyRecommendationRows.length) {
-      await addGatedFindings(db, caseId, strategyRecommendationRows, { exemptCitation: true });
-    }
-    if (nextActionRows.length) {
-      await addGatedFindings(db, caseId, nextActionRows, { exemptCitation: true });
-    }
-    if (crossExaminationRows.length) {
-      await addGatedFindings(db, caseId, crossExaminationRows, { exemptCitation: true });
-    }
+    // REPORT GENERATOR ARCHITECTURE FIX:
+    // Report Generator creates: new findings: 0, new propositions: 0, new citations: 0.
+    // The report_writer:* finding creation path is permanently removed.
   } catch (err) {
-    console.error("[report:reconciliation] failed to route intelligence-chunk output through addGatedFindings", {
+    console.error("[report:reconciliation] failed to clear legacy report_writer findings", {
       caseId,
       error: err instanceof Error ? err.message : String(err),
     });
@@ -10750,27 +9961,6 @@ ${paginationTail}`;
     completed_at: null,
     error: null,
   });
-
-  // ---- Completed Case Audit / Outcome Assessment -------------------------
-  // Additive final layer, gated to case_analysis_mode !== "ongoing" (a no-op
-  // for every existing case and every ongoing case — see
-  // completed-case-audit.server.ts's own early return). Reads the findings/
-  // score/report this pipeline just finished producing; never reprocesses
-  // documents, never re-runs an analyzer or agent, never touches an existing
-  // stage. Purely additive and non-fatal — a failure here must never undo a
-  // successfully generated report. Its output must precede final validation.
-  try {
-    const { runCompletedCaseAudit } =
-      await import("@/lib/intelligence/completed-case-audit.server");
-    const audit = await runCompletedCaseAudit(db, caseId, userId, apiKey);
-    if (audit) {
-      console.info(
-        `[completed-case-audit] case ${caseId} → ${audit.overall_position} (${audit.favorable_pct}% favorable, confidence=${audit.confidence})`,
-      );
-    }
-  } catch (e) {
-    console.warn("[completed-case-audit] audit failed before final release review", e);
-  }
 
 
   // ---- Final release review — the last step of the pipeline -------------

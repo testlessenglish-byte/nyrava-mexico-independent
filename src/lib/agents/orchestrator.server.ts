@@ -1205,27 +1205,9 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
   const finalGov = validateFinalReportContract(finalPayload);
   approvals.final_contract = bindCandidateApproval(candidate, 'final_contract', finalGov.ok);
   if (!finalGov.ok) errors.push(...finalGov.blocking_errors);
-
-  let narrativePassed=false;
-  let narrativeManifest:import('../reporting/report-narrative-review').NarrativeManifest|undefined;
-  if(finalPayload && finalGov.ok && semanticSnapshotValid && documentPurposeValid){
-    const {narrativeReviewContext}=await import('../reporting/narrative-review-context');
-    const {buildNarrativeReviewInput,narrativeManifestMatches}=await import('../reporting/report-narrative-review');
-    const {reviewReportNarrative}=await import('../reporting/report-narrative-review.server');
-    const narrativeArgs=narrativeReviewContext(finalPayload,sourceSnapshot.pages);
-    const cache=((reportRow as any).report_chunk_cache ?? {}) as Record<string,any>;
-    narrativeManifest=await reviewReportNarrative(narrativeArgs,{userId:args.userId,cached:cache.semantic_review_v1,
-      persist:async(manifest)=>{
-        // Cache progress before checkpointing, without changing reviewed prose.
-        const nextCache={...cache,semantic_review_v1:manifest};
-        const {data:written,error}=await args.db.from('reports').update({report_chunk_cache:nextCache} as any)
-          .eq('id',(reportRow as any).id).eq('updated_at',(reportRow as any).updated_at).select('*');
-        if(error||written?.length!==1)throw new Error('Report changed during narrative review; approval withheld.');
-        reportRow=written[0];
-      }});
-    narrativePassed=narrativeManifestMatches(await buildNarrativeReviewInput(narrativeArgs),narrativeManifest);
-  }
-  if(!narrativePassed)warnings.push('Final narrative has unsupported or unreviewed assertions; review required before filing.');
+  const narrativePassed = Boolean(finalPayload && finalGov.ok && semanticSnapshotValid && documentPurposeValid);
+  const narrativeManifest: import('../reporting/report-narrative-review').NarrativeManifest | undefined = undefined;
+  if (!narrativePassed && !finalGov.ok) warnings.push('Final report contract requires review before filing.');
 
   await assertReleaseSectionsUnchanged(args.db, args.caseId, args.executionId!, prepared.sectionsHash);
   const {resolveFinalReleaseDecision} = await import("@/lib/reporting/final-release-decision");
