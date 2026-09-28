@@ -1,7 +1,7 @@
 import { assessCase, subscriberAssessment } from './qualitative-assessment';
 import { prepareCivilReport, auditCivilReport } from '../civil/report-contract';
 import { auditReportCitationIntegrity, canonicalizeReportCitations, bindAttributedFindingCitations } from './citation-integrity';
-import { findingCitationReviews } from './citation-production';
+import { findingCitationReviews, completedTheoriesCitations, completedPerspectivesCitations } from './citation-production';
 import { withReviewedSections } from "./reviewed-sections";
 import type { CaseExportData } from "../export";
 import { validateMigratorioPreRelease } from './migratorio-pre-release';
@@ -112,6 +112,16 @@ export function composeFinalReportPayload(input: CaseExportData, sourceReviewFin
   const integrity = quarantineDispositionConflicts(input, originalFull.migratorio_disposition, currentNumbers);
   const data = relocateReportReferences(structuredClone(integrity.data),arr(originalFull.pre_release_source_pages) as any,
     input.documents.map((d,i)=>({document_id:String(d.id),doc_n:Number(d.doc_n??i+1)}))) as FinalReportPayload;
+  
+  const pages = arr(originalFull.pre_release_source_pages) as any;
+  const docIndex = input.documents.map((d,i)=>({document_id:String(d.id),doc_n:Number(d.doc_n??i+1)}));
+  if (data.theories && Array.isArray(data.theories)) {
+    data.theories = completedTheoriesCitations(data.theories as any, arr(sourceReviewFindings) as any, pages, docIndex) as any;
+  }
+  if (data.perspectives && Array.isArray(data.perspectives)) {
+    data.perspectives = completedPerspectivesCitations(data.perspectives as any, arr(sourceReviewFindings) as any, pages, docIndex) as any;
+  }
+
   // Snapshot authoritative engine records, never embedded writer review objects.
   (data as Row).citation_review_registry = findingCitationReviews(arr(sourceReviewFindings));
   const report = obj(data.report), full = obj(report.full_report), c = obj(data.case);

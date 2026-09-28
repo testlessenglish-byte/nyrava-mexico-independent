@@ -3343,11 +3343,37 @@ export const deleteCase = createServerFn({ method: "POST" })
       }
     }
 
-    // 3. Hard delete the case row — FK CASCADE removes documents,
-    //    document_pages, analyses, reports, findings, scores, theories,
-    //    opportunities, witnesses, perspectives, strategy, trial_prep,
-    //    work_product, chat_messages, agent_findings, evidence_classifications,
-    //    and pipeline_events automatically.
+    // 3. Hard delete the case row and all its case-scoped dependencies explicitly
+    // to guarantee no orphans (even if some tables lack ON DELETE CASCADE).
+    const caseScopedTables = [
+      "documents",
+      "document_pages",
+      "case_findings",
+      "analyses",
+      "agent_findings",
+      "reports",
+      "case_theories",
+      "case_perspectives",
+      "case_opportunities",
+      "case_witnesses",
+      "case_timeline_events",
+      "case_trial_prep",
+      "case_chat_messages",
+      "pipeline_engine_runs",
+      "pipeline_trace",
+      "pipeline_events",
+      "case_scores",
+      "case_strategy",
+      "evidence_classifications",
+      "case_work_product",
+    ];
+
+    await Promise.all(
+      caseScopedTables.map((table) =>
+        supabase.from(table).delete().eq("case_id", data.caseId)
+      )
+    );
+
     let deleteQuery = supabase.from("cases").delete().eq("id", data.caseId);
     if (!isAdmin) deleteQuery = deleteQuery.eq("user_id", userId);
     const { data: deleted, error } = await deleteQuery.select("id,name").maybeSingle();

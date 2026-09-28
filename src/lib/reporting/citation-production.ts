@@ -95,6 +95,38 @@ export function completedCoreCitations<T extends { id: string; text: string; sou
   });
 }
 
+export function completedTheoriesCitations<T extends Row>(
+  theories: T[], findings: Row[], pages: MatterSourcePage[], index: Index,
+): T[] {
+  return theories.map(theory => {
+    const refs = Array.isArray(theory.citations) ? theory.citations : [];
+    return {
+      ...theory,
+      citations: refs.map(ref => {
+        const proposition = String(ref.proposition_supported || theory.title || theory.theory_type || "");
+        return createCanonicalCitation(ref, proposition, pages, index) ?? ref;
+      })
+    };
+  });
+}
+
+export function completedPerspectivesCitations<T extends Row>(
+  perspectives: T[], findings: Row[], pages: MatterSourcePage[], index: Index,
+): T[] {
+  return perspectives.map(perspective => {
+    const keyEvidence = Array.isArray(perspective.key_evidence) ? perspective.key_evidence : [];
+    return {
+      ...perspective,
+      key_evidence: keyEvidence.map(ev => {
+        if (!ev || !ev.citation) return ev;
+        const proposition = String(ev.citation.proposition_supported || ev.description || perspective.perspective || "");
+        const canonical = createCanonicalCitation(ev.citation, proposition, pages, index);
+        return { ...ev, citation: canonical ?? ev.citation };
+      })
+    };
+  });
+}
+
 export function writerCitationCatalog(refs: Row[], pages: MatterSourcePage[], index: Index): Row[] {
   const checked = refs.flatMap(ref => {
     const citation = createCanonicalCitation(ref, String(ref.quote ?? ref.excerpt ?? ref.source_quote ?? ''), pages, index);
