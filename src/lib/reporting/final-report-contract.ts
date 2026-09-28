@@ -114,7 +114,7 @@ export function composeFinalReportPayload(input: CaseExportData, sourceReviewFin
     input.documents.map((d,i)=>({document_id:String(d.id),doc_n:Number(d.doc_n??i+1)}))) as FinalReportPayload;
   
   const pages = arr(originalFull.pre_release_source_pages) as any;
-  const docIndex = input.documents.map((d,i)=>({document_id:String(d.id),doc_n:Number(d.doc_n??i+1)}));
+  const docIndex = input.documents.map((d,i)=>({document_id:String(d.id),doc_n:Number(d.doc_n??i+1),canonical_source_id:d.canonical_source_id?String(d.canonical_source_id):undefined}));
   if (data.theories && Array.isArray(data.theories)) {
     data.theories = completedTheoriesCitations(data.theories as any, arr(sourceReviewFindings) as any, pages, docIndex) as any;
   }

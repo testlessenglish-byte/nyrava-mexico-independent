@@ -1168,6 +1168,10 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
   const { data: engineRuns } = await engineRunsQuery.order("created_at", { ascending: false });
   const { missingRequiredEngines: getMissingRequiredEngines } = await import("@/lib/execution/canonical");
   const missingEngines = getMissingRequiredEngines((engineRuns ?? []) as never);
+    const { criticalSpecialistFailures, FAMILIAR_CRITICAL_SPECIALISTS } = await import('@/lib/execution/logical-specialists');
+    const isFamiliar = (caseRow as any)?.case_type === 'familiar' || (caseRow as any)?.underlying_materia === 'familiar';
+    const reqs = isFamiliar ? [...FAMILIAR_CRITICAL_SPECIALISTS].map(e => ({ engine: e, applicable: true, critical: true })) : [];
+    missingEngines.push(...criticalSpecialistFailures(reqs, (engineRuns ?? []) as never, args.executionId!));
   const engineGate = canGenerateReport((engineRuns ?? []) as never);
   const allMissing = [...new Set([...engineGate.missingBlocking, ...missingEngines])];
   if (!engineGate.ok || allMissing.length > 0) {

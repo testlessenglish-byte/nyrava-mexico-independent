@@ -104,7 +104,7 @@ export function completedTheoriesCitations<T extends Row>(
       ...theory,
       citations: refs.map(ref => {
         const proposition = String(ref.proposition_supported || theory.title || theory.theory_type || "");
-        return createCanonicalCitation(ref, proposition, pages, index) ?? ref;
+        return createCanonicalCitation(ref, proposition, pages, index) ?? unresolvedCitation(ref, 'THEORY_PROPOSITION_NOT_CERTIFIED');
       })
     };
   });
@@ -121,7 +121,7 @@ export function completedPerspectivesCitations<T extends Row>(
         if (!ev || !ev.citation) return ev;
         const proposition = String(ev.citation.proposition_supported || ev.description || perspective.perspective || "");
         const canonical = createCanonicalCitation(ev.citation, proposition, pages, index);
-        return { ...ev, citation: canonical ?? ev.citation };
+        return { ...ev, citation: canonical ?? unresolvedCitation(ev.citation, 'PERSPECTIVE_PROPOSITION_NOT_CERTIFIED') };
       })
     };
   });

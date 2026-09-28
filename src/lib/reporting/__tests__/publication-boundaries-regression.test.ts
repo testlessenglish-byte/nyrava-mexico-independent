@@ -13,7 +13,7 @@ const ref = { document_id: 'doc-a', doc_n: 1, page: 27, quote };
 const canonical = () => createCanonicalCitation(ref, quote, pages, index)!;
 function payload(): any {
   return { case: { id: 'case-a', execution_id: 'run-a', case_type: 'familiar' },
-    documents: [{ id: 'doc-a', doc_n: 1 }], findings: [], agents: [], analysis: null, score: null,
+    documents: [{ id: 'doc-a', doc_n: 1, canonical_source_id: 'source-a' }], findings: [], agents: [], analysis: null, score: null,
     report: { case_id: 'case-a', execution_id: 'run-a', citations: [], executive_summary: quote.repeat(3),
       full_report: { pre_release_source_pages: pages, source_audit: { canonical_sources: [
         { ...index[0], original_filename: 'decision.pdf', display_name: 'decision.pdf', source_aliases: [] },
