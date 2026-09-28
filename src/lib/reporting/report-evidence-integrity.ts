@@ -3,6 +3,7 @@ import type { MatterSourcePage } from '../intelligence/source-matter-audit';
 import type { MigratorioDisposition } from '../intelligence/migratorio-disposition';
 import { auditSourceLocations, relocateSourceRefs } from './source-location-audit';
 import { classifyContradiction } from '../intelligence/dispute-classifier.server';
+import { createCanonicalCitation } from './citation-production';
 
 type Row = Record<string, any>;
 const norm = (s: unknown) => String(s ?? '').normalize('NFC').replace(/\s+/g, ' ').trim();
@@ -22,12 +23,12 @@ export function verifyContradictionPairs(items: Row[], pages: MatterSourcePage[]
     if (sides.some(side => !index.some(d => d.document_id === (side.document_id ?? side.doc_id) || d.doc_n === Number(side.doc_n)))) {
       rejected.push({index:i,reason:'unknown_source'}); continue;
     }
-    const refs = relocateSourceRefs(sides,pages,index);
-    const audit = auditSourceLocations(refs,pages,index);
-    if (!audit.ok || audit.unique_citations !== 2) {
+    const citationA = createCanonicalCitation(sides[0], String(item.title || sides[0].quote || ''), pages, index as any);
+    const citationB = createCanonicalCitation(sides[1], String(item.title || sides[1].quote || ''), pages, index as any);
+    if (!citationA || !citationB || (citationA.document_id === citationB.document_id && citationA.page === citationB.page && citationA.quote === citationB.quote)) {
       rejected.push({index:i,reason:'unverified_or_identical_passages'}); continue;
     }
-    const pair = {...item,document_a:refs[0],document_b:refs[1],quote_verified:true};
+    const pair = {...item,document_a:citationA,document_b:citationB,quote_verified:true};
     accepted.push({...pair,kind:classifyContradiction(pair)});
   }
   return {accepted,rejected};

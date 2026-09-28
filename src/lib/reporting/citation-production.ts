@@ -74,10 +74,11 @@ export function createCanonicalCitation(ref: Row, proposition: string, pages: Ma
   const located = audit.verified[0];
   if (!citationPropositionVerified({ ...candidate, ...located }, proposition, pages, proof ? [proof] : [])) return null;
   const doc = index.find(d => d.document_id === located.document_id);
-  return { ...candidate, ...located, doc_n: doc?.doc_n,
+  const result = { ...candidate, ...located, doc_n: doc?.doc_n,
     ...(doc?.canonical_source_id ? { canonical_source_id: doc.canonical_source_id } : {}),
     page_number: located.page, page_located: located.page,
     proposition_supported: proposition, verification_status: 'verified', source_location_verified: true };
+  return { ...result, writer_ref_id: 'cite_' + sha256HexSync(JSON.stringify([result.canonical_source_id, result.document_id, result.page, citationText(result.proposition_supported), citationText(result.quote)])).slice(0, 24) };
 }
 
 export function completedCoreCitations<T extends { id: string; text: string; source_refs: Row[] }>(
@@ -394,3 +395,4 @@ export function assertWriterCitationReferences(value: unknown, catalog: Row[]): 
     if (!['quote', 'source_quote', 'excerpt', 'proposition_supported', 'proposition_verification'].includes(key)) assertWriterCitationReferences(child, catalog);
   }
 }
+

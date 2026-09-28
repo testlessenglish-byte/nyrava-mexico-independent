@@ -1,7 +1,7 @@
 import { assessCase, subscriberAssessment } from './qualitative-assessment';
 import { prepareCivilReport, auditCivilReport } from '../civil/report-contract';
 import { auditReportCitationIntegrity, canonicalizeReportCitations, bindAttributedFindingCitations } from './citation-integrity';
-import { findingCitationReviews, completedTheoriesCitations, completedPerspectivesCitations } from './citation-production';
+import { findingCitationReviews, completedTheoriesCitations, completedPerspectivesCitations, safeResolveWriterCitationReferences } from './citation-production';
 import { withReviewedSections } from "./reviewed-sections";
 import type { CaseExportData } from "../export";
 import { validateMigratorioPreRelease } from './migratorio-pre-release';
@@ -411,8 +411,10 @@ export function composeFinalReportPayload(input: CaseExportData, sourceReviewFin
       const audit = auditSourceLocations(refs,pages,index);
       return audit.ok && audit.verified.length ? [{...item,source_refs:audit.verified}] : [];
     });
-    const summary = groundedDecisionSummary(verifiedCore as any,index);
-    if (summary.length >= 80) {
+    const summaryDraft = groundedDecisionSummary(verifiedCore as any,index);
+      const summaryRefs = verifiedCore.flatMap(item=>item.source_refs);
+      const summary = safeResolveWriterCitationReferences(summaryDraft, summaryRefs, { path: 'executive_summary' }).value;
+      if (summary.length >= 80) {
       finalReport.executive_summary = summary;
       finalFull.prose = {...obj(finalFull.prose),executive_summary:summary};
       finalFull.executive_summary_source = 'verified_decision_passages';
@@ -421,7 +423,7 @@ export function composeFinalReportPayload(input: CaseExportData, sourceReviewFin
       finalReport.citations = [...arr(finalReport.citations)];
       for (const ref of verifiedCore.flatMap(item=>item.source_refs)) {
         if (!finalReport.citations.some((r:Row)=>r.document_id===ref.document_id && r.page===ref.page && r.quote===ref.quote))
-          finalReport.citations.push({...ref,id:`source-${finalReport.citations.length+1}`});
+          finalReport.citations.push({...ref,id: ref.writer_ref_id ?? `source-${finalReport.citations.length+1}`});
       }
     }
   }
