@@ -3,10 +3,13 @@ export type LogicalStatus = 'COMPLETE' | 'PARTIAL' | 'FAILED' | 'SKIPPED' | 'NOT
 const logicalEngine = (r: Row) => String(r.engine).replace(/_batch$/, '');
 export function logicalAgentStatus(attempts: Row[]): LogicalStatus {
   const ordered = [...attempts].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+  
+  if (ordered.some(r => (r.meta?.internal_batch || String(r.engine).endsWith('_batch')) && r.status === 'completed' && r.db_write_confirmed === true)) return 'COMPLETE';
+
   const final = ordered.find(r => !r.meta?.internal_batch && !String(r.engine).endsWith('_batch'));
   if (final?.status === 'skipped') return /not_applicable|not_completed_case_mode/.test(final.skipped_reason ?? '') ? 'NOT_APPLICABLE' : 'SKIPPED';
   if (final?.status === 'completed' && final.db_write_confirmed === true && final.meta?.logical_result === 'COMPLETE') return 'COMPLETE';
-  if (final?.meta?.logical_result === 'PARTIAL' || ordered.some(r => r.meta?.internal_batch && r.status === 'completed') ||
+  if (final?.meta?.logical_result === 'PARTIAL' || ordered.some(r => (r.meta?.internal_batch || String(r.engine).endsWith('_batch')) && r.status === 'completed') ||
       ['running', 'queued'].includes(final?.status)) return 'PARTIAL';
   return 'FAILED';
 }

@@ -4852,7 +4852,8 @@ export async function runAgents(args: {
                   case_id: caseId,
                   user_id: userId,
                   agent_type: agent.type,
-                  status: "complete",
+                    execution_id: executionId,
+                    status: "complete",
                   summary: parsed.summary ?? "",
                   confidence: typeof parsed.confidence === "number" ? parsed.confidence : null,
                   findings: findingsForNormalize as J,
@@ -4860,7 +4861,7 @@ export async function runAgents(args: {
                   error: null,
                   grounding_dropped_count: groundingDropped,
                 },
-                { onConflict: "case_id,agent_type" },
+                { onConflict: "case_id,execution_id,agent_type" },
               )
             ).error,
             `Failed to save ${agent.type} agent result`,
@@ -4934,11 +4935,12 @@ export async function runAgents(args: {
                 case_id: caseId,
                 user_id: userId,
                 agent_type: agent.type,
-                status: "failed",
+                  execution_id: executionId,
+                  status: "failed",
                 error: msg,
                 latency_ms: Date.now() - t0,
               },
-              { onConflict: "case_id,agent_type" },
+              { onConflict: "case_id,execution_id,agent_type" },
             )
           ).error,
           `Failed to save ${agent.type} agent failure`,
@@ -10840,3 +10842,6 @@ ${paginationTail}`;
 // exercised directly against a fake db, without invoking the full report
 // assembly this function otherwise performs.
 export { _runReportInner as __test__runReportInner };
+
+
+
