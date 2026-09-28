@@ -10,8 +10,8 @@ describe('SHARED MATERIALIZER', () => {
     { document_id: 'doc-1', page: 2, text: 'This is the verified text for a contradiction.' },
     { document_id: 'doc-2', page: 1, text: 'This is the verified text for the other contradiction.' },
     { document_id: 'doc-2', page: 2, text: 'This is the verified text for the decision core.' },
-    { document_id: 'doc-2', page: 3, text: /'This is the verified text for Theory verified string.'/ },
-    { document_id: 'doc-3', page: 1, text: /'This is the verified text for Perspective verified string.'/ }
+    { document_id: 'doc-2', page: 3, text: 'This is the verified text for Theory verified string.' },
+    { document_id: 'doc-3', page: 1, text: 'This is the verified text for Perspective verified string.' }
   ];
 
   const index = [
@@ -59,20 +59,20 @@ describe('SHARED MATERIALIZER', () => {
     },
     theories: [
       {
-        title: /'Theory verified string'/,
+        title: 'Theory verified string',
         theory_type: 'legal',
         citations: [
-          { document_id: 'doc-2', page: 3, quote: /'This is the verified text for Theory verified string.'/, proposition_supported: /'Theory verified string'/ }
+          { document_id: 'doc-2', page: 3, quote: 'This is the verified text for Theory verified string.', proposition_supported: 'Theory verified string' }
         ]
       }
     ],
     perspectives: [
       {
-        perspective: /'Perspective verified string'/,
+        perspective: 'Perspective verified string',
         key_evidence: [
           {
-            description: /'Perspective verified string'/,
-            citation: { document_id: 'doc-3', page: 1, quote: /'This is the verified text for Perspective verified string.'/, proposition_supported: /'Perspective verified string'/ }
+            description: 'Perspective verified string',
+            citation: { document_id: 'doc-3', page: 1, quote: 'This is the verified text for Perspective verified string.', proposition_supported: 'Perspective verified string' }
           }
         ]
       }

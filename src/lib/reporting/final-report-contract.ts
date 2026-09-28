@@ -411,9 +411,7 @@ export function composeFinalReportPayload(input: CaseExportData, sourceReviewFin
       const audit = auditSourceLocations(refs,pages,index);
       return audit.ok && audit.verified.length ? [{...item,source_refs:audit.verified}] : [];
     });
-    const summaryDraft = groundedDecisionSummary(verifiedCore as any,index);
-      const summaryRefs = verifiedCore.flatMap(item=>item.source_refs);
-      const summary = safeResolveWriterCitationReferences(summaryDraft, summaryRefs, { path: 'executive_summary' }).value;
+    const summary = groundedDecisionSummary(verifiedCore as any, index);
       if (summary.length >= 80) {
       finalReport.executive_summary = summary;
       finalFull.prose = {...obj(finalFull.prose),executive_summary:summary};

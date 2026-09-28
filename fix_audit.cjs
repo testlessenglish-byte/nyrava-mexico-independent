@@ -1,1 +1,0 @@
-const fs = require("fs"); let f = fs.readFileSync("src/lib/intelligence/engine-audit.server.ts", "utf8"); f = f.replace("return undefined as unknown as T;", "throw new DuplicateEngineActiveError(`Engine ${args.engine} is actively running (concurrent insert blocked)`);"); fs.writeFileSync("src/lib/intelligence/engine-audit.server.ts", f);

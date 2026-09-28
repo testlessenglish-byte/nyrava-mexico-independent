@@ -560,7 +560,7 @@ export function buildObjectiveBlock(input: ObjectiveInput): ObjectiveBlock {
     confidence,
     insufficient,
     basis: decisionSource.map((f) => clean(f.title)),
-    blockers: isAmparoDecisionAudit ? [] : gaps,
+    blockers: isJudicialDecisionAudit ? [] : gaps,
     decision_points,
   };
 }
