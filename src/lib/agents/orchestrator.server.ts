@@ -24,6 +24,7 @@ import { finalAgentGatePassed } from '../reporting/final-agent-gate';
 import { attachAgentStats, buildAgentStatistics } from "./statistics.server";
 import { isCheckpointError } from "@/lib/pipeline-checkpoint.server";
 import { PROJECTION_LIKE, canonicalEvidenceIntegrityIssue } from "@/lib/intelligence/finding-selection";
+import { bindCandidateApproval, candidateApprovalPassed, type ReleaseCandidate, type CandidateApproval } from '../reporting/release-candidate';
 
 type Db = SupabaseClient<Database>;
 
@@ -137,6 +138,47 @@ export interface OrchestratorArgs {
 
 type AnalysisMode = "strict" | "balanced" | "exploratory";
 type RunCtx = OrchestratorArgs & { runId: string; analysisMode: AnalysisMode };
+
+/** Final gates inspect a single detached candidate. No database reads or writes. */
+export async function reviewCandidateGate(candidate: ReleaseCandidate, key: string, analysisMode: AnalysisMode): Promise<AgentResult> {
+  const { auditReportCitationIntegrity } = await import('../reporting/citation-integrity');
+  const { validateFinalReportContract } = await import('../reporting/final-report-contract');
+  const payload = candidate.payload;
+  const citationAudit = auditReportCitationIntegrity(payload);
+  const errors = [...citationAudit.errors];
+  const report = payload.report ?? {};
+  const findings = payload.findings ?? [];
+  if (key === 'report' || key === 'qa') {
+    if (String(report.executive_summary ?? '').trim().length < 80) errors.push('Executive summary missing or too short (<80 chars).');
+    if (!report.full_report || !Object.keys(report.full_report).length) errors.push('Report has no full_report payload.');
+    if (!findings.length) errors.push('No findings to support the report.');
+  }
+  if (key === 'qa') {
+    const locale = payload.case?.report_language === 'en' ? 'en' : 'es';
+    errors.push(...detectReportLanguageLeaks(collectReportText(QA_NARRATIVE_FIELDS.map(k => report[k])).join('\n'), locale));
+  }
+  let verdict: string | undefined;
+  if (key === 'judge') {
+    const result = computeJudgeVerdict(findings as JudgeFinding[], analysisMode);
+    verdict = result.verdict;
+    if (verdict !== 'approve') errors.push(...result.notes);
+  }
+  if (key === 'hallucination') {
+    const { supportSnapshotValid } = await import('../intelligence/claim-support-review');
+    const { scopedReviewPages } = await import('../intelligence/review-source-snapshot.server');
+    const sources = (payload as any).release_source_snapshot;
+    if (!sources || !supportSnapshotValid(sources.findings, scopedReviewPages(sources))) errors.push('SEMANTIC_SNAPSHOT_UNVERIFIED');
+  }
+  // Mandatory decision-core and every other existing contract rule still apply.
+  if (key === 'report' || key === 'final_contract') errors.push(...validateFinalReportContract(payload).blocking_errors);
+  const passed = errors.length === 0;
+  return { status: passed ? 'success' : 'failed', confidence: passed ? 1 : 0, processingTime: 0, tokensUsed: 0,
+    outputFile: key + '_report.json', errors: [...new Set(errors)], output: {
+      candidate_approval: bindCandidateApproval(candidate, key, passed), verdict,
+      hallucination_verification_passed: key === 'hallucination' ? passed : undefined,
+      checked_citations: citationAudit.checked, verified_citations: citationAudit.verified.length,
+    } };
+}
 
 async function recordAgent(db: Db, ctx: RunCtx, def: AgentDefinition, startedAt: number, result: AgentResult) {
   const finishedAt = new Date().toISOString();
@@ -811,6 +853,10 @@ async function _runMultiAgentPipeline(args: OrchestratorArgs): Promise<{
   results: Array<AgentResult & { agent: AgentDefinition }>;
 }> {
   const runId = crypto.randomUUID();
+  const scope = await args.db.from('cases').select('execution_id').eq('id', args.caseId).maybeSingle();
+  if (scope.error || !scope.data?.execution_id || (args.executionId && args.executionId !== scope.data.execution_id))
+    throw new Error('RELEASE_CANDIDATE_EXECUTION_MISMATCH');
+  args = { ...args, executionId: scope.data.execution_id };
   const { getAnalysisMode } = await import("@/lib/intelligence/evidence-gate.server");
   const analysisMode = (await getAnalysisMode(args.db, args.caseId)) as AnalysisMode;
   const ctx: RunCtx = { ...args, runId, analysisMode };
@@ -1033,14 +1079,16 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
     };
   }
 
-  // ORDER IS A RELEASE INVARIANT. Hallucination may quarantine/suppress
-  // unsupported rows. Judge must therefore run after it.
-  const gateRunners: Array<[string, (c: RunCtx) => Promise<AgentResult>]> = [
-    ["report", agentReport],
-    ["qa", agentQA],
-    ["hallucination", agentHallucination],
-    ["judge", agentJudge],
-  ];
+  // Mutating preparation finishes before any candidate approval.
+  const { runHallucinationReview } = await import('../intelligence/hallucination.server');
+  await runHallucinationReview({ db: args.db, caseId: args.caseId, userId: args.userId, executionId: args.executionId });
+  const { prepareReleaseCandidate, assertReleaseSectionsUnchanged } = await import('../reporting/release-candidate.server');
+  const prepared = await prepareReleaseCandidate(args.db, args.caseId, args.executionId!);
+  const { candidate, caseRow, sourceSnapshot, findingsData, semanticSnapshotValid, documentPurposeValid } = prepared;
+  reportRow = prepared.reportRow;
+  const approvals: Record<string, CandidateApproval> = {};
+  const gateRunners = ['report', 'qa', 'hallucination', 'judge'].map(key =>
+    [key, () => reviewCandidateGate(candidate, key, analysisMode)] as const);
 
   const outcomes: Record<string, boolean> = {};
   const errors: string[] = [];
@@ -1048,11 +1096,15 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
 
   const persistedProgress = (reportRow.full_report as Record<string, unknown> | null)?.final_review_progress as {
     outcomes?: Record<string, boolean>;
+    approvals?: Record<string, CandidateApproval>;
+    candidate_hash?: string;
     errors?: string[];
     warnings?: string[];
   } | undefined;
-  if (persistedProgress) {
-    Object.assign(outcomes, persistedProgress.outcomes ?? {});
+  if (persistedProgress?.candidate_hash === candidate.hash) {
+    for (const [gate, approval] of Object.entries(persistedProgress.approvals ?? {})) {
+      if (candidateApprovalPassed(candidate, gate, approval)) { outcomes[gate] = true; approvals[gate] = approval; }
+    }
     if (Array.isArray(persistedProgress.errors)) errors.push(...persistedProgress.errors);
     if (Array.isArray(persistedProgress.warnings)) warnings.push(...persistedProgress.warnings);
   }
@@ -1065,10 +1117,12 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
     const def = AGENT_DEFINITIONS.find((d) => d.key === key)!;
     const startedAt = Date.now();
     try {
-      const raw = await safeRun(() => fn(ctx), def);
+      const raw = await safeRun(() => fn(), def);
       const withStats = await attachAgentStats(args.db, args.caseId, def, raw, startedAt);
       await recordAgent(args.db, ctx, def, startedAt, withStats);
-      outcomes[key] = finalAgentGatePassed(key, withStats);
+      const approval = (withStats.output as any)?.candidate_approval as CandidateApproval | undefined;
+      if (approval) approvals[key] = approval;
+      outcomes[key] = finalAgentGatePassed(key, withStats) && candidateApprovalPassed(candidate, key, approval);
       if (key === 'hallucination' && !outcomes[key]) warnings.push('Semantic claim verification review incomplete (informational).');
       if (withStats.status !== "success") errors.push(...(withStats.errors ?? []));
       const outputWarnings = (withStats.output as Record<string, unknown> | null)?.warnings;
@@ -1083,6 +1137,7 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
               full_report: {
                 ...fr,
                 final_review_progress: {
+                  candidate_hash: candidate.hash, approvals,
                   outcomes,
                   errors,
                   warnings,
@@ -1123,24 +1178,9 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
   warnings.push(...engineGate.coverageGaps.map(gap =>
     `${gap.category} engine ${gap.engine} incomplete (${gap.status})`));
 
-  // QA/hallucination can update the report. Validate the latest complete row.
-  const latestReport = await args.db.from("reports").select("*").eq("case_id",args.caseId).maybeSingle();
-  if (latestReport.error || !latestReport.data) throw new Error("FINAL_REPORT_REFRESH_FAILED");
-  reportRow = latestReport.data;
-
-  // Pre-release JSON Integrity Validation
-  const { data: caseRow } = await args.db.from("cases").select("*").eq("id", args.caseId).maybeSingle();
-  const {loadReviewSourceSnapshot,scopedReviewPages,documentPurposesResolved}=await import('../intelligence/review-source-snapshot.server');
-  const sourceSnapshot=await loadReviewSourceSnapshot(args.db,args.caseId);
-  const findingsData=sourceSnapshot.findings;
-  const semanticPages=scopedReviewPages(sourceSnapshot);
-  const {supportSnapshotValid}=await import('../intelligence/claim-support-review');
-  const {PROJECTION_LIKE}=await import('../intelligence/finding-selection');
-  const reviewedFindings=(findingsData ?? []).filter((f:any)=>!String(f.source_module ?? '').startsWith(PROJECTION_LIKE.replace(/%$/,'')));
-  const semanticSnapshotValid=supportSnapshotValid(reviewedFindings as any,semanticPages);
-  const documentPurposeValid=documentPurposesResolved(sourceSnapshot.documents);
-  if(!documentPurposeValid)warnings.push('Finalidad documental no determinada en uno o más documentos.');
-  if(!semanticSnapshotValid)warnings.push('Current findings or source pages differ from the verified semantic snapshot.');
+  // All gates consumed candidate.payload; do not recompose after approval.
+  if (!semanticSnapshotValid) warnings.push('Semantic source snapshot is not verified.');
+  if (!documentPurposeValid) warnings.push('Document purpose unresolved.');
   if((caseRow as any)?.cancel_requested)errors.push('Case cancellation requested; release withheld.');
   const integrity = validateJSONPipelineIntegrity({
     caseRow,
@@ -1156,35 +1196,10 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
     warnings.push(...integrity.violations.filter((v) => v.severity === "warning").map((v) => v.message));
   }
 
-  // Final renderer contract: the same composer and validator used by
-  // PDF/DOCX/HTML, including per-finding cards. Missing context blocks release.
-  let finalGov = {ok:false, blocking_errors:[] as string[]};
-  let finalPayload: import("@/lib/reporting/final-report-contract").FinalReportPayload | undefined;
-  try {
-    if (!caseRow) throw new Error("REPORT_GOVERNANCE_CONTEXT_UNAVAILABLE");
-    const documents=sourceSnapshot.documents;
-    const {composeFinalReportPayload,validateFinalReportContract} = await import("@/lib/reporting/final-report-contract");
-    const {loadFinalReportSections} = await import("@/lib/reporting/final-report-inputs.server");
-    const sections = await loadFinalReportSections(args.db,args.caseId);
-    const payload = composeFinalReportPayload({
-      analysis:null, agents:[], score:null, ...sections,
-      case:caseRow, documents:documents ?? [], report:{...reportRow,full_report:{...(reportRow.full_report as Record<string,unknown>??{}),
-        pre_release_source_pages:sourceSnapshot.pages,reviewed_sections:sections}},
-      findings:(findingsData ?? []) as Array<Record<string,unknown>>,
-    });
-    finalPayload = payload;
-    const {refreshProceduralQa,normalizeQaLayers} = await import("@/lib/reporting/final-release-decision");
-    refreshProceduralQa(payload.report!,payload.findings ?? [],{
-      matter: (caseRow as any)?.case_type ?? null,
-      underlyingMatter: (caseRow as any)?.underlying_materia ?? null,
-      proceduralVehicle: (caseRow as any)?.procedural_vehicle ?? null});
-    (payload.report!.full_report as any).qa_statuses = normalizeQaLayers((payload.report!.full_report as any).qa_statuses);
-    const {prepareFinalReportForRelease} = await import("@/lib/export");
-    finalPayload = await prepareFinalReportForRelease(payload);
-    finalGov = validateFinalReportContract(finalPayload);
-  } catch (error) {
-    finalGov = {ok:false,blocking_errors:[error instanceof Error ? error.message : "REPORT_CONTRACT_UNAVAILABLE"]};
-  }
+  const finalPayload = candidate.payload;
+  const { validateFinalReportContract } = await import('../reporting/final-report-contract');
+  const finalGov = validateFinalReportContract(finalPayload);
+  approvals.final_contract = bindCandidateApproval(candidate, 'final_contract', finalGov.ok);
   if (!finalGov.ok) errors.push(...finalGov.blocking_errors);
 
   let narrativePassed=false;
@@ -1208,6 +1223,7 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
   }
   if(!narrativePassed)warnings.push('Final narrative has unsupported or unreviewed assertions; review required before filing.');
 
+  await assertReleaseSectionsUnchanged(args.db, args.caseId, args.executionId!, prepared.sectionsHash);
   const {resolveFinalReleaseDecision} = await import("@/lib/reporting/final-release-decision");
   const finalReport = (finalPayload?.report ?? reportRow) as Record<string,any>;
   const requiredEnginesPassed = engineGate.ok && allMissing.length === 0;
@@ -1230,6 +1246,8 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
   const { preserveInternalAssessmentMetrics } = await import("@/lib/reporting/qualitative-assessment");
   const fullRep = preserveInternalAssessmentMetrics(reportRow as Record<string, any>, finalReport).full_report ?? {};
   const persistedFull = {...fullRep,
+    release_candidate: { version: candidate.version, hash: candidate.hash, execution_id: candidate.execution_id,
+      report_id: candidate.report_id, payload: candidate.payload, approvals },
     narrative_semantic_review:narrativeManifest ?? null,
     qa_statuses:release.qa_statuses,
     final_report_contract_validation:finalGov, final_governance_validation:finalGov,

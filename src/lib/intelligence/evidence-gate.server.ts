@@ -17,7 +17,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { buildCaseGroundingCorpus, verifyQuoteDetailed, type GroundingCorpus } from "./grounding.server";
 import { assessProceduralDefectGrounding } from "./procedural-defect-grounding.server";
-import { createCanonicalCitation, citationText } from "../reporting/citation-production";
+import { createCanonicalCitation, citationText, unresolvedCitation } from "../reporting/citation-production";
 import { relocateSourceRefs } from "../reporting/source-location-audit";
 
 export type AnalysisMode = "strict" | "balanced" | "exploratory";
@@ -294,13 +294,13 @@ export function completeEvidenceCitation(ref: Record<string, unknown>, corpus: G
   const pages = corpus.docs.flatMap(doc => (doc.physicalPages ?? []).map(page => ({
     ...page, document_id: doc.document_id, filename: doc.filename,
   })));
-  if (!pages.length) return ref;
+  if (!pages.length) return unresolvedCitation(ref, 'PHYSICAL_SOURCE_PAGES_MISSING');
   const index = corpus.docs.map(doc => ({ document_id: doc.document_id, doc_n: doc.doc_n }));
   const located = relocateSourceRefs([ref], pages, index)[0];
   const quote = typeof located.quote === "string" ? located.quote : "";
   if (!quote || (ref.verification_status != null && ref.verification_status !== "verified") ||
-      (ref.proposition_supported != null && citationText(ref.proposition_supported) !== citationText(quote))) return located;
-  return createCanonicalCitation(located, quote, pages, index) ?? located;
+      (ref.proposition_supported != null && citationText(ref.proposition_supported) !== citationText(quote))) return unresolvedCitation(located, 'PRODUCER_PROPOSITION_NOT_CERTIFIED');
+  return createCanonicalCitation(located, quote, pages, index) ?? unresolvedCitation(located, 'PRODUCER_SOURCE_NOT_CERTIFIED');
 }
 
 export function diagnoseEvidenceGate<T extends EvidenceItem>(

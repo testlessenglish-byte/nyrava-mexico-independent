@@ -3,6 +3,7 @@ import type { MatterSourcePage } from '../intelligence/source-matter-audit';
 import { createCanonicalCitation, citationPropositionVerified, findingCitationReviews, reviewedAttributionMatches, type PropositionReview } from './citation-production';
 import { auditSourceLocations } from './source-location-audit';
 import { attributeCivilProposition } from '../civil/proposition-attribution';
+import { sha256HexSync } from '../intelligence/sha256';
 
 type Row = Record<string, any>;
 const obj = (value: unknown): Row => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
@@ -109,6 +110,9 @@ export function auditReportCitationIntegrity(payload: CaseExportData) {
       page: raw.page ?? raw.source_page, quote: text(raw.quote ?? raw.excerpt ?? raw.source_quote) };
     const proposition = text(raw.proposition_supported);
     const reasons: string[] = [];
+    if (raw.publication_status === 'QUARANTINED') reasons.push('citation_quarantined');
+    if (raw.execution_id && raw.execution_id !== payload.case?.execution_id) reasons.push('citation_execution_mismatch');
+    if (raw.case_id && raw.case_id !== payload.case?.id) reasons.push('citation_case_mismatch');
     const excerpts = [raw.quote, raw.excerpt, raw.source_quote].filter(v => v != null).map(v => normalized(text(v)));
     if (new Set(excerpts).size > 1) reasons.push('conflicting_excerpt_aliases');
     if (!ref.quote || placeholder.test(ref.quote)) reasons.push('excerpt_missing_or_placeholder');
@@ -249,5 +253,28 @@ export function canonicalizeReportCitations<T extends CaseExportData>(input: T):
       if (statement) certify(row, [statement], row);
     }
   }, () => {});
+  // The appendix is the shared lookup for every published section, not only
+  // Writer prose. Only independently audited references may enter it.
+  const registry = new Map<string, Row>();
+  const annex = rows(report.citations);
+  for (const root of roots) visit(root, (ref, key) => {
+    if (!['citation', 'citations', 'source_ref', 'source_refs', 'evidence_ref', 'evidence_refs'].includes(key)) return;
+    const audit = auditReportCitationIntegrity({ case: payload.case, documents: payload.documents,
+      findings: [], agents: [], analysis: null, score: null,
+      citation_review_registry: trustedReviews,
+      report: { citations: [ref], full_report: { pre_release_source_pages: pages } },
+    } as any);
+    if (!audit.ok) return;
+    const source = index.find(d => d.document_id === ref.document_id);
+    if (!source?.canonical_source_id) return;
+    Object.assign(ref, { canonical_source_id: source.canonical_source_id, doc_n: source.doc_n,
+      ...(payload.case?.id ? { case_id: payload.case.id } : {}),
+      ...(payload.case?.execution_id ? { execution_id: payload.case.execution_id } : {}),
+      citation_id: 'citation_' + sha256HexSync(JSON.stringify([payload.case?.id, payload.case?.execution_id,
+        source.canonical_source_id, ref.document_id, ref.page, ref.quote, ref.proposition_supported])).slice(0, 32) });
+    registry.set(ref.citation_id, ref);
+  }, () => {});
+  report.citations = [...annex];
+  for (const ref of registry.values()) if (!annex.some(c => c.citation_id === ref.citation_id)) report.citations.push({ ...ref });
   return payload;
 }

@@ -10,6 +10,7 @@ export default defineConfig({
     },
   },
   test: {
+    setupFiles: ["./src/lib/test-network-guard.ts"],
     environment: "node",
     include: ["src/**/__tests__/**/*.test.ts"],
     exclude: ["**/node_modules/**", "**/perf.test.ts"],

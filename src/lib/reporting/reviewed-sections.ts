@@ -7,7 +7,10 @@ export function withReviewedSections<T extends CaseExportData>(input:T):T {
  if(snapshot===undefined)return input;
  if(!snapshot || typeof snapshot!=='object' || Array.isArray(snapshot))throw new Error('REVIEWED_SECTIONS_INVALID');
  const selected:Record<string,unknown>={};
- for(const key of REVIEWED_SECTION_KEYS) selected[key]=(snapshot as Record<string,unknown>)[key] ?? null;
+ // An explicitly supplied section is the current candidate, including an empty
+ // section. Stored snapshots are a fallback, never authority over newer input.
+ for(const key of REVIEWED_SECTION_KEYS) selected[key]=Object.prototype.hasOwnProperty.call(input,key)
+   ? input[key] : (snapshot as Record<string,unknown>)[key] ?? null;
  return {...input,...structuredClone(selected)};
 }
 export function reportRenderTimestamp(input:CaseExportData):string {

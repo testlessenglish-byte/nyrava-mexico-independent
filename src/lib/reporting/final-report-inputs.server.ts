@@ -4,7 +4,7 @@ import { composeFinalReportPayload } from "./final-report-contract";
 /** Load every auxiliary input consumed by the workspace/export section renderers.
  * Query errors fail closed; an empty table is valid, an unread table is not.
  * Document OCR and raw outcome-model output are intentionally not presentation data. */
-export async function loadFinalReportSections(db: any, caseId: string): Promise<Partial<CaseExportData>> {
+export async function loadFinalReportSections(db: any, caseId: string, executionId?: string): Promise<Partial<CaseExportData>> {
   const arrayTables: Record<string,string> = {
     agents:"agent_findings",theories:"case_theories",opportunities:"case_opportunities",
     witnesses:"case_witnesses",work_product:"case_work_product",perspectives:"case_perspectives",
@@ -14,9 +14,14 @@ export async function loadFinalReportSections(db: any, caseId: string): Promise<
     analysis:"analyses",score:"case_scores",trial_prep:"case_trial_prep",strategy_center:"case_strategy_center",
   };
   const tasks = [
-    ...Object.entries(arrayTables).map(async ([key,table]) => [key,await db.from(table).select("*").eq("case_id",caseId)] as const),
+    ...Object.entries(arrayTables).map(async ([key,table]) => {
+      let query = db.from(table).select("*").eq("case_id",caseId);
+      // These producer tables have explicit execution identity. Other sections
+      // are frozen and compared as part of the candidate until migrated.
+      if (executionId && table === 'agent_findings') query = query.eq('execution_id', executionId);
+      return [key, await query] as const;
+    }),
     ...Object.entries(singleTables).map(async ([key,table]) => [key,await db.from(table).select("*").eq("case_id",caseId).maybeSingle()] as const),
-    (async()=>["agent_logs",await db.from("agent_logs").select("*").eq("case_id",caseId).order("created_at",{ascending:false}).limit(200)] as const)(),
     (async()=>["outcome_assessment",await db.from("case_outcome_assessments")
       .select("id,case_analysis_mode,overall_position,outcome_status,favorable_pct,unfavorable_pct,confidence,no_material_error_identified,principal_strength,principal_weakness,biggest_risk,most_important_missing_evidence,both_sides,factors,what_could_change,finding_reviews,citation_reviews,created_at")
       .eq("case_id",caseId).order("created_at",{ascending:false}).limit(1).maybeSingle()] as const)(),
@@ -35,7 +40,7 @@ export async function composeReportStagePayload(
   current: Pick<CaseExportData, "case" | "documents" | "report" | "findings">,
   sourceReviewFindings = current.findings,
 ) {
-  const sections = await loadFinalReportSections(db, caseId);
+  const sections = await loadFinalReportSections(db, caseId, current.report?.execution_id as string | undefined);
   const report = current.report && {
     ...current.report,
     full_report: {

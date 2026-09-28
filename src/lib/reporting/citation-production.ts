@@ -22,6 +22,12 @@ export function findingCitationReviews(findings: Row[]): PropositionReview[] {
 }
 export const citationText = (s: unknown) => typeof s === 'string' ? s.normalize('NFC').replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/\s+/g, ' ').trim().replace(/[.!?]$/, '') : '';
 
+/** Retain evidence for diagnosis without letting an uncertified reference look published. */
+export function unresolvedCitation(ref: Row, reason: string): Row {
+  return { ...ref, verification_status: 'unverified', publication_status: 'QUARANTINED',
+    source_location_verified: false, certification_error: reason };
+}
+
 /** Re-use an existing semantic review only for its exact claim and source input.
  * A verified flag or lexical overlap is never semantic proof. */
 export function citationPropositionVerified(ref: Row, proposition: string, pages: MatterSourcePage[], trustedReviews: PropositionReview[] = []): boolean {
@@ -54,6 +60,8 @@ export function citationPropositionVerified(ref: Row, proposition: string, pages
 /** Canonical object creation, before final validation. Never changes the source
  * or manufactures a supported proposition from a legacy verification flag. */
 export function createCanonicalCitation(ref: Row, proposition: string, pages: MatterSourcePage[], index: Index, proof?: PropositionReview): Row | null {
+  if (ref.publication_status === 'QUARANTINED' ||
+      (ref.verification_status != null && ref.verification_status !== 'verified')) return null;
   const quote = String(ref.quote ?? ref.excerpt ?? ref.source_quote ?? '');
   const candidate = { ...ref, document_id: ref.document_id ?? ref.doc_id ?? ref.source_document_id,
     page: ref.page ?? ref.page_number ?? ref.source_page, quote,
@@ -69,7 +77,7 @@ export function createCanonicalCitation(ref: Row, proposition: string, pages: Ma
   return { ...candidate, ...located, doc_n: doc?.doc_n,
     ...(doc?.canonical_source_id ? { canonical_source_id: doc.canonical_source_id } : {}),
     page_number: located.page, page_located: located.page,
-    proposition_supported: proposition, verification_status: 'verified' };
+    proposition_supported: proposition, verification_status: 'verified', source_location_verified: true };
 }
 
 export function completedCoreCitations<T extends { id: string; text: string; source_refs: Row[] }>(
@@ -83,7 +91,7 @@ export function completedCoreCitations<T extends { id: string; text: string; sou
       'finding_type','authority_level'].filter(k => finding[k] !== undefined).map(k => [k, finding[k]])) as SupportClaim : null;
     const proof = claim && review ? { claim, review } : undefined;
     return { ...item, source_refs: item.source_refs.map(ref =>
-      createCanonicalCitation(ref, item.text, pages, index, proof) ?? ref) };
+      createCanonicalCitation(ref, item.text, pages, index, proof) ?? unresolvedCitation(ref, 'CORE_PROPOSITION_NOT_CERTIFIED')) };
   });
 }
 
