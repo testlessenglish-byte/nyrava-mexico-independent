@@ -65,7 +65,7 @@ export function validateMigratorioPreRelease(data: CaseExportData) {
   for (const number of mentioned) {
     const matches = registry.filter(p=>p.number === number);
     if (matches.length !== 1 || !matches[0].court || !matches[0].proceeding || !matches[0].relationship) {
-      // Relaxed: don't require source_refs for registry records to pass the gate
+      numberErrors.push(`Expediente ${number} mencionado sin registro completo de órgano y procedimiento.`);
     }
   }
   check('proceeding_labels','Expedientes reconciliados por órgano y procedimiento',numberErrors);
