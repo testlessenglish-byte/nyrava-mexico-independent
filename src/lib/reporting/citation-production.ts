@@ -92,7 +92,16 @@ export function completedCoreCitations<T extends { id: string; text: string; sou
       'finding_type','authority_level'].filter(k => finding[k] !== undefined).map(k => [k, finding[k]])) as SupportClaim : null;
     const proof = claim && review ? { claim, review } : undefined;
     return { ...item, source_refs: item.source_refs.map(ref =>
-      createCanonicalCitation(ref, item.text, pages, index, proof) ?? unresolvedCitation(ref, 'CORE_PROPOSITION_NOT_CERTIFIED')) };
+      (() => {
+  const atomicFinding = findings.find(f => f.metadata?.mandatory_decision_core_id === item.id && 
+    Array.isArray(f.evidence_refs) && f.evidence_refs.some((r) => 
+      r.document_id === ref.document_id && String(r.quote).trim() === String(ref.quote ?? ref.source_quote).trim()
+    ));
+  const atomicProposition = atomicFinding && atomicFinding.description ? String(atomicFinding.description) : item.text;
+  const atomicProof = atomicFinding && atomicFinding.metadata?.semantic_support_review ? 
+    { claim: Object.fromEntries(['id','title','description','source_document_id','source_page','source_quote'].filter(k => atomicFinding[k] !== undefined).map(k => [k, atomicFinding[k]])), review: atomicFinding.metadata.semantic_support_review } : proof;
+  return createCanonicalCitation(ref, atomicProposition, pages, index, atomicProof);
+})() ?? unresolvedCitation(ref, 'CORE_PROPOSITION_NOT_CERTIFIED')) };
   });
 }
 

@@ -1627,7 +1627,29 @@ async function _runPipelineForCase(
     // stage that still had work checkpointed before it could start. Skipping
     // is now pure in-memory: no DB read, no per-stage trace row (one
     // aggregated `pipeline.stages_skipped` row is emitted by the caller).
-    if (alreadyDone(key)) {
+    if (!alreadyDone(key)) {
+      const { data: liveRun } = await (supabase as any)
+        .from("pipeline_engine_runs")
+        .select("status")
+        .eq("case_id", caseId)
+        .eq("engine", engineForStage(key))
+        .eq("execution_id", executionId)
+        .order("started_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (liveRun) {
+        if (DONE_STATUSES.has(liveRun.status)) {
+          completed.add(key);
+          skippedThisTick.push(s.key);
+          return { kind: "skipped" };
+        }
+        if (liveRun.status === "running" || liveRun.status === "queued") {
+          console.warn(`[pipeline] yielding stage ${s.key}: actively running in another worker`);
+          return { kind: "checkpoint", index: i };
+        }
+      }
+    } else {
       completed.add(key);
       skippedThisTick.push(s.key);
       return { kind: "skipped" };
@@ -1852,6 +1874,14 @@ async function _runPipelineForCase(
 
       return { kind: "success" };
     } catch (e) {
+      if (e instanceof Error && e.name === "DuplicateEngineActiveError") {
+         console.warn(`[pipeline] yielding stage ${s.key}: DuplicateEngineActiveError caught`);
+         return { kind: "checkpoint", index: i };
+      }
+      if (e instanceof Error && e.name === "StaleExecutionError") {
+         console.warn(`[pipeline] aborting stage ${s.key}: StaleExecutionError caught`);
+         return { kind: "cancelled", index: i };
+      }
       const msg = e instanceof Error ? e.message : String(e);
       if (msg === "Cancelled by user" || (e instanceof Error && e.name === "CancelledError")) {
         await updateCase(

@@ -10,6 +10,20 @@ import { isCheckpointError } from "../pipeline-checkpoint.server";
 
 type Db = SupabaseClient<Database>;
 
+export class DuplicateEngineActiveError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "DuplicateEngineActiveError";
+  }
+}
+
+export class StaleExecutionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "StaleExecutionError";
+  }
+}
+
 export type EngineName =
   | "extraction"
   | "ocr"
@@ -153,7 +167,7 @@ export async function runEngine<T>(
       meta: { engine: args.engine, status: "duplicate_suppressed", active_since: activeRun.started_at },
     });
     console.info(`[engine-audit] runEngine(${args.engine}): duplicate run suppressed — active since ${activeRun.started_at}`);
-    return undefined as unknown as T;
+    throw new DuplicateEngineActiveError(`Engine ${args.engine} is actively running`);
   }
 
   // Clear any old/stale running rows for this case+engine to prevent orphaned locks
@@ -244,7 +258,7 @@ export async function runEngine<T>(
       meta: { engine: args.engine, status: "duplicate_suppressed" },
     });
     console.info(`[engine-audit] runEngine(${args.engine}): unique violation duplicate run suppressed`);
-    return undefined as unknown as T;
+    throw new DuplicateEngineActiveError(`Engine ${args.engine} is actively running (concurrent insert blocked)`);
   }
   if (!rowId) {
     const reason = insertErr?.message ?? "insert returned no id";
@@ -287,8 +301,9 @@ export async function runEngine<T>(
         calls: telemetry.calls,
       };
     }
-    const { error: updErr } = await db
-      .from("pipeline_engine_runs")
+    if (args.executionId) { const { data: curCase } = await (db as any).from("cases").select("execution_id").eq("id", args.caseId).maybeSingle(); if (curCase && curCase.execution_id !== args.executionId) { throw new StaleExecutionError(`Stale worker: case execution ${curCase.execution_id} vs worker ${args.executionId}`); } }
+
+      const { error: updErr } = await db.from("pipeline_engine_runs")
       .update({
         status: finalStatus,
         ended_at: new Date().toISOString(),
