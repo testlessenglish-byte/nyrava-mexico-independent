@@ -286,7 +286,7 @@ function NewCasePage() {
                 <option value="">
                   {locale === "es" ? "-- Seleccionar Cliente --" : "-- Select Client --"}
                 </option>
-                {clientsList?.map((c: any) => (
+                { (Array.isArray(clientsList) ? clientsList : (clientsList?.clients || [])).map((c: any) => (
                   <option key={c.id} value={c.id}>
                     {c.display_name}
                   </option>
