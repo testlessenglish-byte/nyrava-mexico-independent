@@ -37,6 +37,7 @@ type Db = SupabaseClient<Database>;
 
 /** Payload accepted by the `project_case_findings` SQL function. */
 export type ProjectionRow = {
+  execution_id?: string | null;
   source_module: string;
   category: string;
   title: string;
@@ -125,7 +126,7 @@ const ADAPTERS: Record<string, Adapter> = {
   // risk become findings. A clean witness is not a finding, and projecting
   // one would inflate every counter with noise.
   case_witnesses: {
-    select: "id,name,role,credibility_risk,reliability,consistency,rationale,source_doc_ids",
+    select: "id,name,role,credibility_risk,reliability,consistency,rationale,source_doc_ids,execution_id",
     build: (r) => {
       const id = String(r.id ?? "");
       const name = String(r.name ?? "").trim();
@@ -134,6 +135,7 @@ const ADAPTERS: Record<string, Adapter> = {
       if (!Number.isFinite(risk) || risk < 40) return null; // below 40 = no credibility concern
       const severity = risk >= 75 ? "critical" : risk >= 60 ? "high" : "medium";
       return {
+        execution_id: typeof r.execution_id === "string" ? r.execution_id : null,
         source_module: "projection:case_witnesses",
         category: "credibilidad_testimonial",
         title: `Riesgo de credibilidad: ${name}`,
