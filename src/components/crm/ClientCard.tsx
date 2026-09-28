@@ -9,15 +9,38 @@ interface ClientCardProps {
   caseCount: number;
   email?: string;
   status: "active" | "inactive" | "archived";
+  selectionProps?: {
+    selected: boolean;
+    onSelect: (selected: boolean) => void;
+    disabled?: boolean;
+  };
 }
 
-export function ClientCard({ id, displayName, clientType, caseCount, email, status }: ClientCardProps) {
+export function ClientCard({ id, displayName, clientType, caseCount, email, status, selectionProps }: ClientCardProps) {
   return (
     <Link
       to="/clients/$clientId"
       params={{ clientId: id }}
-      className="panel block min-w-0 max-w-full overflow-hidden p-5 transition-all hover:border-primary/40 hover:shadow-glow-cyan"
+      className={`relative panel block min-w-0 max-w-full overflow-hidden p-5 transition-all hover:border-primary/40 hover:shadow-glow-cyan ${selectionProps?.selected ? "ring-2 ring-primary border-primary/50 bg-primary/5" : ""}`}
     >
+      {selectionProps && (
+        <div 
+          className="absolute right-3 top-3 z-10"
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+        >
+          <input 
+            type="checkbox"
+            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary disabled:opacity-50"
+            checked={selectionProps.selected}
+            disabled={selectionProps.disabled}
+            onChange={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              selectionProps.onSelect(e.target.checked);
+            }}
+          />
+        </div>
+      )}
       <div className="min-w-0 overflow-hidden">
         <div className="flex min-w-0 items-start gap-3">
           <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
@@ -27,7 +50,7 @@ export function ClientCard({ id, displayName, clientType, caseCount, email, stat
               <User className="h-5 w-5" />
             )}
           </div>
-          <div className="min-w-0 flex-1 overflow-hidden">
+          <div className="min-w-0 flex-1 overflow-hidden pr-6">
             <h3 className="line-clamp-2 max-w-full overflow-hidden break-words font-semibold leading-snug text-foreground">
               {displayName}
             </h3>

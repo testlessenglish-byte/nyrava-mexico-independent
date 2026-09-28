@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, useEffect } from "react";
-import { listClients, createClientFn } from "@/lib/clients.functions";
+import { listClients, createClientFn, bulkDeleteClientsFn } from "@/lib/clients.functions";
 import { Search, Plus, Users, Building2, User, ChevronLeft, ChevronRight } from "lucide-react";
 import { ClientCard } from "@/components/crm/ClientCard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -61,6 +61,61 @@ function ClientsPage() {
   const filtered = data?.clients ?? [];
   const totalCount = data?.totalCount ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / 25));
+
+  const bulkDelete = useServerFn(bulkDeleteClientsFn);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
+  const [deletingBulk, setDeletingBulk] = useState(false);
+
+  const handleSelectClient = (id: string, selected: boolean) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (selected) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const handleSelectAllOnPage = (selected: boolean) => {
+    const pageIds = filtered.map((c: any) => c.id);
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      pageIds.forEach((id: string) => {
+        if (selected) next.add(id);
+        else next.delete(id);
+      });
+      return next;
+    });
+  };
+
+  const isAllPageSelected = filtered.length > 0 && filtered.every((c: any) => selectedIds.has(c.id));
+
+  const handleBulkDelete = async () => {
+    setDeletingBulk(true);
+    try {
+      const res = await bulkDelete({ data: { clientIds: Array.from(selectedIds) } });
+      const { deletedCount, preservedCount } = res;
+      if (deletedCount > 0 && preservedCount > 0) {
+        toast.warning(`${deletedCount} clientes eliminados. ${preservedCount} no se eliminaron porque tienen expedientes.`);
+      } else if (deletedCount > 0) {
+        toast.success(`${deletedCount} clientes eliminados.`);
+      } else if (preservedCount > 0) {
+        toast.error(`0 clientes eliminados. ${preservedCount} no se eliminaron porque tienen expedientes.`);
+      }
+
+      setSelectedIds(new Set());
+      setIsBulkDeleteOpen(false);
+      
+      await queryClient.invalidateQueries({ queryKey: ["clients"] });
+      if (deletedCount >= filtered.length && page > 1) {
+        setPage(p => Math.max(1, p - 1));
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Error al eliminar clientes");
+    } finally {
+      setDeletingBulk(false);
+    }
+  };
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 md:px-8 md:py-10">
@@ -166,6 +221,44 @@ function ClientsPage() {
         </div>
       ) : (
         <>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border bg-card p-3">
+            <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                checked={isAllPageSelected}
+                onChange={(e) => handleSelectAllOnPage(e.target.checked)}
+              />
+              Seleccionar todos en esta página
+            </label>
+            
+            {selectedIds.size > 0 && (
+              <Dialog open={isBulkDeleteOpen} onOpenChange={setIsBulkDeleteOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="destructive" size="sm">
+                    Eliminar seleccionados ({selectedIds.size})
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>¿Eliminar {selectedIds.size} clientes seleccionados?</DialogTitle>
+                  </DialogHeader>
+                  <div className="py-4">
+                    <p className="text-sm text-muted-foreground">
+                      Esta acción eliminará permanentemente los registros de clientes seleccionados que no tengan expedientes. Los clientes con expedientes no serán eliminados.
+                    </p>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setIsBulkDeleteOpen(false)} disabled={deletingBulk}>Cancelar</Button>
+                    <Button variant="destructive" onClick={handleBulkDelete} disabled={deletingBulk}>
+                      {deletingBulk ? "Eliminando..." : "Eliminar clientes"}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            )}
+          </div>
+
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {filtered.map((client: any) => (
               <ClientCard
@@ -176,6 +269,11 @@ function ClientsPage() {
                 caseCount={client.case_count || 0}
                 email={client.email}
                 status={client.status as "active" | "inactive" | "archived"}
+                selectionProps={{
+                  selected: selectedIds.has(client.id),
+                  onSelect: (selected) => handleSelectClient(client.id, selected),
+                  disabled: false
+                }}
               />
             ))}
           </div>

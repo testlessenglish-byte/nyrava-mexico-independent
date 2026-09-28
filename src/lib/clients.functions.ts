@@ -379,6 +379,95 @@ export const deleteClientFn = createServerFn({ method: "POST" })
   });
 
 // ---------------------------------------------------------------------------
+// Bulk Delete Clients
+// ---------------------------------------------------------------------------
+export const bulkDeleteClientsFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((d: unknown) =>
+    z.object({ clientIds: z.array(z.string().uuid()) }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const ctx = context as { supabase: Db; userId: string };
+    const userId = await getAuthedUserId(ctx);
+
+    if (data.clientIds.length === 0) {
+      return { deletedCount: 0, preservedCount: 0 };
+    }
+
+    // Server-side enforcement: check exact number of cases per client right now
+    const admin = getAdminClient();
+    const { data: countRows, error: countError } = await (admin as any)
+      .from("cases")
+      .select("client_id")
+      .in("client_id", data.clientIds);
+
+    if (countError) throw new Error("No se pudieron verificar los expedientes de los clientes.");
+
+    const casesPerClient = new Set((countRows ?? []).map((r: { client_id: string }) => r.client_id));
+    
+    const eligibleIds: string[] = [];
+    let preservedCount = 0;
+
+    for (const id of data.clientIds) {
+      if (casesPerClient.has(id)) {
+        preservedCount++;
+      } else {
+        eligibleIds.push(id);
+      }
+    }
+
+    if (eligibleIds.length === 0) {
+      return { deletedCount: 0, preservedCount };
+    }
+
+    // Check ownership via user's supabase RLS
+    const { data: ownedClients, error: ownedErr } = await clientsTable(ctx.supabase)
+      .select("id")
+      .in("id", eligibleIds);
+
+    if (ownedErr) throw new Error("No se pudo verificar el acceso a los clientes.");
+    const ownedIds = (ownedClients ?? []).map((c: { id: string }) => c.id);
+    const finalEligibleIds = eligibleIds.filter(id => ownedIds.includes(id));
+    preservedCount += (eligibleIds.length - finalEligibleIds.length);
+
+    if (finalEligibleIds.length === 0) {
+      return { deletedCount: 0, preservedCount };
+    }
+
+    // Clean client assignments using admin since users might not have direct RLS delete on assignments created by others
+    const { error: assignmentsError } = await (admin as any)
+      .from("client_assignments")
+      .delete()
+      .in("client_id", finalEligibleIds);
+    if (assignmentsError) throw new Error("No se pudieron eliminar las asignaciones de los clientes.");
+
+    // The user-scoped delete must be authorized by RLS.
+    const { data: deleted, error } = await clientsTable(ctx.supabase)
+      .delete()
+      .in("id", finalEligibleIds)
+      .select("id");
+      
+    if (error) throw new Error("No se pudo eliminar clientes: acceso denegado o error de base de datos.");
+
+    try {
+      const deletedIds = (deleted ?? []).map((d: { id: string }) => d.id);
+      for (const id of deletedIds) {
+        await activityTable(admin).insert({
+          actor_id: userId,
+          action: "client_deleted",
+          resource_type: "client",
+          resource_id: id,
+        });
+      }
+    } catch { /* non-critical */ }
+
+    return { 
+      deletedCount: deleted?.length ?? 0, 
+      preservedCount 
+    };
+  });
+
+// ---------------------------------------------------------------------------
 // Client Assignments (Explicit Sharing)
 // ---------------------------------------------------------------------------
 export const assignClientFn = createServerFn({ method: "POST" })
