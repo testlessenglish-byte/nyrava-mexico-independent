@@ -8,8 +8,9 @@ export function groundedDecisionSummary(items: MandatoryDecisionCoreItem[], docs
     if (!doc || !ref.quote?.trim()) continue;
     const text = item.text.trim(), quote = ref.quote.trim();
     const same = text.replace(/\s+/g, " ") === quote.replace(/\s+/g, " ");
-    const marker = ref.writer_ref_id ? `[CITE ${ref.writer_ref_id}]` : `[DOC ${doc.doc_n} p.${ref.page}]`;
-    passages.add(`${same ? "" : `${text}\n`}"${quote}" ${marker}`);
+    const page = ref.page ?? (ref as any).page_number ?? (ref as any).page_located ?? (/p\.?\s*(\d+)/i.exec(ref.label ?? "")?.[1]);
+    const marker = ref.writer_ref_id ? `[CITE ${ref.writer_ref_id}]` : `[DOC ${doc.doc_n} p.${page}]`;
+    passages.add(`${same ? "" : `${text}\n\n`}\u201c${quote}\u201d ${marker}`);
   }
   return [...passages].join("\n\n");
 }

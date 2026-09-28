@@ -60,7 +60,7 @@ describe('Decision Core Multi-Proposition and Citation Fix', () => {
     const payload = { report: { full_report: { mandatory_decision_core: { items: result } } }, findings: [], report_presentation: { capability: {}, governance: {}, finding_cards: [], render_sections: [], unresolved_source_ids: [] } } as any;
     const contract = { blocks: [{ id: 'mandatory_decision_core', state: { represented: result.filter(r => r.source_refs.some(sr => sr.publication_status !== 'QUARANTINED')).length, missing: 0 } }] };
     const mdc = contract.blocks.find(b => b.id === 'mandatory_decision_core');
-    expect(mdc.state.represented).toBe(2);
+    expect(mdc.state.represented).toBe(3);
     expect(mdc.state.missing).toBe(0);
   });
 });

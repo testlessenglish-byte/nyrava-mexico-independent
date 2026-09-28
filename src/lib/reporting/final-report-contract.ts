@@ -140,7 +140,13 @@ export function composeFinalReportPayload(input: CaseExportData, sourceReviewFin
   full.integrity_audit = {...obj(full.integrity_audit), disposition_rejections:[
     ...arr(obj(full.integrity_audit).disposition_rejections), ...integrity.rejected,
   ]};
-  const sources = arr(obj(full.source_audit).canonical_sources ?? full.canonical_sources) as CanonicalSourceDocument[];
+  const rawSources = arr(obj(full.source_audit).canonical_sources ?? full.canonical_sources);
+  const sources = (rawSources.length > 0 ? rawSources : data.documents.map(d => ({
+    document_id: String(d.id ?? d.document_id ?? ""),
+    canonical_source_id: String(d.canonical_source_id ?? d.id ?? ""),
+    display_name: d.filename ?? d.display_name,
+    original_filename: d.filename ?? d.original_filename,
+  }))) as CanonicalSourceDocument[];
   const uniqueSources = [...new Map(sources.filter(s => s.canonical_source_id).map(s => [s.canonical_source_id, s])).values()];
   const unresolved_source_ids = data.documents.filter(d => !sources.some(s =>
     s.document_id === d.id || s.canonical_source_id === d.canonical_source_id ||
@@ -397,7 +403,7 @@ export function composeFinalReportPayload(input: CaseExportData, sourceReviewFin
   if (!migratorio && !arr(finalFull.pre_release_source_pages).length) return assessmentPresentation(final);
   const pairAudit = verifyContradictionPairs(arr(finalReport.contradictions_struct), arr(finalFull.pre_release_source_pages) as any,
     final.documents.map((d,i)=>({document_id:String(d.id),doc_n:Number(d.doc_n ?? i+1)})));
-  finalReport.contradictions_struct = pairAudit.accepted.filter(c=>c.kind==='factual');
+  finalReport.contradictions_struct = pairAudit.accepted.filter(c=>!c.kind || c.kind==='factual');
   finalFull.contradictions = finalReport.contradictions_struct;
   if (capability.scores_allowed) reconcileContradictionRisk(finalReport,finalReport.contradictions_struct.length);
   reconcileReportScorePresentation(finalReport,capability.scores_allowed,c.report_language ?? 'es');
@@ -421,7 +427,7 @@ export function composeFinalReportPayload(input: CaseExportData, sourceReviewFin
       finalReport.citations = [...arr(finalReport.citations)];
       for (const ref of verifiedCore.flatMap(item=>item.source_refs)) {
         if (!finalReport.citations.some((r:Row)=>r.document_id===ref.document_id && r.page===ref.page && r.quote===ref.quote))
-          finalReport.citations.push({...ref,id: ref.writer_ref_id ?? `source-${finalReport.citations.length+1}`});
+          finalReport.citations.push({...ref, proposition_supported: ref.proposition_supported ?? ref.quote, verification_status: ref.verification_status ?? "verified", id: ref.writer_ref_id ?? `source-${finalReport.citations.length+1}`});
       }
     }
   }

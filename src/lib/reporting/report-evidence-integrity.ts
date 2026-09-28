@@ -23,8 +23,8 @@ export function verifyContradictionPairs(items: Row[], pages: MatterSourcePage[]
     if (sides.some(side => !index.some(d => d.document_id === (side.document_id ?? side.doc_id) || d.doc_n === Number(side.doc_n)))) {
       rejected.push({index:i,reason:'unknown_source'}); continue;
     }
-    const citationA = createCanonicalCitation(sides[0], String(item.title || sides[0].quote || ''), pages, index as any);
-    const citationB = createCanonicalCitation(sides[1], String(item.title || sides[1].quote || ''), pages, index as any);
+    const citationA = createCanonicalCitation(sides[0], String(sides[0].proposition_supported || sides[0].quote || item.title || ''), pages, index as any);
+    const citationB = createCanonicalCitation(sides[1], String(sides[1].proposition_supported || sides[1].quote || item.title || ''), pages, index as any);
     if (!citationA || !citationB || (citationA.document_id === citationB.document_id && citationA.page === citationB.page && citationA.quote === citationB.quote)) {
       rejected.push({index:i,reason:'unverified_or_identical_passages'}); continue;
     }

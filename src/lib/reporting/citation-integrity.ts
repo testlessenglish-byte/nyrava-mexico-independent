@@ -180,7 +180,7 @@ export function auditReportCitationIntegrity(payload: CaseExportData) {
   for (const key of ['findings', 'theories', 'opportunities', 'witnesses', 'trial_prep', 'work_product',
     'perspectives', 'evidence_intel', 'strategy', 'strategy_center', 'report_presentation'])
     walk((payload as unknown as Row)[key], key, key);
-  return { ok: errors.length === 0, errors: [...new Set(errors)], checked, verified, unresolved };
+  return { ok: errors.length === 0, errors: [...new Set(errors)], checked, verified, unresolved, unverified: unresolved };
 }
 
 /** Fill missing verification metadata only after binding a literal excerpt to
