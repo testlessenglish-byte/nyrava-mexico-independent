@@ -15,9 +15,10 @@ export function reviewedAttributionMatches(value: Row, claim: SupportClaim): boo
 /** This input comes from engine finding records, never Report Writer objects. */
 export function findingCitationReviews(findings: Row[]): PropositionReview[] {
   return findings.flatMap(f => f.metadata?.semantic_support_review ? [{
-    claim: Object.fromEntries(['id','title','description','source_document_id','source_page','source_quote',
+    claim: Object.fromEntries(['id','case_id','execution_id','title','description','source_document_id','source_page','source_quote',
       'speaker_role','proposition_type','adoption_status','legal_significance','potential_impact','rationale',
-      'audit_classification','finding_type','authority_level'].filter(k => f[k] !== undefined).map(k => [k, f[k]])) as SupportClaim,
+      'audit_classification','finding_type','authority_level'].filter(k => f[k] !== undefined || k === 'execution_id' && f.metadata?.execution_id !== undefined)
+      .map(k => [k, k === 'execution_id' ? f.execution_id ?? f.metadata?.execution_id : f[k]])) as SupportClaim,
     review: f.metadata.semantic_support_review,
   }] : []);
 }

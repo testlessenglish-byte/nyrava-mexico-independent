@@ -5,6 +5,7 @@ import { auditSourceLocations } from './source-location-audit';
 import { attributeCivilProposition } from '../civil/proposition-attribution';
 import { sha256HexSync } from '../intelligence/sha256';
 import { decisionCoreAtoms } from '../intelligence/mandatory-decision-core';
+import { supportInput, type SupportClaim } from '../intelligence/claim-support-review';
 
 type Row = Record<string, any>;
 const obj = (value: unknown): Row => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
@@ -241,11 +242,31 @@ export function canonicalizeReportCitations<T extends CaseExportData>(input: T):
       (ref.verification_status != null && String(ref.verification_status).toLowerCase() !== 'verified') ||
       (ref.proposition_supported != null && normalized(text(ref.proposition_supported)) !== normalized(statements[0]))) return;
     const coreFinding = rows(payload.findings).find(f => f.metadata?.mandatory_decision_core_id === parent.id);
-    const stableId = ref.finding_id ?? ref.proposition_id ?? ref.evidence_id ?? ref.claim_id ?? coreFinding?.id;
+    // Only a real finding may supply the fallback identity. A report section's
+    // arbitrary `id` is not a claim ID. Explicit links never fall back on failure.
+    const owner = rows(payload.findings).find(f => typeof f.id === 'string' && f.id === parent.id);
+    const stableId = ref.finding_id ?? ref.proposition_id ?? ref.evidence_id ?? ref.claim_id ?? owner?.id ?? coreFinding?.id;
     const proof = typeof stableId === 'string' ? trustedReviews.find(review => review.claim.id === stableId) : undefined;
+    if (owner) {
+      const execution = payload.case?.execution_id, caseId = payload.case?.id;
+      if (execution && (parent.execution_id ?? parent.metadata?.execution_id) !== execution ||
+          execution && parent.metadata?.execution_id != null && parent.metadata.execution_id !== execution ||
+          caseId && parent.case_id !== caseId ||
+          ref.execution_id != null && ref.execution_id !== execution ||
+          ref.case_id != null && ref.case_id !== caseId) return;
+      // Presentation may have rewritten this finding after the review snapshot.
+      // Check the entire CURRENT input, not only the stored review's own claim.
+      if (proof || parent.metadata?.semantic_support_review) {
+        if (!proof || proof.claim.id !== owner.id || proof.review.version !== 1 ||
+            proof.review.verdict !== 'supported' ||
+            supportInput(parent as SupportClaim, pages).hash !== proof.review.hash ||
+            supportInput(proof.claim, pages).hash !== proof.review.hash ||
+            !reviewedAttributionMatches(ref, proof.claim)) return;
+      }
+    }
     const certified = createCanonicalCitation(ref, statements[0], pages, index, proof);
     if (!certified || statements.some(s => normalized(s) !== normalized(statements[0]))) return;
-    Object.assign(ref, certified);
+    Object.assign(ref, certified, owner && proof ? { finding_id: owner.id } : {});
   };
   for (const root of roots) visit(root, (row, key, parent) => {
     if (['citation', 'citations', 'source_ref', 'source_refs', 'evidence_ref', 'evidence_refs'].includes(key)) {
@@ -288,5 +309,17 @@ export function canonicalizeReportCitations<T extends CaseExportData>(input: T):
   }, () => {});
   report.citations = [...annex];
   for (const ref of registry.values()) if (!annex.some(c => c.citation_id === ref.citation_id)) report.citations.push({ ...ref });
+  // The primary finding and its evidence ref carry the same certified binding.
+  // Copy certification fields only; never replace the finding's own identity or
+  // claim text with citation metadata. Cards reuse these findings downstream.
+  for (const finding of rows(payload.findings)) {
+    const primary = rows(finding.evidence_refs).find(ref => ref.finding_id === finding.id &&
+      ref.document_id === finding.source_document_id && ref.page === finding.source_page &&
+      normalized(text(ref.quote)) === normalized(text(finding.source_quote)) &&
+      ref.proposition_supported === finding.proposition_supported && registry.get(ref.citation_id) === ref);
+    if (!primary || !finding.proposition_supported || finding.source_location_verified !== true) continue;
+    for (const key of ['citation_id', 'writer_ref_id', 'canonical_source_id', 'proposition_supported',
+      'proposition_verification', 'verification_status', 'source_location_verified']) finding[key] = primary[key];
+  }
   return payload;
 }

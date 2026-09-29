@@ -1,10 +1,18 @@
 import { sha256HexSync } from './sha256';
 
-export type SupportClaim = { id:string; title:string; description?:string|null; source_document_id?:string|null; source_page?:number|null; source_quote?:string|null; speaker_role?:string|null; proposition_type?:string|null; adoption_status?:string|null; legal_significance?:unknown;potential_impact?:unknown;rationale?:unknown;audit_classification?:unknown;finding_type?:unknown;authority_level?:unknown };
+export type SupportClaim = { id:string; title:string; case_id?:string|null; execution_id?:string|null; description?:string|null; source_document_id?:string|null; source_page?:number|null; source_quote?:string|null; speaker_role?:string|null; proposition_type?:string|null; adoption_status?:string|null; legal_significance?:unknown;potential_impact?:unknown;rationale?:unknown;audit_classification?:unknown;finding_type?:unknown;authority_level?:unknown };
 export type SupportPage = { document_id:string; page:number; text:string; document_scope?:unknown };
 export type SupportInput = { id:string; claim:string; attribution:Record<string,string|null>; context:string; hash:string };
 export type SupportVerdict = { verdict:'supported'|'contradicted'|'insufficient'; reason:string; supporting_quote:string; hash:string; version:1 };
 const normalize = (text:string) => text.normalize('NFC').replace(/\s+/g,' ').trim();
+
+/** JSONB may reorder every object, including nested source scope and rationale.
+ * Preserve array order and JSON's null/undefined semantics, but sort object keys. */
+function canonicalJson(value: unknown): string {
+  return JSON.stringify(value, (_key, item) => item && typeof item === 'object' && !Array.isArray(item)
+    ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0))
+    : item);
+}
 
 /** Repair missing location metadata, never an explicit conflicting page.
  * The entire quote must occur on exactly one physical page of its own source. */
@@ -32,12 +40,17 @@ export function supportInput(claim:SupportClaim, pages:readonly SupportPage[]):S
   // genuine quotation could be mistaken for an adopted court holding.
   const before = claim.speaker_role === 'quejoso' ? 1400 : 700;
   const context = at < 0 ? '' : text.slice(Math.max(0,at-before),Math.min(text.length,at+Math.min(quote.length,1500)+1400));
-  const input = {id:claim.id,claim:JSON.stringify({title:claim.title,description:claim.description,
+  const input = {id:claim.id,claim:canonicalJson({title:claim.title,description:claim.description,
     legal_significance:claim.legal_significance,potential_impact:claim.potential_impact,rationale:claim.rationale,
     audit_classification:claim.audit_classification,finding_type:claim.finding_type,authority_level:claim.authority_level,
     document_scope:page?.document_scope ?? null}),attribution:{
     speaker:claim.speaker_role ?? null,proposition:claim.proposition_type ?? null,adoption:claim.adoption_status ?? null},context};
-  const hash=sha256HexSync(JSON.stringify({version:1,policy:'source-support-v2',document:claim.source_document_id,page:claim.source_page,...input}));
+  // A new policy deliberately invalidates old order-sensitive hashes; never
+  // "refresh" a stored review by assigning it a hash of changed inputs.
+  const hash=sha256HexSync(canonicalJson({version:1,policy:'source-support-v3',
+    case_id:claim.case_id ?? null,execution_id:claim.execution_id ??
+      (claim as SupportClaim & {metadata?:{execution_id?:string}}).metadata?.execution_id ?? null,
+    document:claim.source_document_id,page:claim.source_page,quote,...input}));
   return {...input,hash};
 }
 

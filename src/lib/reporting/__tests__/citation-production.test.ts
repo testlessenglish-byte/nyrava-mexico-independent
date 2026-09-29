@@ -35,6 +35,7 @@ describe('upstream canonical citation production', () => {
         full_report: { pre_release_source_pages: pages,
           source_audit: { canonical_sources: [{ document_id: 'doc', canonical_source_id: 'doc', original_filename: 'source.pdf', source_aliases: [] }] },
           mandatory_decision_core: { items: [{ id: 'core', kind: 'COURT_HOLDING', text: claim.description, source_refs: [citation], speaker_role: 'scjn' }] } } } };
+    input.report.executive_summary = 'El informe recoge la determinación documentada en la resolución judicial aportada para su revisión.';
     const result = composeFinalReportPayload(input);
     expect(validateFinalReportContract(result).blocking_errors).toEqual([]);
     const stored = (result.report!.full_report as any).mandatory_decision_core.items[0].source_refs[0];
@@ -55,6 +56,7 @@ describe('upstream canonical citation production', () => {
       report: { report_mode: 'LIMITED', citations: writerCitationCatalog([ref], pages, docs), full_report: {
         pre_release_source_pages: pages, mandatory_decision_core: { items: core },
         source_audit: { canonical_sources: [{ document_id: 'doc', canonical_source_id: 'doc', source_aliases: [] }] } } } };
+    input.report.executive_summary = 'El informe recoge la determinación documentada en la resolución judicial aportada para su revisión.';
     const result = composeFinalReportPayload(input, original);
     expect(result.findings![0].description).toContain('Atribución pendiente');
     expect(validateFinalReportContract(result).blocking_errors).toEqual([]);

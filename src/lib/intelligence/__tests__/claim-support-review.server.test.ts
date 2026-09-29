@@ -2,10 +2,35 @@ import {beforeEach,expect,it,vi} from 'vitest';
 const state=vi.hoisted(()=>({call:vi.fn()}));
 vi.mock('../../groq.server',()=>({callGroq:state.call,parseJsonLoose:(s:string)=>JSON.parse(s)}));
 import {reviewClaimSupport} from '../claim-support-review.server';
+import {supportInput} from '../claim-support-review';
 const text='La recurrente solicitó aumentar el porcentaje, pero este párrafo no contiene una decisión judicial.';
 const page={document_id:'d',page:17,text};
 const claim={id:'f',title:'La SCJN concedió el aumento.',source_document_id:'d',source_page:17,source_quote:'La recurrente solicitó aumentar el porcentaje'};
 beforeEach(()=>{state.call.mockReset();});
+it('reuses a persisted canonical hash without a provider call after nested key reordering',async()=>{
+  const pages=[{...page,document_scope:{purpose:'case_record',connection:{status:'verified',archived:false}}}];
+  const current={...claim,execution_id:'execution',rationale:{a:1,b:2}};
+  const review={version:1 as const,verdict:'supported' as const,hash:supportInput(current,pages).hash,
+    supporting_quote:text,reason:'Completed offline fixture review'};
+  const reordered=[{...page,document_scope:{connection:{archived:false,status:'verified'},purpose:'case_record'}}];
+  const result=await reviewClaimSupport([{...current,rationale:{b:2,a:1},metadata:{semantic_support_review:JSON.parse(JSON.stringify(review))}}],reordered);
+  expect(result.get('f')).toEqual(review);
+  expect(state.call).not.toHaveBeenCalled();
+});
+it.each(['claim','execution','legacy hash'])('requires fresh verification for a changed %s instead of refreshing the cache',async kind=>{
+  const original={...claim,execution_id:'execution'};
+  const review={version:1 as const,verdict:'supported' as const,hash:supportInput(original,[page]).hash,
+    supporting_quote:text,reason:'Prior review'};
+  const current={...original,metadata:{semantic_support_review:review}};
+  if(kind==='claim') current.title='Unreviewed judicial conclusion';
+  if(kind==='execution') current.execution_id='new-execution';
+  if(kind==='legacy hash') review.hash='old-order-sensitive-review-hash';
+  const previous=structuredClone(review);
+  state.call.mockRejectedValue(new Error('Provider disabled for stale-review regression'));
+  expect((await reviewClaimSupport([current],[page])).get('f')?.verdict).toBe('insufficient');
+  expect(state.call).toHaveBeenCalledTimes(1);
+  expect(review).toEqual(previous);
+});
 it('never certifies claims when the provider fails',async()=>{
   state.call.mockRejectedValue(new Error('HTTP413'));
   expect((await reviewClaimSupport([claim],[page],'user')).get('f')?.verdict).toBe('insufficient');
