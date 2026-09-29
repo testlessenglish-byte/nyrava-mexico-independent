@@ -278,7 +278,24 @@ export function canonicalizeReportCitations<T extends CaseExportData>(input: T):
       const stableId = row.finding_id ?? row.proposition_id ?? row.evidence_id ?? row.claim_id;
       const reviewed = typeof stableId === 'string' ? trustedReviews.find(review => review.claim.id === stableId) : undefined;
       const reviewedBound = reviewed ? bound.filter(value => normalized(value) === normalized(text(reviewed.claim.description))) : [];
-      const statements = statement ? [statement] : literal.length ? literal : reviewedBound;
+      // A finding's own evidence ref is already bound by its stable finding
+      // identity and source coordinates. Requiring it to also appear in writer
+      // prose before certifying it leaves otherwise-valid findings unverified
+      // whenever the writer omits inline citations. The trusted review only
+      // supplies the proposition here; certify() still checks its full hash,
+      // attribution, quote, page, and source binding before publication.
+      const owner = rows(payload.findings).find(f => typeof f.id === 'string' && f.id === parent.id);
+      const ownerId = owner?.id;
+      const explicitLink = row.finding_id ?? row.proposition_id ?? row.evidence_id ?? row.claim_id;
+      const ownerProof = owner && typeof ownerId === 'string' &&
+        (explicitLink == null || explicitLink === ownerId)
+        ? trustedReviews.find(review => review.claim.id === ownerId &&
+            review.claim.source_document_id === (row.document_id ?? row.source_document_id) &&
+            Number(review.claim.source_page) === Number(row.page ?? row.page_number ?? row.source_page) &&
+            normalized(text(review.claim.source_quote)) === normalized(text(row.quote ?? row.excerpt ?? row.source_quote)))
+        : undefined;
+      const statements = statement ? [statement] : literal.length ? literal : reviewedBound.length
+        ? reviewedBound : ownerProof ? [text(ownerProof.claim.description)] : [];
       certify(row, statements, parent);
     }
     if (row.source_quote !== undefined) {
