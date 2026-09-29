@@ -46,7 +46,7 @@ export type SelectableFinding = {
   supporting_engines?: string[] | null;
   metadata?: Record<string, unknown> | null;
   /** Hallucination/citation verifier result. A row explicitly marked
-   * no_citation/unverified has been quarantined and is not eligible for an
+   * no_citation/unverified/quarantined has been quarantined and is not eligible for an
    * authoritative report surface. Undefined preserves pre-verifier behavior
    * while the pipeline is still running. */
   verification_status?: string | null;
@@ -84,7 +84,7 @@ export function isSuppressedFinding(f: SelectableFinding): boolean {
 /**
  * True for finalized, non-provisional pipeline output that may appear as an
  * authoritative finding. A completed hallucination/citation pass can mark a
- * row `no_citation` or `unverified`; those rows remain in the database/audit
+ * row `no_citation`, `unverified`, or `quarantined`; those rows remain in the database/audit
  * appendix but must not re-enter the dashboard, PDF key-findings body, or
  * ordinary case UI through getCase() after the report explicitly quarantined
  * them.
@@ -166,17 +166,27 @@ export function canonicalEvidenceIntegrityIssue(f: SelectableFinding): string | 
   return null;
 }
 
+function isQuarantinedFinding(f: SelectableFinding): boolean {
+  const verification = String(f.verification_status ?? "").toLowerCase();
+  const diagnostic = f.metadata?.claim_entailment_diagnostic as Record<string, unknown> | null | undefined;
+  return (
+    verification === "no_citation" ||
+    verification === "unverified" ||
+    verification === "quarantined" ||
+    diagnostic?.final_reportable === false ||
+    diagnostic?.claim_action === "REMOVE"
+  );
+}
+
 export function isCanonicalFinding(f: SelectableFinding): boolean {
   const cls = classifyFindingSource(f);
-  const verification = String(f.verification_status ?? "").toLowerCase();
-  const quarantined = verification === "no_citation" || verification === "unverified";
   return (
     (cls === "engine" || cls === "agent") &&
     !isPersonalNoticeSourceInversion(f) &&
     !canonicalEvidenceIntegrityIssue(f) &&
     !isProvisionalFinding(f) &&
     !isSuppressedFinding(f) &&
-    !quarantined
+    !isQuarantinedFinding(f)
   );
 }
 
@@ -185,7 +195,7 @@ export type SelectFindingsOptions = {
   includeProvisional?: boolean;
   statuses?: ReadonlyArray<FindingStatus>;
   severities?: ReadonlyArray<string>;
-  /** Include rows explicitly quarantined by citation verification. Defaults
+  /** Include rows explicitly quarantined by citation or claim verification. Defaults
    * false for the canonical report/UI selection. */
   includeQuarantined?: boolean;
   /** Include rows that the canonical audit explicitly suppressed. Defaults
@@ -209,10 +219,7 @@ export function selectFindings<T extends SelectableFinding>(
     if (!opts.includeProvisional && isProvisionalFinding(f)) return false;
     if (!opts.includeSuppressed && isSuppressedFinding(f)) return false;
     if (canonicalEvidenceIntegrityIssue(f)) return false;
-    if (!opts.includeQuarantined) {
-      const verification = String(f.verification_status ?? "").toLowerCase();
-      if (verification === "no_citation" || verification === "unverified") return false;
-    }
+    if (!opts.includeQuarantined && isQuarantinedFinding(f)) return false;
     if (statuses && !statuses.has(String(f.finding_status ?? "candidate"))) return false;
     if (severities && !severities.has(String(f.severity ?? ""))) return false;
     return true;

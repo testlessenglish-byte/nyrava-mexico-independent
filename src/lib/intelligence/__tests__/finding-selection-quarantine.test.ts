@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isCanonicalFinding, selectFindings } from "../finding-selection";
+import { getCanonicalReportFindings, getCanonicalScoringFindings } from "../scoring-selection";
 
 describe("citation quarantine finding selection", () => {
   const verified = {
@@ -44,6 +45,95 @@ describe("citation quarantine finding selection", () => {
   });
 });
 
+
+describe("claim entailment quarantine boundary", () => {
+  const verified = {
+    id: "verified",
+    source_module: "agent:constitutional_rights_mapping",
+    verification_status: "verified",
+    finding_status: "candidate",
+    metadata: {
+      claim_entailment_diagnostic: {
+        claim_action: "KEEP",
+        final_reportable: true,
+        entailment_status: "ENTAILED",
+      },
+    },
+  };
+  const rejectedDiagnostics = [
+    { claim_action: "REMOVE", final_reportable: false, entailment_status: "NOT_ENTAILED" },
+    { claim_action: "KEEP", final_reportable: false, entailment_status: "ENTAILED" },
+    { claim_action: "REMOVE", final_reportable: true, entailment_status: "ENTAILED" },
+  ];
+  const quarantinedStatuses = ["quarantined", "unverified", "no_citation"];
+
+  it("includes verified KEEP findings that are reportable and entailed", () => {
+    expect(isCanonicalFinding(verified)).toBe(true);
+    expect(selectFindings([verified])).toEqual([verified]);
+  });
+
+  it.each(quarantinedStatuses)("excludes %s even with an accepted claim diagnostic", (verification_status) => {
+    const finding = { ...verified, verification_status };
+    expect(isCanonicalFinding(finding)).toBe(false);
+    expect(selectFindings([finding])).toEqual([]);
+  });
+
+  it.each(rejectedDiagnostics)(
+    "excludes verified findings with claim_action=$claim_action and final_reportable=$final_reportable",
+    (diagnostic) => {
+      const finding = { ...verified, metadata: { claim_entailment_diagnostic: diagnostic } };
+      expect(isCanonicalFinding(finding)).toBe(false);
+      expect(selectFindings([finding])).toEqual([]);
+    },
+  );
+
+  it("excludes the production quarantined REMOVE/non-reportable/NOT_ENTAILED finding", () => {
+    const finding = {
+      ...verified,
+      verification_status: "quarantined",
+      metadata: { claim_entailment_diagnostic: rejectedDiagnostics[0] },
+    };
+    expect(isCanonicalFinding(finding)).toBe(false);
+    expect(selectFindings([finding])).toEqual([]);
+  });
+
+  it("keeps rejected findings out of both canonical report and scoring inputs", () => {
+    const findings = [
+      verified,
+      ...quarantinedStatuses.map((verification_status) => ({
+        ...verified,
+        id: verification_status,
+        verification_status,
+      })),
+      ...rejectedDiagnostics.map((diagnostic, index) => ({
+        ...verified,
+        id: `rejected-${index}`,
+        metadata: { claim_entailment_diagnostic: diagnostic },
+      })),
+    ];
+    const args = {
+      caseRow: {
+        discovery_at: "2026-01-01T00:00:00Z",
+        contradiction_at: "2026-01-01T00:01:00Z",
+        evidence_intel_at: "2026-01-01T00:02:00Z",
+        scored_at: "2026-01-01T00:03:00Z",
+      },
+      findings,
+    };
+    expect(getCanonicalReportFindings(args).map((f) => f.id)).toEqual(["verified"]);
+    expect(getCanonicalScoringFindings(args).map((f) => f.id)).toEqual(["verified"]);
+    expect(selectFindings(findings).map((f) => f.id)).toEqual(["verified"]);
+  });
+
+  it("preserves explicit audit access to quarantined findings", () => {
+    const finding = {
+      ...verified,
+      verification_status: "quarantined",
+      metadata: { claim_entailment_diagnostic: rejectedDiagnostics[0] },
+    };
+    expect(selectFindings([finding], { includeQuarantined: true })).toEqual([finding]);
+  });
+});
 
 describe("ADR semantic evidence integrity", () => {
   const base = {
