@@ -3,6 +3,7 @@ import { sha256HexSync } from '../intelligence/sha256';
 import { evaluateClaimEntailment } from '../intelligence/claim-evidence-entailment';
 import { supportInput, type SupportClaim, type SupportVerdict } from '../intelligence/claim-support-review';
 import type { MatterSourcePage } from '../intelligence/source-matter-audit';
+import { decisionCoreAtoms } from '../intelligence/mandatory-decision-core';
 type Row = Record<string, any>;
 type Index = Array<{ document_id: string; doc_n: number; canonical_source_id?: string }>;
 export type PropositionReview = { claim: SupportClaim; review: SupportVerdict };
@@ -82,26 +83,40 @@ export function createCanonicalCitation(ref: Row, proposition: string, pages: Ma
 }
 
 export function completedCoreCitations<T extends { id: string; text: string; source_refs: Row[] }>(
-  core: T[], findings: Row[], pages: MatterSourcePage[], index: Index,
+  core: T[], findings: Row[], pages: MatterSourcePage[], index: Index, registry: Row[] = [],
 ): T[] {
+  const reviews = findingCitationReviews(findings);
   return core.map(item => {
-    const finding = findings.find(f => f.metadata?.mandatory_decision_core_id === item.id);
-    const review = finding?.metadata?.semantic_support_review;
-    const claim = finding ? Object.fromEntries(['id','title','description','source_document_id','source_page','source_quote',
-      'speaker_role','proposition_type','adoption_status','legal_significance','potential_impact','rationale','audit_classification',
-      'finding_type','authority_level'].filter(k => finding[k] !== undefined).map(k => [k, finding[k]])) as SupportClaim : null;
-    const proof = claim && review ? { claim, review } : undefined;
-    return { ...item, source_refs: item.source_refs.map(ref =>
-      (() => {
-  const atomicFinding = findings.find(f => f.metadata?.mandatory_decision_core_id === item.id && 
-    Array.isArray(f.evidence_refs) && f.evidence_refs.some((r) => 
-      r.document_id === ref.document_id && String(r.quote).trim() === String(ref.quote ?? ref.source_quote).trim()
-    ));
-  const atomicProposition = atomicFinding && atomicFinding.description ? String(atomicFinding.description) : item.text;
-  const atomicProof = atomicFinding && atomicFinding.metadata?.semantic_support_review ? 
-    { claim: Object.fromEntries(['id','title','description','source_document_id','source_page','source_quote'].filter(k => atomicFinding[k] !== undefined).map(k => [k, atomicFinding[k]])), review: atomicFinding.metadata.semantic_support_review } : proof;
-  return createCanonicalCitation(ref, atomicProposition, pages, index, atomicProof);
-})() ?? unresolvedCitation(ref, 'CORE_PROPOSITION_NOT_CERTIFIED')) };
+    const atoms = decisionCoreAtoms(item.text);
+    const source_refs = item.source_refs.flatMap(ref => {
+      const document = ref.document_id ?? ref.doc_id ?? ref.source_document_id;
+      const page = ref.page ?? ref.page_number ?? ref.source_page;
+      const quote = citationText(ref.quote ?? ref.source_quote);
+      const bound = atoms.flatMap(atom => {
+        const canonical = registry.find(c => c.document_id === document && c.page === page &&
+          citationText(c.quote) === quote && citationText(c.proposition_supported) === citationText(atom) &&
+          (!ref.canonical_source_id || ref.canonical_source_id === c.canonical_source_id) &&
+          (!ref.execution_id || ref.execution_id === c.execution_id) &&
+          c.verification_status === 'verified' && c.publication_status !== 'QUARANTINED' &&
+          c.source_location_verified === true && auditSourceLocations([c], pages, index).ok &&
+          citationPropositionVerified(c, atom, pages, reviews));
+        // Reuse the authoritative object, including its identity and full proof.
+        if (canonical) return [canonical];
+        const proof = reviews.find(p => citationText(p.claim.description) === citationText(atom) &&
+          p.claim.source_document_id === document && p.claim.source_page === page &&
+          citationText(p.claim.source_quote) === quote && findings.some(f => f.id === p.claim.id &&
+            f.metadata?.mandatory_decision_core_id === item.id));
+        const certified = createCanonicalCitation(ref, atom, pages, index, proof);
+        if (!certified) return [];
+        registry.push(certified);
+        return [certified];
+      });
+      return bound.length ? bound : [unresolvedCitation(ref, 'CORE_PROPOSITION_NOT_CERTIFIED')];
+    });
+    // A valid A cannot hide a missing or unsupported B.
+    const missing = atoms.filter(atom => !source_refs.some(ref =>
+      ref.verification_status === 'verified' && citationText(ref.proposition_supported) === citationText(atom)));
+    return { ...item, source_refs, ...(missing.length ? { certification_error: 'CORE_PROPOSITION_NOT_CERTIFIED' } : {}) };
   });
 }
 
@@ -143,15 +158,18 @@ export function completedPerspectivesCitations<T extends Row>(
   });
 }
 
-export function writerCitationCatalog(refs: Row[], pages: MatterSourcePage[], index: Index): Row[] {
+export function writerCitationCatalog(refs: Row[], pages: MatterSourcePage[], index: Index, findings: Row[] = []): Row[] {
+  const reviews = findingCitationReviews(findings);
   const checked = refs.flatMap(ref => {
+    if (ref.verification_status === 'verified' && ref.publication_status !== 'QUARANTINED' &&
+        ref.source_location_verified === true && ref.proposition_supported &&
+        auditSourceLocations([ref], pages, index).ok &&
+        citationPropositionVerified(ref, ref.proposition_supported, pages, reviews)) return [ref];
     const citation = createCanonicalCitation(ref, String(ref.quote ?? ref.excerpt ?? ref.source_quote ?? ''), pages, index);
     return citation ? [citation] : [];
   });
-  return [...new Map(checked.map(c => [c.document_id + ':' + c.page + ':' + citationText(c.quote), c])).values()]
-    .map(c => ({ ...c, writer_ref_id: 'cite_' + sha256HexSync(JSON.stringify([
-      c.canonical_source_id, c.document_id, c.page, citationText(c.proposition_supported), citationText(c.quote),
-    ])).slice(0, 24) }));
+  return [...new Map(checked.map(c => [JSON.stringify([c.document_id, c.page,
+    citationText(c.quote), citationText(c.proposition_supported)]), c])).values()];
 }
 
 /** The Writer names a verified catalog object, never a document/page pair.

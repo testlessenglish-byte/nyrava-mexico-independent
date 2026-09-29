@@ -4,6 +4,7 @@ import { createCanonicalCitation, citationPropositionVerified, findingCitationRe
 import { auditSourceLocations } from './source-location-audit';
 import { attributeCivilProposition } from '../civil/proposition-attribution';
 import { sha256HexSync } from '../intelligence/sha256';
+import { decisionCoreAtoms } from '../intelligence/mandatory-decision-core';
 
 type Row = Record<string, any>;
 const obj = (value: unknown): Row => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
@@ -103,6 +104,16 @@ export function auditReportCitationIntegrity(payload: CaseExportData) {
   const index = payload.documents.map((doc, i) => ({ document_id: String(doc.id ?? doc.document_id ?? ''),
     doc_n: Number(doc.doc_n ?? i + 1), canonical_source_id: text(doc.canonical_source_id) }));
   const errors: string[] = [], verified: Row[] = [], unresolved: Row[] = [];
+  const coreItems = rows(obj(full.mandatory_decision_core).items);
+  const isCore = (parent: Row) => coreItems.some(item => item === parent ||
+    item.id === parent.id && item.text === parent.text && item.kind === parent.kind);
+  for (const item of coreItems) {
+    for (const atom of decisionCoreAtoms(text(item.text))) {
+      if (!rows(item.source_refs).some(ref => ref.verification_status === 'verified' &&
+          ref.publication_status !== 'QUARANTINED' && normalized(text(ref.proposition_supported)) === normalized(atom)))
+        errors.push(`citation_integrity:mandatory_decision_core:${item.id}:atomic_binding_missing`);
+    }
+  }
   let checked = 0;
   const auditRef = (raw: Row, path: string, parent: Row = {}) => {
     checked++;
@@ -127,7 +138,8 @@ export function auditReportCitationIntegrity(payload: CaseExportData) {
     if (ref.proposition_verification && normalized(proposition) !== normalized(ref.quote) &&
       !reviewedAttributionMatches(parent, ref.proposition_verification.claim ?? {})) reasons.push('reviewed_attribution_mismatch');
     const asserted = publishedAssertion(parent, ref, pages, index);
-    if (asserted && proposition && normalized(asserted) !== normalized(proposition)) reasons.push('published_proposition_mismatch');
+    const assertions = isCore(parent) ? decisionCoreAtoms(asserted) : [asserted];
+    if (asserted && proposition && !assertions.some(atom => normalized(atom) === normalized(proposition))) reasons.push('published_proposition_mismatch');
     if (reasons.length) {
       errors.push(...reasons.map(reason => `citation_integrity:${path}:${reason}`));
       unresolved.push({ path, ...ref, verification_status: 'unverified', reasons });

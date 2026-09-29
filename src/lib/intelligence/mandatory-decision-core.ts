@@ -32,6 +32,19 @@ export type MandatoryDecisionCoreValidation = {
   missing: Array<{ id: string; kind: MandatoryDecisionKind; text: string }>;
 };
 
+/** Structural splitting only: never infer a new legal proposition. Keep ordinal
+ * labels attached to their sentence and require every resulting atom to bind. */
+export function decisionCoreAtoms(text: string): string[] {
+  return text.trim().split(/\n+|(?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÑ¿])/u)
+    .reduce<string[]>((atoms, part) => {
+      if (!part.trim()) return atoms;
+      if (/^(?:PRIMERO|SEGUNDO|TERCERO|CUARTO|QUINTO|SEXTO|SÉPTIMO|OCTAVO|NOVENO|DÉCIMO)\.$/.test(atoms.at(-1) ?? ''))
+        atoms[atoms.length - 1] += ' ' + part.trim();
+      else atoms.push(part.trim());
+      return atoms;
+    }, []);
+}
+
 const REMEDY_RE =
   /\b(devu[eé]lv|remit|rep[oó]ng|reposici[oó]n|nueva resoluci[oó]n|deje? sin efectos?|sin aplicar|dicte? otra|conced[ae] el amparo|efectos del amparo)\b/i;
 
@@ -279,7 +292,10 @@ export function mandatoryDecisionCoreToFindings(args: {
 }): NewFinding[] {
   const es = args.locale !== 'en';
   const labels:Record<MandatoryDecisionKind,string>={DISPOSITION:'RESULTADO',COURT_HOLDING:'DETERMINACIÓN DEL TRIBUNAL',REJECTED_HOLDING:'DETERMINACIÓN RECHAZADA',CONTROLLING_ISSUE:'CUESTIÓN CONTROLANTE',REMEDY:'EFECTO DE LA RESOLUCIÓN'};
-  return args.core.map((item) => {
+  return args.core.flatMap((coreItem) => decisionCoreAtoms(coreItem.text).map(atom => {
+    const literal = (s: string) => s.normalize('NFC').replace(/\s+/g, ' ').trim().replace(/[.!?]$/, '');
+    const matching = coreItem.source_refs.filter(ref => literal(ref.quote ?? '').includes(literal(atom)));
+    const item = { ...coreItem, text: atom, source_refs: matching.length ? matching : coreItem.source_refs };
     const primary = item.source_refs.find(r => r.quote);
     const docIds = [
       ...new Set(item.source_refs.map((r) => r.doc_id ?? r.document_id).filter(Boolean)),
@@ -347,7 +363,7 @@ export function mandatoryDecisionCoreToFindings(args: {
         citation_exemption_type: "CITATION_REQUIRED",
       },
     };
-  });
+  }));
 }
 
 /** Refresh by proposition identity only. Shared source text cannot establish
@@ -358,13 +374,17 @@ export function alignDecisionCoreFindings<T extends Record<string, any>>(finding
     if(f.source_module!=='decision_core') return [f];
     const identity=f.metadata?.mandatory_decision_core_id;
     if(typeof identity==='string') {
-      if(seen.has(identity)) return [];
-      seen.add(identity);
+      const atomicIdentity = identity + ':' + normalized(String(f.description ?? ''));
+      if(seen.has(atomicIdentity)) return [];
+      seen.add(atomicIdentity);
     }
     const item=core.find(i=>i.id===identity);
     // A superseded outcome must not survive under its old stable identifier.
     // Other propositions retain their identity for the separate semantic gate.
     if(!item) return ['DISPOSITION','REMEDY'].includes(f.metadata?.mandatory_decision_kind) ? [] : [f];
+    // An already reviewed atom is immutable. Refreshing labels, legal
+    // significance or its primary source invalidates the semantic-review hash.
+    if (decisionCoreAtoms(item.text).some(atom => normalized(atom) === normalized(String(f.description ?? '')))) return [f];
     const refreshed=mandatoryDecisionCoreToFindings({core:[item],caseId:f.case_id,userId:f.user_id,
       executionId:f.execution_id ?? f.metadata?.execution_id ?? null,locale})[0];
     return [{...f,...refreshed,metadata:{...f.metadata,...refreshed.metadata}} as T];

@@ -5209,6 +5209,11 @@ function deriveMatterId(data: CaseExportData): string {
 }
 
 export async function downloadPdf(data: CaseExportData, name: string, opts?: { citationMode?: CitationMode; validateOnly?: boolean }) {
+  if (asObj(data.report?.full_report).release_candidate) {
+    const { verifiedReportPackage, generateVerifiedReport } = await import('./reporting/verified-report');
+    const caseId = String(data.case?.id ?? ''), executionId = String(data.case?.execution_id ?? '');
+    data = generateVerifiedReport(verifiedReportPackage(asObj(data.report), caseId, executionId), caseId, executionId);
+  }
   return renderPdf(data,name,opts,false);
 }
 async function renderPdf(

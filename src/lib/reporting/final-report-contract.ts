@@ -158,8 +158,9 @@ export function composeFinalReportPayload(input: CaseExportData, sourceReviewFin
   data.findings = data.findings.filter(f=>{
     const id=f.source_module==='decision_core' ? obj(f.metadata).mandatory_decision_core_id : undefined;
     if(!id || !core.some(i=>i.id===id))return true;
-    if(seenCore.has(id))return false;
-    seenCore.add(id);return true;
+    const atomId = id + ':' + String(f.description ?? '');
+    if(seenCore.has(atomId))return false;
+    seenCore.add(atomId);return true;
   });
   const inferredRegistry=receivingProceedings(core,arr(full.pre_release_source_pages) as any,
     data.documents.map((d,i)=>({document_id:String(d.id),doc_n:Number(d.doc_n??i+1)})));
