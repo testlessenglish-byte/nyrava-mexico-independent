@@ -1650,9 +1650,13 @@ async function _runPipelineForCase(
           skippedThisTick.push(s.key);
           return { kind: "skipped" };
         }
-        if (liveRun.status === "running" || liveRun.status === "queued") {
+        if (liveRun.status === "running") {
           console.warn(`[pipeline] yielding stage ${s.key}: actively running in another worker`);
           return { kind: "checkpoint", index: i };
+        }
+        // Queued means resumable checkpointed work, not active ownership.
+        if (liveRun.status === "queued") {
+          console.info(`[pipeline] resuming queued stage ${s.key}`);
         }
       }
     } else {

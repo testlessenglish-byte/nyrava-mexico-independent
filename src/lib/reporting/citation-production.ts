@@ -130,10 +130,14 @@ export function completedTheoriesCitations<T extends Row>(
       ...theory,
       citations: refs.map(ref => {
         const quote = String(ref.quote ?? ref.excerpt ?? ref.source_quote ?? "");
-        const atomicFinding = findings.find(f => Array.isArray(f.evidence_refs) && f.evidence_refs.some((r) => r.document_id === ref.document_id && String(r.quote).trim() === quote.trim()));
+        const atomicFinding = findings.find(f => Array.isArray(f.evidence_refs) && f.evidence_refs.some((r) =>
+          r.document_id === ref.document_id && citationText(r.quote) === citationText(quote)));
+        const authoritativeRef = atomicFinding?.evidence_refs?.find((r: Row) =>
+          r.document_id === ref.document_id && citationText(r.quote) === citationText(quote));
         const atomicProof = atomicFinding && atomicFinding.metadata?.semantic_support_review ? { claim: Object.fromEntries(["id","title","description","source_document_id","source_page","source_quote"].filter(k => atomicFinding[k] !== undefined).map(k => [k, atomicFinding[k]])), review: atomicFinding.metadata.semantic_support_review } : undefined;
         const proposition = String(ref.proposition_supported || theory.title || theory.theory_type || "");
-        return createCanonicalCitation(ref, proposition, pages, index, atomicProof) ?? unresolvedCitation(ref, "THEORY_PROPOSITION_NOT_CERTIFIED");
+        const sourceRef = authoritativeRef ?? ref;
+        return createCanonicalCitation(sourceRef, proposition, pages, index, atomicProof) ?? unresolvedCitation(ref, "THEORY_PROPOSITION_NOT_CERTIFIED");
       })
     };
   });
@@ -150,9 +154,13 @@ export function completedPerspectivesCitations<T extends Row>(
         if (!ev || !ev.citation) return ev;
         const proposition = String(ev.citation.proposition_supported || ev.description || perspective.perspective || "");
         const quote = String(ev.citation.quote ?? ev.citation.excerpt ?? ev.citation.source_quote ?? "");
-        const atomicFinding = findings.find(f => Array.isArray(f.evidence_refs) && f.evidence_refs.some((r) => r.document_id === ev.citation.document_id && String(r.quote).trim() === quote.trim()));
+        const atomicFinding = findings.find(f => Array.isArray(f.evidence_refs) && f.evidence_refs.some((r) =>
+          r.document_id === ev.citation.document_id && citationText(r.quote) === citationText(quote)));
+        const authoritativeRef = atomicFinding?.evidence_refs?.find((r: Row) =>
+          r.document_id === ev.citation.document_id && citationText(r.quote) === citationText(quote));
         const atomicProof = atomicFinding && atomicFinding.metadata?.semantic_support_review ? { claim: Object.fromEntries(["id","title","description","source_document_id","source_page","source_quote"].filter(k => atomicFinding[k] !== undefined).map(k => [k, atomicFinding[k]])), review: atomicFinding.metadata.semantic_support_review } : undefined;
-        const canonical = createCanonicalCitation(ev.citation, proposition, pages, index, atomicProof) ?? (quote ? createCanonicalCitation(ev.citation, quote, pages, index) : null);
+        const sourceRef = authoritativeRef ?? ev.citation;
+        const canonical = createCanonicalCitation(sourceRef, proposition, pages, index, atomicProof) ?? (quote ? createCanonicalCitation(sourceRef, quote, pages, index) : null);
         return { ...ev, citation: canonical ?? unresolvedCitation(ev.citation, "PERSPECTIVE_PROPOSITION_NOT_CERTIFIED") };
       })
     };

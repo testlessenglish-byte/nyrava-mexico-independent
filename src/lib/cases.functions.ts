@@ -1759,6 +1759,7 @@ export const clearPipelineStuckState = createServerFn({ method: "POST" })
         progress: preserveTerminal ? caseRow.progress : resumeKey ? caseRow.progress : 100,
         queued_at: null,
         worker_lease_until: null,
+        stall_auto_retry_count: 0,
         next_stage: resumeKey ?? null,
         cancel_requested: false,
         stall_reason: resumeKey ? "manual_clear" : null,

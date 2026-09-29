@@ -9992,7 +9992,21 @@ ${corpus.slice(0, REPORT_STAGE_CORPUS_CHARS)}${resolutivoAnchorBlock}${penalDisp
   // its purpose. Clear it so a future manual "Regenerate Report" doesn't
   // silently reuse stale chunk content from this run instead of producing
   // a fresh analysis.
-  await clearChunkCache();
+  {
+    let clearQuery = db
+      .from("reports")
+      .update({ report_chunk_cache: {} })
+      .eq("case_id", caseId);
+
+    if (executionId) {
+      clearQuery = clearQuery.eq("execution_id", executionId);
+    }
+
+    const { error: clearChunkCacheError } = await clearQuery;
+    if (clearChunkCacheError) {
+      throw new Error(`REPORT_CHUNK_CACHE_CLEAR_FAILED: ${clearChunkCacheError.message}`);
+    }
+  }
 
   await setCase(db, caseId, {
     // A saved report is still a DRAFT until the post-report agents approve
