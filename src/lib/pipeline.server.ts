@@ -7439,17 +7439,8 @@ ${corpus.slice(0, REPORT_STAGE_CORPUS_CHARS)}${resolutivoAnchorBlock}${penalDisp
     `Appendix Sources\n${docLines || "No source documents indexed."}`;
 
   // Deterministic legal memorandum assembly
-  const memoAnalysis = findings.slice(0, 5).map((f) => {
-    const ref = Array.isArray(f.evidence_refs) && f.evidence_refs[0] ? f.evidence_refs[0] : null;
-    const docCite = ref && typeof ref.doc_n === "number" && typeof ref.page === "number" ? `[DOC ${ref.doc_n} p. ${ref.page}]` : "";
-    return {
-      issue: `Determinación de la procedencia y alcance legal respecto a: ${f.title}`,
-      rule: "Conforme a los artículos 14, 16 y 20 de la Constitución Política de los Estados Unidos Mexicanos, así como los criterios de jurisprudencia y tesis aplicables, toda actuación debe cumplir con la debida fundamentación, motivación y estricto apego al debido proceso legal.",
-      application: `En el presente asunto, conforme a la evidencia documental que obra en ${docCite || "las constancias de autos"}: "${(ref?.quote ?? f.source_quote ?? f.title).slice(0, 160)}", se constata que ${f.description || f.title}. Esta circunstancia incide directamente en la valoración probatoria de la causa y la tutela judicial efectiva.`,
-      conclusion: "Se concluye que el hallazgo acreditado constituye un elemento sustantivo para la estrategia legal del asunto.",
-      cited_evidence: ref?.quote ? [ref.quote] : [f.source_quote || f.title],
-    };
-  });
+  const { buildVerifiedLegalAnalysis } = await import("./reporting/legal-analysis");
+  const memoAnalysis = buildVerifiedLegalAnalysis(findings.slice(0, 5), canonicalWriterCitations);
 
   const memoMotions = (opps && opps.length > 0 ? opps : [
     { title: "Ofrecimiento de Pruebas y Regularización del Procedimiento", description: "Solicitud formal de admisión y desahogo de pruebas conforme a las reglas del procedimiento aplicable." }
