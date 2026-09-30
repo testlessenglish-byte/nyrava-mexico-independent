@@ -4312,7 +4312,8 @@ export const pipelineLedger = createServerFn({ method: "GET" })
           .enum(["completed", "failed", "blocked", "skipped", "running", "queued"])
           .optional(),
         provider: z.string().optional(),
-        limit: z.number().int().min(1).max(500).optional(),
+        page: z.number().int().min(1).optional(),
+        limit: z.number().int().min(1).max(100).optional(),
       })
       .parse(data ?? {}),
   )
@@ -4326,21 +4327,27 @@ export const pipelineLedger = createServerFn({ method: "GET" })
       .maybeSingle();
     if (!adminRole) throw new Error("Forbidden");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const limit = data.limit ?? 200;
+    const page = data.page ?? 1;
+    const limit = data.limit ?? 25;
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+
     let q = supabaseAdmin
       .from("pipeline_engine_runs")
       .select(
         "id,case_id,engine,status,provider,model,tokens_in,tokens_out,cost_usd,runtime_ms,retry_count,db_write_confirmed,rows_written,error,started_at,ended_at,created_at,prompt_version,skipped_reason,dependency_status,meta",
+        { count: "exact" },
       )
       .order("created_at", { ascending: false })
-      .limit(limit);
+      .range(from, to);
     if (data.caseId) q = q.eq("case_id", data.caseId);
     if (data.engine) q = q.eq("engine", data.engine);
     if (data.status) q = q.eq("status", data.status);
     if (data.provider) q = q.eq("provider", data.provider);
-    const { data: runs, error } = await q;
+    const { data: runs, error, count } = await q;
     if (error) throw new Error(error.message);
     const rows = runs ?? [];
+    const totalCount = count ?? 0;
     const totalRuns = rows.length;
     const byStatus = rows.reduce<Record<string, number>>((acc, r) => {
       const k = (r as { status: string }).status;
@@ -4370,6 +4377,12 @@ export const pipelineLedger = createServerFn({ method: "GET" })
     ).length;
     return {
       runs: rows,
+      pagination: {
+        page,
+        limit,
+        totalCount,
+        totalPages: Math.max(1, Math.ceil(totalCount / limit)),
+      },
       summary: { totalRuns, byStatus, totalTokens, totalCost, avgLatency, confirmedWrites },
     };
   });

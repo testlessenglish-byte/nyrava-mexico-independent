@@ -12,9 +12,9 @@ export const Route = createFileRoute("/contact")({
   head: () => ({
     meta: [
       { title: "Contacto · Nyrava Intelligence México" },
-      { name: "description", content: "Contacta al equipo de Nyrava Intelligence México — programa cerrado para despachos e instituciones legales." },
+      { name: "description", content: "Contacta a Nyrava México para conocer la plataforma, consultar planes Enterprise, hablar con ventas o recibir ayuda para comenzar." },
       { property: "og:title", content: "Contacto · Nyrava México" },
-      { property: "og:description", content: "Programa cerrado para despachos e instituciones legales en México." },
+      { property: "og:description", content: "Plataforma de tecnología legal para abogados, despachos, fundaciones y organizaciones en México." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -86,7 +86,7 @@ function ContactPage() {
           </div>
         </div>
 
-        <form ref={formRef} onSubmit={handleSubmit} className="panel mt-6 space-y-4 p-6" aria-label={es ? "Formulario de contacto de ventas" : "Sales contact form"}>
+        <form id="sales" ref={formRef} onSubmit={handleSubmit} className="panel mt-6 space-y-4 p-6" aria-label={es ? "Formulario de contacto de ventas" : "Sales contact form"}>
           <div>
             <h2 className="font-display text-xl font-semibold">{es ? "Cuéntenos sobre su organización" : "Tell us about your organization"}</h2>
             <p className="mt-1 text-sm text-muted-foreground">

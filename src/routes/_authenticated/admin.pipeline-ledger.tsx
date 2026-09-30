@@ -36,10 +36,11 @@ function PipelineLedgerPage() {
   const [engine, setEngine] = useState("");
   const [provider, setProvider] = useState("");
   const [caseId, setCaseId] = useState("");
+  const [page, setPage] = useState(1);
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const { data, isLoading, error, refetch, isFetching } = useQuery({
-    queryKey: ["pipelineLedger", status, engine, provider, caseId],
+    queryKey: ["pipelineLedger", status, engine, provider, caseId, page],
     queryFn: () =>
       fetchLedger({
         data: {
@@ -47,7 +48,8 @@ function PipelineLedgerPage() {
           ...(engine ? { engine } : {}),
           ...(provider ? { provider } : {}),
           ...(caseId ? { caseId } : {}),
-          limit: 200,
+          page,
+          limit: 25,
         },
       }),
     refetchInterval: 15000,
@@ -55,6 +57,9 @@ function PipelineLedgerPage() {
 
   const runs = data?.runs ?? [];
   const summary = data?.summary;
+  const pagination = data?.pagination;
+  const totalPages = pagination?.totalPages ?? 1;
+  const totalCount = pagination?.totalCount ?? 0;
 
   const engineOptions = useMemo(
     () => Array.from(new Set(runs.map((r) => (r as { engine: string }).engine))).sort(),
@@ -110,7 +115,7 @@ function PipelineLedgerPage() {
         <span className="text-xs uppercase tracking-wider text-muted-foreground">Filters</span>
         <select
           value={status}
-          onChange={(e) => setStatus(e.target.value as StatusKey | "")}
+          onChange={(e) => { setStatus(e.target.value as StatusKey | ""); setPage(1); }}
           className="rounded-md border border-border bg-background px-2 py-1 text-xs"
         >
           <option value="">All statuses</option>
@@ -123,7 +128,7 @@ function PipelineLedgerPage() {
         </select>
         <select
           value={engine}
-          onChange={(e) => setEngine(e.target.value)}
+          onChange={(e) => { setEngine(e.target.value); setPage(1); }}
           className="rounded-md border border-border bg-background px-2 py-1 text-xs"
         >
           <option value="">All engines</option>
@@ -131,7 +136,7 @@ function PipelineLedgerPage() {
         </select>
         <select
           value={provider}
-          onChange={(e) => setProvider(e.target.value)}
+          onChange={(e) => { setProvider(e.target.value); setPage(1); }}
           className="rounded-md border border-border bg-background px-2 py-1 text-xs"
         >
           <option value="">All providers</option>
@@ -139,13 +144,13 @@ function PipelineLedgerPage() {
         </select>
         <input
           value={caseId}
-          onChange={(e) => setCaseId(e.target.value.trim())}
+          onChange={(e) => { setCaseId(e.target.value.trim()); setPage(1); }}
           placeholder="Filter by case_id (uuid)"
           className="min-w-[280px] flex-1 rounded-md border border-border bg-background px-2 py-1 font-mono text-xs"
         />
         {(status || engine || provider || caseId) && (
           <button
-            onClick={() => { setStatus(""); setEngine(""); setProvider(""); setCaseId(""); }}
+            onClick={() => { setStatus(""); setEngine(""); setProvider(""); setCaseId(""); setPage(1); }}
             className="rounded-md border border-border bg-background px-2 py-1 text-xs hover:bg-muted"
           >
             Clear
@@ -274,6 +279,29 @@ function PipelineLedgerPage() {
               })}
             </tbody>
           </table>
+          <div className="flex items-center justify-between border-t border-border px-4 py-3">
+            <div className="text-xs text-muted-foreground">
+              {totalCount.toLocaleString()} runs · Page {page} of {totalPages}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1 || isFetching}
+                className="rounded-md border border-border px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-40"
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages || isFetching}
+                className="rounded-md border border-border px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

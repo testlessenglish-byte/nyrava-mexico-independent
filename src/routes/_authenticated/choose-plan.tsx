@@ -228,12 +228,12 @@ function ChoosePlanPage() {
                   ))}
                 </ul>
                 {custom ? (
-                  <Link
-                    to="/contact"
+                  <a
+                    href="/contact#sales"
                     className="mt-5 flex w-full items-center justify-center gap-2 rounded-md border border-primary py-3 text-[12px] font-semibold uppercase tracking-[0.18em] text-primary transition hover:bg-primary/10"
                   >
                     {es ? "Contactar ventas" : "Contact sales"}
-                  </Link>
+                  </a>
                 ) : (
                   <button
                     type="button"

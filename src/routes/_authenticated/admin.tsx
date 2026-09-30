@@ -140,6 +140,12 @@ function AdminDashboard() {
             Pipeline Ledger →
           </Link>
           <Link
+            to="/admin/demo-cases"
+            className="rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-muted sm:text-sm"
+          >
+            Demo Cases →
+          </Link>
+          <Link
             to="/admin/users"
             className="rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-muted sm:text-sm"
           >
