@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { resolveReportGovernance } from "../../intelligence/concluded-case-governance";
+import { resolveReportCapability } from "../../intelligence/report-capability";
 import { loadResolvedReportGovernance } from "../../intelligence/concluded-case-governance.server";
 import { normalizeCanonicalSources } from "../../intelligence/canonical-source-identity";
 import { validateReincidenciaEvidence } from "../../intelligence/reincidencia-evidence";
@@ -27,7 +28,10 @@ export function regressionInput(): CaseExportData {
   const quote = "Este tribunal resuelve: Se desecha el recurso de revisión. Queda firme la sentencia recurrida";
   const ref = {document_id:"doc-1", canonical_source_id:source.canonical_source_id, page:1, quote,
     proposition_supported:quote,verification_status:"verified"};
-  const item = {id:"holding",kind:"COURT_HOLDING",text:quote,speaker_role:"scjn",adoption_status:"adopted",source_refs:[ref]};
+  const item = {id:"holding",kind:"COURT_HOLDING",text:quote,speaker_role:"scjn",adoption_status:"adopted",source_refs:[
+    {...ref,quote:"Este tribunal resuelve: Se desecha el recurso de revisión.",proposition_supported:"Este tribunal resuelve: Se desecha el recurso de revisión."},
+    {...ref,quote:"Queda firme la sentencia recurrida",proposition_supported:"Queda firme la sentencia recurrida"},
+  ]};
   return {
     case:{case_analysis_mode:"concluded_audit",case_type:"penal", name:"Synthetic concluded judgment"},
     documents:[{id:"doc-1",filename:source.original_filename}],analysis:null,agents:[],score:null,
@@ -56,6 +60,14 @@ export function regressionInput(): CaseExportData {
 }
 
 describe("seven final report contract regressions", () => {
+  it("treats strict as evidence quality, not a limited report-scope setting", () => {
+    for (const analysis_mode of ["strict", "balanced", "exploratory"]) {
+      const governance = resolveReportGovernance({ analysis_mode, case_analysis_mode: "ongoing" });
+      expect(governance.recommendation_policy).toBe("full_strategic");
+      const capability = resolveReportCapability({ analysis_mode, case_analysis_mode: "ongoing", ess_bin: "sufficient" }, governance);
+      expect(capability.mode).toBe("FULL");
+    }
+  });
   it("1 — concluded resolver uses authoritative context and fails closed on database error", async () => {
     for (const context of [{case_analysis_mode:"concluded_audit"}, {procedural_posture:"concluded"}, {procedural_posture:{case_status:"concluded"}}]) {
       expect(resolveReportGovernance(context)).toMatchObject({

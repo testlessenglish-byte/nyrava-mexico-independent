@@ -72,6 +72,15 @@ describe("computeJudgeVerdict: citation-exempt source modules", () => {
     expect(result.verdict).toBe("needs_revision");
   });
 
+  it("uses one Judge evidence threshold for all historical analysis-mode tokens", () => {
+    const findings = [CITED(), finding({ source_module: "analyzer:key" })];
+    for (const mode of ["strict", "balanced", "exploratory"] as const) {
+      expect(computeJudgeVerdict(findings, mode)).toMatchObject({
+        verdict: "needs_revision", totals: { findings: 2, cited: 1, cited_ratio: 0.5 },
+      });
+    }
+  });
+
   it("rejects a fully cited finding when the quote does not entail the asserted SCJN holding", () => {
     const result = computeJudgeVerdict(
       [

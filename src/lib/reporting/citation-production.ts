@@ -14,7 +14,7 @@ export function reviewedAttributionMatches(value: Row, claim: SupportClaim): boo
 }
 /** This input comes from engine finding records, never Report Writer objects. */
 export function findingCitationReviews(findings: Row[]): PropositionReview[] {
-  return findings.flatMap(f => f.metadata?.semantic_support_review ? [{
+  return findings.flatMap(f => f.metadata?.semantic_support_review && isClaimReportable(f) ? [{
     claim: Object.fromEntries(['id','case_id','execution_id','title','description','source_document_id','source_page','source_quote',
       'speaker_role','proposition_type','adoption_status','legal_significance','potential_impact','rationale',
       'audit_classification','finding_type','authority_level'].filter(k => f[k] !== undefined || k === 'execution_id' && f.metadata?.execution_id !== undefined)
@@ -23,6 +23,14 @@ export function findingCitationReviews(findings: Row[]): PropositionReview[] {
   }] : []);
 }
 export const citationText = (s: unknown) => typeof s === 'string' ? s.normalize('NFC').replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/\s+/g, ' ').trim().replace(/[.!?]$/, '') : '';
+
+function isClaimReportable(value: Row): boolean {
+  if (String(value.verification_status ?? '').toLowerCase() === 'quarantined') return false;
+  const diagnostic = value.metadata?.claim_entailment_diagnostic ?? value.claim_entailment_diagnostic;
+  if (diagnostic == null) return true;
+  return diagnostic.final_reportable === true && diagnostic.claim_action === 'KEEP' &&
+    diagnostic.entailment_status === 'ENTAILED';
+}
 
 /** Retain evidence for diagnosis without letting an uncertified reference look published. */
 export function unresolvedCitation(ref: Row, reason: string): Row {
@@ -33,6 +41,7 @@ export function unresolvedCitation(ref: Row, reason: string): Row {
 /** Re-use an existing semantic review only for its exact claim and source input.
  * A verified flag or lexical overlap is never semantic proof. */
 export function citationPropositionVerified(ref: Row, proposition: string, pages: MatterSourcePage[], trustedReviews: PropositionReview[] = []): boolean {
+  if (!isClaimReportable(ref)) return false;
   const quote = String(ref.quote ?? '');
   if (!proposition || !quote) return false;
   if (citationText(proposition) === citationText(quote) || citationText(quote).includes(citationText(proposition))) {
@@ -62,7 +71,7 @@ export function citationPropositionVerified(ref: Row, proposition: string, pages
 /** Canonical object creation, before final validation. Never changes the source
  * or manufactures a supported proposition from a legacy verification flag. */
 export function createCanonicalCitation(ref: Row, proposition: string, pages: MatterSourcePage[], index: Index, proof?: PropositionReview): Row | null {
-  if (ref.publication_status === 'QUARANTINED' ||
+  if (!isClaimReportable(ref) || ref.publication_status === 'QUARANTINED' ||
       (ref.verification_status != null && ref.verification_status !== 'verified')) return null;
   const quote = String(ref.quote ?? ref.excerpt ?? ref.source_quote ?? '');
   const candidate = { ...ref, document_id: ref.document_id ?? ref.doc_id ?? ref.source_document_id,
@@ -160,22 +169,61 @@ export function completedPerspectivesCitations<T extends Row>(
           r.document_id === ev.citation.document_id && citationText(r.quote) === citationText(quote));
         const atomicProof = atomicFinding && atomicFinding.metadata?.semantic_support_review ? { claim: Object.fromEntries(["id","title","description","source_document_id","source_page","source_quote"].filter(k => atomicFinding[k] !== undefined).map(k => [k, atomicFinding[k]])), review: atomicFinding.metadata.semantic_support_review } : undefined;
         const sourceRef = authoritativeRef ?? ev.citation;
-        const canonical = createCanonicalCitation(sourceRef, proposition, pages, index, atomicProof) ?? (quote ? createCanonicalCitation(sourceRef, quote, pages, index) : null);
+        const canonical = createCanonicalCitation(sourceRef, proposition, pages, index, atomicProof);
         return { ...ev, citation: canonical ?? unresolvedCitation(ev.citation, "PERSPECTIVE_PROPOSITION_NOT_CERTIFIED") };
       })
     };
   });
 }
 
-export function writerCitationCatalog(refs: Row[], pages: MatterSourcePage[], index: Index, findings: Row[] = []): Row[] {
+export function writerCitationCatalog(
+  refs: Row[], pages: MatterSourcePage[], index: Index, findings: Row[] = [],
+  scope: { caseId?: string; executionId?: string } = {},
+): Row[] {
   const reviews = findingCitationReviews(findings);
   const checked = refs.flatMap(ref => {
+    if (scope.caseId && ref.case_id != null && ref.case_id !== scope.caseId) return [];
+    if (scope.executionId && ref.execution_id != null && ref.execution_id !== scope.executionId) return [];
     if (ref.verification_status === 'verified' && ref.publication_status !== 'QUARANTINED' &&
         ref.source_location_verified === true && ref.proposition_supported &&
         auditSourceLocations([ref], pages, index).ok &&
-        citationPropositionVerified(ref, ref.proposition_supported, pages, reviews)) return [ref];
-    const citation = createCanonicalCitation(ref, String(ref.quote ?? ref.excerpt ?? ref.source_quote ?? ''), pages, index);
-    return citation ? [citation] : [];
+        citationPropositionVerified(ref, ref.proposition_supported, pages, reviews)) {
+      const registered = index.find(doc => doc.document_id === (ref.document_id ?? ref.source_document_id));
+      if (!registered?.canonical_source_id || ref.canonical_source_id && ref.canonical_source_id !== registered.canonical_source_id) return [];
+      if (ref.canonical_source_id === registered.canonical_source_id &&
+          (!scope.caseId || ref.case_id === scope.caseId) && (!scope.executionId || ref.execution_id === scope.executionId)) return [ref];
+      return [{ ...ref, canonical_source_id: registered.canonical_source_id,
+        ...(scope.caseId ? { case_id: scope.caseId } : {}), ...(scope.executionId ? { execution_id: scope.executionId } : {}) }];
+    }
+
+    // Prefer a finding's exact current semantic review over the literal quote.
+    // The review is eligible only when its source coordinates and quote match
+    // this reference and its stable finding link (when present) is exact.
+    const document = ref.document_id ?? ref.doc_id ?? ref.source_document_id;
+    const page = ref.page ?? ref.page_number ?? ref.source_page;
+    const quote = citationText(ref.quote ?? ref.excerpt ?? ref.source_quote);
+    const linkedFinding = findings.find(f => {
+      if (ref.finding_id != null && f.id !== ref.finding_id) return false;
+      if (ref.claim_id != null && f.id !== ref.claim_id) return false;
+      if (scope.executionId && (f.execution_id ?? f.metadata?.execution_id) !== scope.executionId) return false;
+      return f.id != null && Array.isArray(f.evidence_refs) && f.evidence_refs.some((e: Row) =>
+        (e.document_id ?? e.source_document_id) === document &&
+        Number(e.page ?? e.source_page) === Number(page) &&
+        citationText(e.quote ?? e.source_quote ?? e.excerpt) === quote);
+    });
+    const proof = reviews.find(candidate =>
+      (!ref.finding_id && !ref.claim_id || candidate.claim.id === (ref.finding_id ?? ref.claim_id)) &&
+      (!linkedFinding || candidate.claim.id === linkedFinding.id) &&
+      candidate.claim.source_document_id === document && Number(candidate.claim.source_page) === Number(page) &&
+      citationText(candidate.claim.source_quote) === quote &&
+      (!scope.executionId || candidate.claim.execution_id === scope.executionId));
+    const proposition = proof?.claim.description;
+    const citation = proof && proposition
+      ? createCanonicalCitation({ ...ref, document_id: document, page, quote }, proposition, pages, index, proof)
+      : createCanonicalCitation(ref, String(ref.quote ?? ref.excerpt ?? ref.source_quote ?? ''), pages, index);
+    if (citation && scope.executionId && citation.execution_id != null && citation.execution_id !== scope.executionId) return [];
+    if (citation && scope.caseId && citation.case_id != null && citation.case_id !== scope.caseId) return [];
+    return citation ? [{ ...citation, ...(scope.caseId ? { case_id: scope.caseId } : {}), ...(scope.executionId ? { execution_id: scope.executionId } : {}) }] : [];
   });
   return [...new Map(checked.map(c => [JSON.stringify([c.document_id, c.page,
     citationText(c.quote), citationText(c.proposition_supported)]), c])).values()];

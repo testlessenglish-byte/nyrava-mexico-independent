@@ -85,7 +85,6 @@ export interface CaseCapabilityContext {
  * Single authoritative capability resolver for the entire platform.
  */
 export function resolveReportCapability(ctx: CaseCapabilityContext): ReportCapability {
-  const analysisMode = String(ctx.analysis_mode ?? "").toLowerCase().trim();
   const caseAnalysisMode = String(ctx.case_analysis_mode ?? "").toLowerCase().trim();
   const posture = String(ctx.procedural_posture ?? "").toLowerCase().trim();
   const essBin = String(ctx.ess_bin ?? "").toLowerCase().trim();
@@ -95,7 +94,6 @@ export function resolveReportCapability(ctx: CaseCapabilityContext): ReportCapab
   const now = new Date().toISOString();
 
   const isLimited =
-    analysisMode === "strict" ||
     essBin === "minimal" ||
     !allowScores ||
     ((caseAnalysisMode === "concluded_audit" || caseAnalysisMode === "judgment_audit" || posture === "concluded") && !allowPostJudgment);

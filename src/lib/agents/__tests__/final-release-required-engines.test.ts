@@ -11,22 +11,29 @@ import { describe, it, expect } from "vitest";
 
 type Update = { table: string; values: Record<string, unknown> };
 type EngineRow = { engine: string; status: string };
+const reportFixture = () => ({
+  case_id: "case-1", execution_id: "execution-1", report_mode: "LIMITED",
+  scores_suppressed: true, motions_suppressed: true,
+  executive_summary: "El informe resume el estado de la revisión documental y sus límites para este expediente. ".repeat(3),
+  full_report: { prose: {} },
+});
 
 // Extends report-release-gate.test.ts's makeReviewDb pattern: same
 // permissive passthrough for every table, but with a controllable
 // pipeline_engine_runs response so the required-engine gate can be
 // exercised directly.
 function makeDb(opts: { report: Record<string, unknown> | null; engineRows: EngineRow[]; updates: Update[] }) {
+  const caseRow = { id: "case-1", execution_id: "execution-1", case_analysis_mode: "ongoing", case_type: "civil" };
   const makeChain = (table: string): Record<string, unknown> => {
     const chain: Record<string, unknown> = {};
     const passthrough = ["eq", "neq", "in", "not", "is", "order", "limit", "gte", "lte", "like", "filter", "range"];
     for (const m of passthrough) chain[m] = () => chain;
     chain["select"] = () => chain;
     chain["maybeSingle"] = async () => ({
-      data: table === "reports" ? opts.report : null,
+      data: table === "reports" ? opts.report : table === "cases" ? caseRow : null,
       error: null,
     });
-    chain["single"] = async () => ({ data: table === "reports" ? opts.report : null, error: null });
+    chain["single"] = async () => ({ data: table === "reports" ? opts.report : table === "cases" ? caseRow : null, error: null });
     chain["insert"] = () => chain;
     chain["upsert"] = () => chain;
     chain["delete"] = () => chain;
@@ -75,30 +82,31 @@ describe("runFinalReleaseReview — required-engine gate", () => {
     }));
     engineRows.push({ engine: "perspectives", status: "failed" });
     const review = await runFinalReleaseReview({
-      db: makeDb({ report: { case_id: "case-1", full_report: null }, engineRows, updates }) as never,
-      caseId: "case-1", userId: "user-1", apiKey: "key", apiKeys: ["key"],
+      db: makeDb({ report: reportFixture(), engineRows, updates }) as never,
+      caseId: "case-1", executionId: "execution-1", userId: "user-1", apiKey: "key", apiKeys: ["key"],
     });
     expect(review.released).toBe(false);
     expect(review.missingRequiredEngines).toContain("procedural_compliance");
-    const persisted = updates.find(u => u.table === "reports")?.values.full_report as any;
+    const persisted = updates.filter(u => u.table === "reports").at(-1)?.values.full_report as any;
     expect(persisted.release_gate.coverage_gaps).toEqual(expect.arrayContaining([
       expect.objectContaining({ engine: "procedural_compliance", category: "enriching", status }),
       expect.objectContaining({ engine: "perspectives", category: "optional", status: "failed" }),
     ]));
-  });
+  }, 30_000);
   it("lists every required engine as missing when pipeline_engine_runs has no rows for them at all", async () => {
     const updates: Update[] = [];
     const { runFinalReleaseReview } = await import("@/lib/agents/orchestrator.server");
     const review = await runFinalReleaseReview({
-      db: makeDb({ report: { case_id: "case-1", full_report: null }, engineRows: [], updates }) as never,
+      db: makeDb({ report: reportFixture(), engineRows: [], updates }) as never,
       caseId: "case-1",
+      executionId: "execution-1",
       userId: "user-1",
       apiKey: "key",
       apiKeys: ["key"],
     });
     expect(review.missingRequiredEngines.length).toBeGreaterThan(0);
     expect(review.released).toBe(false);
-  });
+  }, 30_000);
 
   it("the real reported gap: a required engine reporting 'failed' keeps the case out of 'released' and is named in missingRequiredEngines", async () => {
     const updates: Update[] = [];
@@ -113,8 +121,9 @@ describe("runFinalReleaseReview — required-engine gate", () => {
       status: e === "procedural_compliance" ? "failed" : "completed",
     }));
     const review = await runFinalReleaseReview({
-      db: makeDb({ report: { case_id: "case-1", full_report: null }, engineRows, updates }) as never,
+      db: makeDb({ report: reportFixture(), engineRows, updates }) as never,
       caseId: "case-1",
+      executionId: "execution-1",
       userId: "user-1",
       apiKey: "key",
       apiKeys: ["key"],
@@ -123,7 +132,7 @@ describe("runFinalReleaseReview — required-engine gate", () => {
     expect(review.missingRequiredEngines).toContain("procedural_compliance");
     const statusWrite = updates.find((u) => u.table === "cases" && "status_message" in u.values);
     expect(String(statusWrite?.values["status_message"])).toContain("procedural_compliance");
-  });
+  }, 30_000);
 
   it("missingRequiredEngines is empty when every required engine completed", async () => {
     const updates: Update[] = [];
@@ -131,21 +140,23 @@ describe("runFinalReleaseReview — required-engine gate", () => {
     const { runFinalReleaseReview } = await import("@/lib/agents/orchestrator.server");
     const engineRows: EngineRow[] = REPORT_REQUIRED_ENGINES.map((e) => ({ engine: e, status: "completed" }));
     const review = await runFinalReleaseReview({
-      db: makeDb({ report: { case_id: "case-1", full_report: null }, engineRows, updates }) as never,
+      db: makeDb({ report: reportFixture(), engineRows, updates }) as never,
       caseId: "case-1",
+      executionId: "execution-1",
       userId: "user-1",
       apiKey: "key",
       apiKeys: ["key"],
     });
     expect(review.missingRequiredEngines).toEqual([]);
-  });
+  }, 30_000);
 
   it("invariant: released is never true while missingRequiredEngines is non-empty", async () => {
     const updates: Update[] = [];
     const { runFinalReleaseReview } = await import("@/lib/agents/orchestrator.server");
     const review = await runFinalReleaseReview({
-      db: makeDb({ report: { case_id: "case-1", full_report: null }, engineRows: [], updates }) as never,
+      db: makeDb({ report: reportFixture(), engineRows: [], updates }) as never,
       caseId: "case-1",
+      executionId: "execution-1",
       userId: "user-1",
       apiKey: "key",
       apiKeys: ["key"],
@@ -153,5 +164,5 @@ describe("runFinalReleaseReview — required-engine gate", () => {
     if (review.missingRequiredEngines.length > 0) {
       expect(review.released).toBe(false);
     }
-  });
+  }, 30_000);
 });

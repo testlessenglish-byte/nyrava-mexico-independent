@@ -9,7 +9,7 @@
 // findings (no citation, or real inference language in strict mode) are
 // still correctly dropped exactly as before.
 import { describe, it, expect } from "vitest";
-import { diagnoseEvidenceGate, type EvidenceItem } from "@/lib/intelligence/evidence-gate.server";
+import { diagnoseEvidenceGate, getAnalysisMode, type EvidenceItem } from "@/lib/intelligence/evidence-gate.server";
 import { buildGroundingCorpus } from "@/lib/intelligence/grounding.server";
 
 const RULE_QUOTE = "La notificación deberá hacerse personalmente al quejoso conforme al artículo 26 de la Ley de Amparo.";
@@ -93,6 +93,29 @@ describe("diagnoseEvidenceGate: procedural-defect-grounding survives mode policy
     });
     expect(accepted).toHaveLength(0);
     expect(audit.rejected_unsupported_claim).toBe(1);
+  });
+
+  it("historical mode tokens share one verified evidence policy", () => {
+    const items: EvidenceItem[] = [{
+      title: "Posible incumplimiento",
+      description: "This suggests the deadline may have been missed.",
+      confidence: 0.8,
+      evidence_refs: [{ doc_n: 1, quote: FACT_QUOTE }],
+    }];
+    const outcomes = (["strict", "balanced", "exploratory"] as const).map(mode =>
+      diagnoseEvidenceGate(items, { mode, corpus: corpusWith(FACT_QUOTE) }));
+    expect(outcomes.map(result => result.accepted.length)).toEqual([0, 0, 0]);
+    expect(outcomes.map(result => result.audit.rejected_unsupported_claim)).toEqual([1, 1, 1]);
+  });
+
+  it.each(["strict", "balanced", "exploratory"] as const)("normalizes stored %s to the verified runtime mode", async mode => {
+    const query = {
+      select() { return this; },
+      eq() { return this; },
+      maybeSingle: async () => ({ data: { analysis_mode: mode } }),
+    };
+    const db = { from: () => query } as any;
+    await expect(getAnalysisMode(db, "case-1")).resolves.toBe("strict");
   });
 
   it("a finding grounded in a real case-specific fact (not a bare rule) is accepted normally, untouched by the backstop", () => {

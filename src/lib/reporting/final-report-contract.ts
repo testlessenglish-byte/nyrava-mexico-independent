@@ -401,7 +401,7 @@ export function composeFinalReportPayload(input: CaseExportData, sourceReviewFin
   // Content-policy transforms can remove one side, so check the final pair
   // after every transform, not only on the model's original response.
   const finalReport = obj(final.report), finalFull = obj(finalReport.full_report);
-  if (!migratorio && !arr(finalFull.pre_release_source_pages).length) return assessmentPresentation(final);
+  if (!migratorio && !arr(finalFull.pre_release_source_pages).length) return assessmentPresentation(prepareReportCitationProducers(final));
   const pairAudit = verifyContradictionPairs(arr(finalReport.contradictions_struct), arr(finalFull.pre_release_source_pages) as any,
     final.documents.map((d,i)=>({document_id:String(d.id),doc_n:Number(d.doc_n ?? i+1)})));
   finalReport.contradictions_struct = pairAudit.accepted.filter(c=>!c.kind || c.kind==='factual');
@@ -442,15 +442,19 @@ export function composeFinalReportPayload(input: CaseExportData, sourceReviewFin
   finalFull.integrity_audit = {...obj(finalFull.integrity_audit), contradiction_rejections:[
     ...arr(obj(finalFull.integrity_audit).contradiction_rejections), ...pairAudit.rejected,
   ]};
-  return assessmentPresentation(final);
+  return assessmentPresentation(prepareReportCitationProducers(final));
 
 }
 
+/** Run citation producers after the report has been composed and transformed,
+ * before the final integrity audit. Validation itself only reads the result. */
+function prepareReportCitationProducers(payload: FinalReportPayload): FinalReportPayload {
+  const produced = canonicalizeReportCitations(payload);
+  bindAttributedFindingCitations(produced);
+  return produced;
+}
+
 function assessmentPresentation(payload: FinalReportPayload): FinalReportPayload {
-  payload = canonicalizeReportCitations(payload);
-  // The final content transform may have changed a finding into a source-
-  // attribution wrapper. Bind that exact published assertion after transform.
-  bindAttributedFindingCitations(payload);
   payload.report_presentation.finding_cards.forEach((card, index) => {
     if (payload.findings?.[index]) card.finding = payload.findings[index];
   });

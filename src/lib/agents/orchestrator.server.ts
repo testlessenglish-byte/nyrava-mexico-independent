@@ -614,8 +614,8 @@ async function agentQA(ctx: RunCtx): Promise<AgentResult> {
 
 const JUDGE_THRESHOLDS: Record<AnalysisMode, { reject: number; needsRevision: number }> = {
   strict: { reject: 0.4, needsRevision: 0.7 },
-  balanced: { reject: 0.25, needsRevision: 0.5 },
-  exploratory: { reject: 0.15, needsRevision: 0.3 },
+  balanced: { reject: 0.4, needsRevision: 0.7 },
+  exploratory: { reject: 0.4, needsRevision: 0.7 },
 };
 export type JudgeFinding = {
   source_document_id: string | null;
@@ -1189,7 +1189,9 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
   const integrity = validateJSONPipelineIntegrity({
     caseRow,
     findings: (findingsData ?? []) as never,
-    isLimitedMode: analysisMode === "strict",
+    // Evidence verification mode does not define report scope. The report
+    // capability and procedural posture gates own that decision.
+    isLimitedMode: false,
     reportReleased: gatesPassed && engineGate.ok,
   });
 

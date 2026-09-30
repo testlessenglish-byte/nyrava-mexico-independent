@@ -1113,22 +1113,9 @@ async function _runPipelineForCase(
   // every later tick treated as final. Keep an initial call for resumes
   // (where extracted_at is already set), and call it again immediately after
   // a fresh extraction succeeds below.
-  let decisionCoreEligible = false;
-  {
-    const { data: caseModeRow } = await (supabase as any)
-      .from("cases")
-      .select("analysis_mode,case_analysis_mode" as any)
-      .eq("id", caseId)
-      .maybeSingle();
-    const evidenceMode = (caseModeRow as { analysis_mode?: string | null } | null)?.analysis_mode ?? null;
-    const rawCaseAnalysisMode = (caseModeRow as { case_analysis_mode?: string | null } | null)
-      ?.case_analysis_mode;
-    const { normalizeCaseAnalysisMode, isCompletedCaseMode } = await import(
-      "./intelligence/case-analysis-mode"
-    );
-    const caseAnalysisMode = normalizeCaseAnalysisMode(rawCaseAnalysisMode);
-    decisionCoreEligible = evidenceMode === "strict" || isCompletedCaseMode(caseAnalysisMode);
-  }
+  // Decision reconstruction is part of the single verified pipeline, not an
+  // analysis_mode feature.
+  const decisionCoreEligible = true;
 
   const ensureAndPromoteDecisionCore = async (): Promise<void> => {
     if (!decisionCoreEligible) return;

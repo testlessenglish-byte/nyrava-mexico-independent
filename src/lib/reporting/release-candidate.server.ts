@@ -22,9 +22,13 @@ export async function prepareReleaseCandidate(db: any, caseId: string, execution
   });
   const { prepareFinalReportForRelease } = await import('../export');
   const payload = await prepareFinalReportForRelease(composed);
+  // Preflight payloads are immutable once their report contract is validated.
+  // Add release-only source proof to a private copy before freezing the full
+  // candidate, rather than mutating that validated payload in place.
+  const candidatePayload = structuredClone(payload);
   // Source proof is part of the same hash as the published content.
-  (payload as any).release_source_snapshot = { findings, pages: sourceSnapshot.pages, documents: sourceSnapshot.documents };
-  const candidate = freezeReleaseCandidate(payload);
+  (candidatePayload as any).release_source_snapshot = { findings, pages: sourceSnapshot.pages, documents: sourceSnapshot.documents };
+  const candidate = freezeReleaseCandidate(candidatePayload);
   return { candidate, caseRow, reportRow, sourceSnapshot, sectionsHash: contentHash(sections),
     findingsData: findings,
     semanticSnapshotValid: supportSnapshotValid(findings as any, scopedReviewPages(sourceSnapshot)),

@@ -1,8 +1,8 @@
 // Evidence Gate — converts Nyrava from inference-first to evidence-first.
 //
 // Every finding/theory/witness/opportunity/perspective passes through this
-// gate before persistence. Items without verifiable citations are dropped
-// (Strict / Balanced modes) or tagged AI_THEORY (Exploratory mode).
+// gate before persistence. Historical analysis_mode values share one verified
+// evidence policy; unsupported material is withheld.
 //
 // The gate exposes:
 //   - classifyFindingType  : DIRECT_EVIDENCE | EVIDENCE_BASED_INFERENCE | AI_THEORY
@@ -11,7 +11,7 @@
 //   - determineApplicablePerspectives : civil vs criminal perspective list
 //   - relabelMissingEvidence : "Missing X" → "X Not Found In Uploaded Documents"
 //   - computeEvidenceConfidence : citation-count + corroboration based score
-//   - getAnalysisMode      : read cases.analysis_mode (default balanced)
+//   - getAnalysisMode      : normalize legacy cases.analysis_mode to verified
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
@@ -88,7 +88,7 @@ export type EvidenceItem = {
 export type GateOptions = {
   mode: AnalysisMode;
   corpus: GroundingCorpus;
-  /** When true (default), items with NO verifiable citation are dropped in strict/balanced. */
+  /** When true (default), items with no verifiable citation are dropped. */
   requireCitation?: boolean;
   /** Optional caller-specific floor. Omit to avoid confidence-based rejection. */
   minConfidence?: number;
@@ -307,6 +307,9 @@ export function diagnoseEvidenceGate<T extends EvidenceItem>(
   items: T[],
   opts: GateOptions,
 ): { accepted: Array<{ index: number; item: T; gated: GatedItem<T> }>; audit: GateAudit } {
+  // The legacy values remain valid storage/input tokens, but cannot select a
+  // different evidence standard or persistence policy at runtime.
+  const effectiveMode: AnalysisMode = "strict";
   const audit: GateAudit = {
     input: items.length,
     accepted: 0,
@@ -378,7 +381,7 @@ export function diagnoseEvidenceGate<T extends EvidenceItem>(
     // case-specific fact — closer to "we checked and this cannot be
     // established from the corpus" than to "we made something up". Per the
     // over-suppression regression this exists to fix (a downgrade to
-    // AI_THEORY was being silently DROPPED by the strict/balanced mode
+    // AI_THEORY was being silently DROPPED by the historical mode
     // gate below, not just excluded from the dashboard — turning a useful
     // "not established" signal into nothing at all), this category is
     // exempted from the mode-based drop: it always survives, in every
@@ -468,7 +471,7 @@ export function diagnoseEvidenceGate<T extends EvidenceItem>(
     // as DIRECT_EVIDENCE would let the audit's exact failure back in
     // (treating an allegation as an established determination). Computed
     // BEFORE the mode-policy filtering below so a downgraded item is
-    // subject to the same strict/balanced rules as any other inference.
+    // subject to the same verified rules as any other inference.
     const relationship = classifyEvidenceRelationship({
       findingType: type,
       notEstablishedTopic,
@@ -480,17 +483,14 @@ export function diagnoseEvidenceGate<T extends EvidenceItem>(
       audit.downgraded_inference += 1;
     }
 
-    // Mode policy:
-    //   strict       → only DIRECT_EVIDENCE
-    //   balanced     → DIRECT_EVIDENCE + EVIDENCE_BASED_INFERENCE
-    //   exploratory  → all, but AI_THEORY explicitly labeled
-    // notEstablishedTopic is exempt from both mode drops below — see the
+    // Unified verified policy: only DIRECT_EVIDENCE is publishable here.
+    // notEstablishedTopic is exempt from the mode drop below — see the
     // comment where it's set. Deleting the signal entirely (the
     // pre-existing behavior) is worse than showing it clearly labeled: an
     // attorney in strict mode benefits from "this topic was raised but
     // cannot be established from the corpus" exactly as much as one in
     // exploratory mode does.
-    if (opts.mode === "strict" && type !== "DIRECT_EVIDENCE" && !notEstablishedTopic) {
+    if (effectiveMode === "strict" && type !== "DIRECT_EVIDENCE" && !notEstablishedTopic) {
       if (verified.length > 0)
         reject(
           index,
@@ -503,7 +503,6 @@ export function diagnoseEvidenceGate<T extends EvidenceItem>(
         );
       continue;
     }
-    if (opts.mode === "balanced" && type === "AI_THEORY" && !notEstablishedTopic) continue;
     if (type === "AI_THEORY") audit.tagged_ai_theory += 1;
 
     // notEstablishedRewrite carries the "NO ESTABLECIDO" framing SEPARATELY
@@ -886,14 +885,10 @@ export async function getAnalysisMode(db: SupabaseClient<Database>, caseId: stri
     .maybeSingle();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const v = (data as any)?.analysis_mode;
-  // Default is "balanced": still requires a verified citation (AI_THEORY
-  // items with no matching quote are dropped), but keeps evidence-backed
-  // inferences ("suggests", "may indicate") that "strict" would reject.
-  // Strict was rejecting ~100% of well-cited findings on real corpora
-  // because LLM output naturally hedges. Callers that need maximum rigor
-  // can still set cases.analysis_mode = 'strict' explicitly.
-  if (v === "strict" || v === "balanced" || v === "exploratory") return v;
-  return "balanced";
+  // Preserve historical values in storage; they all resolve to the same
+  // verified runtime behavior.
+  if (v === "strict" || v === "balanced" || v === "exploratory") return "strict";
+  return "strict";
 }
 
 export function relabelMissingEvidence(title: string): string {

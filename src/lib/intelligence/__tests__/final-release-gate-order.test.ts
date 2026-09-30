@@ -9,8 +9,10 @@ describe("final release gate order", () => {
       "utf8",
     );
     const finalReview = source.slice(source.indexOf("async function _runFinalReleaseReview"));
-    const hallucination = finalReview.indexOf('["hallucination", agentHallucination]');
-    const judge = finalReview.indexOf('["judge", agentJudge]');
+    const runnersStart = finalReview.indexOf("const gateRunners = [");
+    const gateRunners = finalReview.slice(runnersStart, finalReview.indexOf(";", runnersStart));
+    const hallucination = gateRunners.indexOf("'hallucination'");
+    const judge = gateRunners.indexOf("'judge'");
     expect(hallucination).toBeGreaterThan(-1);
     expect(judge).toBeGreaterThan(-1);
     expect(hallucination).toBeLessThan(judge);

@@ -83,7 +83,6 @@ export function resolveReportGovernance(ctx: CaseGovernanceContext): ImmutableRe
   const rawPosture = ctx.procedural_posture ?? ctx.matter_metadata?.procedural_posture;
   const posture = String(typeof rawPosture === "object" && rawPosture ? (rawPosture as { case_status?: string }).case_status : rawPosture ?? "").toLowerCase().trim();
   const caseAnalysisMode = String(ctx.case_analysis_mode ?? ctx.matter_metadata?.case_analysis_mode ?? "").toLowerCase().trim();
-  const analysisMode = String(ctx.analysis_mode ?? "").toLowerCase().trim();
   const isFinal = Boolean(ctx.is_final_resolution);
   const allowPostJudgment = ctx.post_judgment_options_analysis === true ||
     ctx.matter_metadata?.post_judgment_options_analysis === true ||
@@ -142,7 +141,7 @@ export function resolveReportGovernance(ctx: CaseGovernanceContext): ImmutableRe
     governance_mode: "active_litigation",
     is_concluded: false,
     strategy_output_allowed: true,
-    recommendation_policy: analysisMode === "strict" ? "verification_only" : "full_strategic",
+    recommendation_policy: "full_strategic",
     decision_core_priority: false,
     speaker_role_labels_required: false,
     post_judgment_strategy_allowed: false,

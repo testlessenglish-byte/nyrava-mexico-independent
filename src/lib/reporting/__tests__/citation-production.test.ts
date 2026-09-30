@@ -6,7 +6,7 @@ import { supportInput } from '../../intelligence/claim-support-review';
 import { composeFinalReportPayload, validateFinalReportContract } from '../final-report-contract';
 const quote = 'Se desecha por improcedente el recurso de revisión a que este toca 7286/2017 se refiere.';
 const pages = [{ document_id: 'doc', filename: 'source.pdf', page: 27, text: quote }];
-const docs = [{ document_id: 'doc', doc_n: 1 }];
+const docs = [{ document_id: 'doc', doc_n: 1, canonical_source_id: 'doc' }];
 const ref = { document_id: 'doc', doc_n: 1, page: 27, quote, chunk_index: 9 };
 describe('upstream canonical citation production', () => {
   it('creates completed proposition verification only after checking the exact source', () => {
@@ -119,5 +119,47 @@ describe('upstream canonical citation production', () => {
     forged.report.citations[0].finding_id = 'nonexistent-finding';
     const blocked = composeFinalReportPayload(forged);
     expect(validateFinalReportContract(blocked).blocking_errors.join(' ')).toContain('inline_proposition_not_supported');
+  });
+
+  it('publishes the reviewed finding paraphrase, with full canonical identity, to the Writer catalog', () => {
+    const claim = { id: 'reviewed-catalog-finding', title: 'Determinación', description: 'Se desecha el recurso de revisión.',
+      source_document_id: 'doc', source_page: 27, source_quote: quote, execution_id: 'run-current' };
+    const review: any = { version: 1, verdict: 'supported', hash: supportInput(claim, pages).hash,
+      supporting_quote: quote, reason: 'Fuente cotejada.' };
+    const sourceRef = { ...ref, finding_id: claim.id };
+    const finding = { ...claim, verification_status: 'verified', evidence_refs: [sourceRef], metadata: { execution_id: 'run-current', semantic_support_review: review } };
+    const catalog = writerCitationCatalog([sourceRef], pages, docs, [finding], { caseId: 'case-current', executionId: 'run-current' });
+    expect(catalog).toHaveLength(1);
+    expect(catalog[0]).toMatchObject({
+      proposition_supported: claim.description,
+      canonical_source_id: 'doc', document_id: 'doc', doc_n: 1, page: 27,
+      finding_id: claim.id, case_id: 'case-current', execution_id: 'run-current',
+      verification_status: 'verified', source_location_verified: true,
+    });
+    expect(catalog[0].writer_ref_id).toMatch(/^cite_[a-f0-9]{24}$/);
+  });
+
+  it('does not publish quarantined or non-reportable claims to the Writer catalog', () => {
+    const diagnostic = { entailment_status: 'ENTAILED', claim_action: 'KEEP', final_reportable: true };
+    const valid = { ...ref, verification_status: 'verified', source_location_verified: true,
+      proposition_supported: quote, metadata: { claim_entailment_diagnostic: diagnostic } };
+    expect(writerCitationCatalog([valid], pages, docs)).toHaveLength(1);
+    for (const rejected of [
+      { ...valid, verification_status: 'quarantined' },
+      { ...valid, metadata: { claim_entailment_diagnostic: { ...diagnostic, final_reportable: false } } },
+      { ...valid, metadata: { claim_entailment_diagnostic: { ...diagnostic, claim_action: 'REMOVE' } } },
+    ]) expect(writerCitationCatalog([rejected], pages, docs)).toHaveLength(0);
+  });
+
+  it('keeps citations execution-scoped when finding reviews are matched', () => {
+    const claim = { id: 'finding-current', title: 'Determinación', description: 'Se desecha el recurso de revisión.',
+      source_document_id: 'doc', source_page: 27, source_quote: quote, execution_id: 'run-current' };
+    const review: any = { version: 1, verdict: 'supported', hash: supportInput(claim, pages).hash,
+      supporting_quote: quote };
+    const refCurrent = { ...ref, finding_id: claim.id, execution_id: 'run-current' };
+    const refStale = { ...ref, finding_id: claim.id, execution_id: 'run-old' };
+    const finding = { ...claim, execution_id: 'run-current', evidence_refs: [refCurrent], metadata: { execution_id: 'run-current', semantic_support_review: review } };
+    expect(writerCitationCatalog([refCurrent, refStale], pages, docs, [finding], { executionId: 'run-current' }))
+      .toMatchObject([{ execution_id: 'run-current', proposition_supported: claim.description }]);
   });
 });
