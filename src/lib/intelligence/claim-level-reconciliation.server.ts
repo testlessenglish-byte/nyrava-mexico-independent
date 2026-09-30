@@ -381,7 +381,13 @@ export async function reconcileCaseFindingsClaims(
 
   // Persist all finding updates to Supabase
   for (const { id, patch } of updates) {
-    const patchWithExec = executionId ? { ...patch, execution_id: executionId } : patch;
+    // Display labels are derived fields, not case_findings columns.
+    // The badge remains available in metadata.speaker_role_badge.
+    const databasePatch: Record<string, any> = { ...patch };
+    delete databasePatch.speaker_role_label;
+    const patchWithExec = executionId
+      ? { ...databasePatch, execution_id: executionId }
+      : databasePatch;
     const { error: updErr } = await (db as any)
       .from("case_findings")
       .update(patchWithExec)
