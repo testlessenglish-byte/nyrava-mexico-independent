@@ -151,6 +151,63 @@ describe('upstream canonical citation production', () => {
     ]) expect(writerCitationCatalog([rejected], pages, docs)).toHaveLength(0);
   });
 
+  it('recertifies stale quarantine only with current trusted semantic proof', () => {
+    const claim = {
+      id: 'recoverable-finding',
+      title: 'Determinación',
+      description: 'Se desecha el recurso de revisión.',
+      source_document_id: 'doc',
+      source_page: 27,
+      source_quote: quote,
+      execution_id: 'run-current',
+    };
+    const review: any = {
+      version: 1,
+      verdict: 'supported',
+      hash: supportInput(claim, pages).hash,
+      supporting_quote: quote,
+      reason: 'Fuente cotejada.',
+    };
+    const proof: any = { claim, review };
+    const quarantined = {
+      ...ref,
+      finding_id: claim.id,
+      execution_id: 'run-current',
+      publication_status: 'QUARANTINED',
+      verification_status: 'unverified',
+      certification_error: 'EARLIER_STAGE_FAILED',
+    };
+
+    const recovered = createCanonicalCitation(
+      quarantined,
+      claim.description,
+      pages,
+      docs,
+      proof,
+      { allowTrustedRecertification: true },
+    );
+
+    expect(recovered).toMatchObject({
+      finding_id: claim.id,
+      proposition_supported: claim.description,
+      verification_status: 'verified',
+      source_location_verified: true,
+      document_id: 'doc',
+      page: 27,
+    });
+    expect(recovered?.publication_status).toBeUndefined();
+    expect(recovered?.certification_error).toBeUndefined();
+
+    expect(createCanonicalCitation(
+      quarantined,
+      quote,
+      pages,
+      docs,
+      undefined,
+      { allowTrustedRecertification: true },
+    )).toBeNull();
+  });
+
   it('keeps citations execution-scoped when finding reviews are matched', () => {
     const claim = { id: 'finding-current', title: 'Determinación', description: 'Se desecha el recurso de revisión.',
       source_document_id: 'doc', source_page: 27, source_quote: quote, execution_id: 'run-current' };

@@ -239,7 +239,6 @@ export function canonicalizeReportCitations<T extends CaseExportData>(input: T):
   const certify = (ref: Row, statements: string[], parent: Row) => {
     const quote = text(ref.quote ?? ref.excerpt ?? ref.source_quote);
     if (!statements.length || !quote || placeholder.test(quote) ||
-      (ref.verification_status != null && String(ref.verification_status).toLowerCase() !== 'verified') ||
       (ref.proposition_supported != null && normalized(text(ref.proposition_supported)) !== normalized(statements[0]))) return;
     const coreFinding = rows(payload.findings).find(f => f.metadata?.mandatory_decision_core_id === parent.id);
     // Only a real finding may supply the fallback identity. A report section's
@@ -264,7 +263,17 @@ export function canonicalizeReportCitations<T extends CaseExportData>(input: T):
             !reviewedAttributionMatches(ref, proof.claim)) return;
       }
     }
-    const certified = createCanonicalCitation(ref, statements[0], pages, index, proof);
+    const recovering = ref.publication_status === 'QUARANTINED' ||
+      (ref.verification_status != null && String(ref.verification_status).toLowerCase() !== 'verified');
+    if (recovering && !proof) return;
+    const certified = createCanonicalCitation(
+      ref,
+      statements[0],
+      pages,
+      index,
+      proof,
+      { allowTrustedRecertification: recovering && proof != null },
+    );
     if (!certified || statements.some(s => normalized(s) !== normalized(statements[0]))) return;
     Object.assign(ref, certified, owner && proof ? { finding_id: owner.id } : {});
   };

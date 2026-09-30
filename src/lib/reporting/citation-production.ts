@@ -70,9 +70,18 @@ export function citationPropositionVerified(ref: Row, proposition: string, pages
 
 /** Canonical object creation, before final validation. Never changes the source
  * or manufactures a supported proposition from a legacy verification flag. */
-export function createCanonicalCitation(ref: Row, proposition: string, pages: MatterSourcePage[], index: Index, proof?: PropositionReview): Row | null {
-  if (!isClaimReportable(ref) || ref.publication_status === 'QUARANTINED' ||
-      (ref.verification_status != null && ref.verification_status !== 'verified')) return null;
+export function createCanonicalCitation(
+  ref: Row,
+  proposition: string,
+  pages: MatterSourcePage[],
+  index: Index,
+  proof?: PropositionReview,
+  options: { allowTrustedRecertification?: boolean } = {},
+): Row | null {
+  const trustedRecertification = options.allowTrustedRecertification === true && proof != null;
+  if (!isClaimReportable(ref) ||
+      (!trustedRecertification && ref.publication_status === 'QUARANTINED') ||
+      (!trustedRecertification && ref.verification_status != null && ref.verification_status !== 'verified')) return null;
   const quote = String(ref.quote ?? ref.excerpt ?? ref.source_quote ?? '');
   const candidate = { ...ref, document_id: ref.document_id ?? ref.doc_id ?? ref.source_document_id,
     page: ref.page ?? ref.page_number ?? ref.source_page, quote,
@@ -89,6 +98,10 @@ export function createCanonicalCitation(ref: Row, proposition: string, pages: Ma
     ...(doc?.canonical_source_id ? { canonical_source_id: doc.canonical_source_id } : {}),
     page_number: located.page, page_located: located.page,
     proposition_supported: proposition, verification_status: 'verified', source_location_verified: true };
+  if (trustedRecertification) {
+    delete result.publication_status;
+    delete result.certification_error;
+  }
   return { ...result, writer_ref_id: 'cite_' + sha256HexSync(JSON.stringify([result.canonical_source_id, result.document_id, result.page, citationText(result.proposition_supported), citationText(result.quote)])).slice(0, 24) };
 }
 
