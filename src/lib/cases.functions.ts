@@ -1405,6 +1405,10 @@ export const resumeFullPipelineStep = createServerFn({ method: "POST" })
       }
     }
 
+    if (!ledgerResumeKey && !earliestIncompleteBlockingKey) {
+      return { ok: true, alreadyComplete: true };
+    }
+
     let resumeKey: string | undefined;
     const isCandidateCompleted =
       persistedCandidate &&
@@ -1602,6 +1606,10 @@ export async function autoRequeueStalledCase(
     if (isIncomplete && blockingStageKeys.has(s.key) && !earliestIncompleteBlockingKey) {
       earliestIncompleteBlockingKey = s.key;
     }
+  }
+
+  if (!ledgerResumeKey && !earliestIncompleteBlockingKey) {
+    return { ok: true, alreadyComplete: true };
   }
 
   let resumeKey: string | undefined;

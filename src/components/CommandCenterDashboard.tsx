@@ -36,7 +36,7 @@ import {
   type ReportLike,
 } from "@/lib/intelligence/canonical";
 import { useI18n } from "@/i18n";
-import { engineLabelKey, isStageRelevantForCaseType, resolveStageKeyLoose, statusLabelKey } from "@/lib/execution/mx-pipeline";
+import { engineLabelKey, isStageRelevantForCaseType, resolveStageKeyLoose, statusLabelKey, mxPipelineStages } from "@/lib/execution/mx-pipeline";
 import { useCaseExecution } from "@/hooks/useCaseExecution";
 import { COMMAND_CENTER_ENGINES } from "@/lib/execution/canonical";
 import { clearPipelineStuckState, resumeFullPipelineStep } from "@/lib/cases.functions";
@@ -191,6 +191,8 @@ export function CommandCenterDashboard({
   // which is what produced the mismatch against the PDF's agent count.
   const agentSummary = useMemo(() => getAgentSummary(report ?? null), [report]);
 
+  const stageDefs = useMemo(() => mxPipelineStages(caseType, caseName), [caseType, caseName]);
+
   const progressPct = engineRows.length > 0 ? execProgress.percent : Math.max(0, Math.min(100, progress ?? 0));
   const releaseBlocked = status === "needs_revision" || Boolean((report as { quality_blocked?: boolean } | null)?.quality_blocked);
   const running = isProcessing || isRunning;
@@ -201,7 +203,7 @@ export function CommandCenterDashboard({
   const leaseUntil = caseRow?.worker_lease_until as string | null | undefined;
   const leaseActive = !!leaseUntil && new Date(leaseUntil).getTime() > Date.now();
   const activelyRunning = running || leaseActive;
-  const incomplete = engineRows.length > 0 && execProgress.completedStages < execProgress.totalStages;
+  const incomplete = engineRows.length > 0 && execProgress.completedStages < stageDefs.length;
 
   const [resuming, setResuming] = useState(false);
   const [clearing, setClearing] = useState(false);
