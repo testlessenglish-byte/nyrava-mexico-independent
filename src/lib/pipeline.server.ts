@@ -6729,7 +6729,7 @@ async function _runReportInner(args: {
     canonicalPerspectives = completedPerspectivesCitations(canonicalPerspectives, findings, reportSourcePages, docIndex) as any;
   }
 
-  const canonicalFindings = completedFindingsCitations(findings as any, reportSourcePages, docIndex, index);
+  const canonicalFindings = completedFindingsCitations(findings as any, reportSourcePages, docIndex);
   const canonicalWriterCitations = writerCitationCatalog([
     ...coreRegistry,
     ...mandatoryDecisionCore.flatMap(item => item.source_refs),

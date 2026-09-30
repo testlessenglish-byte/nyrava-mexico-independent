@@ -151,12 +151,31 @@ export function completedFindingsCitations<T extends Row>(
     return {
       ...finding,
       evidence_refs: refs.map(ref => {
-        const atomicProof = finding.metadata?.semantic_support_review ? {
-          claim: Object.fromEntries(['id','title','description','source_document_id','source_page','source_quote'].filter(k => finding[k] !== undefined).map(k => [k, finding[k]])),
+        const refDocument = ref.document_id ?? ref.source_document_id;
+        const refPage = ref.page ?? ref.page_number ?? ref.source_page;
+        const refQuote = ref.quote ?? ref.excerpt ?? ref.source_quote ?? "";
+        const matchesReviewedFinding =
+          refDocument === finding.source_document_id &&
+          Number(refPage) === Number(finding.source_page) &&
+          citationText(refQuote) === citationText(finding.source_quote);
+
+        const atomicProof = matchesReviewedFinding && finding.metadata?.semantic_support_review ? {
+          claim: Object.fromEntries(
+            ['id','title','description','source_document_id','source_page','source_quote']
+              .filter(k => finding[k] !== undefined)
+              .map(k => [k, finding[k]])
+          ),
           review: finding.metadata.semantic_support_review
         } as PropositionReview : undefined;
-        const proposition = String(ref.proposition_supported || finding.title || finding.description || "");
-        return createCanonicalCitation(ref, proposition, pages, index, atomicProof) ?? unresolvedCitation(ref, "FINDING_PROPOSITION_NOT_CERTIFIED");
+
+        const proposition = String(
+          ref.proposition_supported ??
+          (matchesReviewedFinding && atomicProof ? finding.description : "")
+        );
+        return proposition
+          ? createCanonicalCitation(ref, proposition, pages, index, atomicProof) ??
+              unresolvedCitation(ref, "FINDING_PROPOSITION_NOT_CERTIFIED")
+          : unresolvedCitation(ref, "FINDING_PROPOSITION_MISSING");
       })
     };
   });
