@@ -68,3 +68,7 @@ secrets.json
 /work/diagnostic-*.json
 scripts/*
 !scripts/local-pipeline-pump.mjs
+
+# Production secrets
+stripe.env
+stripe.env.save
