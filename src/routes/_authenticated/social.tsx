@@ -7,13 +7,13 @@ import { toast } from "sonner";
 import {
   Activity, AlertTriangle, ArrowRight, BriefcaseMedical, CalendarClock,
   CheckCircle2, ClipboardCheck, FileHeart, FileText, HeartHandshake,
-  Loader2, Search, ShieldCheck, UserPlus, Users,
+  Loader2, Search, ShieldCheck, Trash2, UserPlus, Users,
 } from "lucide-react";
 import { useI18n } from "@/i18n";
 import { useRoles } from "@/hooks/use-roles";
 import {
   acceptSocialOrganizationInvitation, acknowledgeSocialAlert, createAndAssignCareCase, createSocialFamily, createSocialPerson,
-  findPossibleSocialPeople, ensureSocialProgram, getSocialIndicators,
+  findPossibleSocialPeople, ensureSocialProgram, getSocialIndicators, deleteSocialCase,
   getSocialWorkspace, searchSocialRecords,
 } from "@/lib/social.functions";
 import { EMERGENCY_GUIDANCE } from "@/lib/social/types";
@@ -650,17 +650,86 @@ function TeamActivity({es,account,orgId,onOpenCase}:{es:boolean;account:any;orgI
 function Metric({label,value,danger=false}:{label:string;value:number;danger?:boolean}){return <div className="rounded-xl border border-border bg-card p-4"><p className="text-xs uppercase tracking-wider text-muted-foreground">{label}</p><p className={`mt-1 text-3xl font-semibold ${danger&&value>0?"text-destructive":""}`}>{value}</p></div>}
 function Field({label,value,onChange,type="text"}:{label:string;value:string;onChange:(v:string)=>void;type?:string}){return <label className="block text-xs font-medium text-muted-foreground">{label}<input type={type} value={value} onChange={e=>onChange(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"/></label>}
 function CaseTable({cases,members=[],es,onOpen}:{cases:any[];members?:any[];es:boolean;onOpen:(id:string)=>void}){
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
-  const total = cases.length;
-  const from = (page - 1) * pageSize;
-  const pagedCases = cases.slice(from, from + pageSize);
+  const qc=useQueryClient();
+  const deleteFn=useServerFn(deleteSocialCase);
+  const [page,setPage]=useState(1);
+  const [pageSize,setPageSize]=useState(25);
+  const [selected,setSelected]=useState<Set<string>>(new Set());
+  const [deleting,setDeleting]=useState(false);
+
+  const total=cases.length;
+  const from=(page-1)*pageSize;
+  const pagedCases=cases.slice(from,from+pageSize);
+  const pageIds=pagedCases.map((c:any)=>c.id);
+  const allPageSelected=pageIds.length>0&&pageIds.every((id:string)=>selected.has(id));
+
+  const toggle=(id:string)=>{
+    setSelected(prev=>{
+      const next=new Set(prev);
+      next.has(id)?next.delete(id):next.add(id);
+      return next;
+    });
+  };
+
+  const togglePage=()=>{
+    setSelected(prev=>{
+      const next=new Set(prev);
+      if(allPageSelected) pageIds.forEach((id:string)=>next.delete(id));
+      else pageIds.forEach((id:string)=>next.add(id));
+      return next;
+    });
+  };
+
+  const removeCases=async(ids:string[])=>{
+    if(!ids.length)return;
+    const msg=ids.length===1
+      ?(es?"¿Eliminar este caso permanentemente? Esta acción no se puede deshacer.":"Delete this case permanently? This cannot be undone.")
+      :(es?`¿Eliminar ${ids.length} casos permanentemente? Esta acción no se puede deshacer.`:`Delete ${ids.length} cases permanently? This cannot be undone.`);
+    if(!window.confirm(msg))return;
+
+    setDeleting(true);
+    let ok=0,failed=0;
+    for(const id of ids){
+      try{
+        await deleteFn({data:{
+          caseId:id,
+          reason:es?"Eliminado desde la lista de Atención Integral":"Deleted from Comprehensive Care case list"
+        }});
+        ok++;
+      }catch{
+        failed++;
+      }
+    }
+    setDeleting(false);
+    setSelected(prev=>{
+      const next=new Set(prev);
+      ids.forEach(id=>next.delete(id));
+      return next;
+    });
+    await qc.invalidateQueries({queryKey:["social-workspace"]});
+    if(ok)toast.success(es?`${ok} caso(s) eliminado(s)`:`${ok} case(s) deleted`);
+    if(failed)toast.error(es?`${failed} caso(s) no se pudieron eliminar`:`${failed} case(s) could not be deleted`);
+  };
 
   return <div className="space-y-3">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" checked={allPageSelected} onChange={togglePage}/>
+        {es?"Seleccionar esta página":"Select this page"}
+      </label>
+      {selected.size>0&&
+        <button type="button" disabled={deleting} onClick={()=>void removeCases([...selected])}
+          className="rounded-lg border border-destructive/40 px-3 py-2 text-sm font-medium text-destructive disabled:opacity-50">
+          {deleting?<Loader2 className="mr-1 inline h-4 w-4 animate-spin"/>:<Trash2 className="mr-1 inline h-4 w-4"/>}
+          {es?`Eliminar seleccionados (${selected.size})`:`Delete selected (${selected.size})`}
+        </button>}
+    </div>
+
     <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">
       <table className="w-full text-sm">
         <thead>
           <tr className="bg-muted/50 text-left text-xs uppercase tracking-wider text-muted-foreground">
+            <th className="px-4 py-3"></th>
             <th className="px-4 py-3">{es?"Folio":"Case no."}</th>
             <th className="px-4 py-3">{es?"Tipo":"Type"}</th>
             <th className="px-4 py-3">{es?"Asignado a":"Assigned to"}</th>
@@ -671,34 +740,34 @@ function CaseTable({cases,members=[],es,onOpen}:{cases:any[];members?:any[];es:b
           </tr>
         </thead>
         <tbody>
-          {pagedCases.map(c => {
+          {pagedCases.map(c=>{
             const assignee=members.find((m:any)=>m.user_id===c.assigned_case_manager);
             return <tr key={c.id} className="border-t border-border">
+              <td className="px-4 py-3"><input type="checkbox" checked={selected.has(c.id)} onChange={()=>toggle(c.id)}/></td>
               <td className="px-4 py-3 font-mono">{c.case_number}</td>
               <td className="px-4 py-3">{c.case_type}</td>
-              <td className="px-4 py-3">{assignee ? <><span className="font-medium">{assignee.name}</span>{assignee.title && <span className="block text-xs text-muted-foreground">{assignee.title}</span>}</> : <span className="text-muted-foreground">{es?"Sin asignar":"Unassigned"}</span>}</td>
+              <td className="px-4 py-3">{assignee?<><span className="font-medium">{assignee.name}</span>{assignee.title&&<span className="block text-xs text-muted-foreground">{assignee.title}</span>}</>:<span className="text-muted-foreground">{es?"Sin asignar":"Unassigned"}</span>}</td>
               <td className="px-4 py-3">{c.status}</td>
-              <td className={`px-4 py-3 ${c.risk_level === "critical" ? "font-semibold text-destructive" : ""}`}>{c.risk_level}</td>
+              <td className={`px-4 py-3 ${c.risk_level==="critical"?"font-semibold text-destructive":""}`}>{c.risk_level}</td>
               <td className="px-4 py-3 text-muted-foreground">{new Date(c.last_activity_at).toLocaleDateString()}</td>
               <td className="px-4 py-3 text-right">
-                <button type="button" onClick={() => onOpen(c.id)} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">{es ? "Abrir" : "Open"}</button>
+                <div className="flex justify-end gap-2">
+                  <button type="button" onClick={()=>onOpen(c.id)} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">{es?"Abrir":"Open"}</button>
+                  <button type="button" disabled={deleting} onClick={()=>void removeCases([c.id])}
+                    className="rounded-lg border border-destructive/40 px-3 py-1.5 text-xs font-semibold text-destructive disabled:opacity-50">
+                    <Trash2 className="mr-1 inline h-3.5 w-3.5"/>{es?"Eliminar":"Delete"}
+                  </button>
+                </div>
               </td>
             </tr>;
           })}
-          {!cases.length && <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">{es ? "Sin casos autorizados" : "No authorized cases"}</td></tr>}
+          {!cases.length&&<tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">{es?"Sin casos autorizados":"No authorized cases"}</td></tr>}
         </tbody>
       </table>
     </div>
-    {cases.length > 0 && (
-      <NyravaPagination
-        page={page}
-        pageSize={pageSize}
-        total={total}
-        onPageChange={setPage}
-        onPageSizeChange={setPageSize}
-        es={es}
-      />
-    )}
+
+    {cases.length>0&&<NyravaPagination page={page} pageSize={pageSize} total={total}
+      onPageChange={setPage} onPageSizeChange={setPageSize} es={es}/>}
   </div>;
 }
 function PeopleTable({people,es}:{people:any[];es:boolean}){return <div className="overflow-x-auto rounded-xl border border-border bg-card"><table className="w-full text-sm"><thead><tr className="bg-muted/50 text-left"><th className="px-4 py-3">{es?"ID":"ID"}</th><th className="px-4 py-3">{es?"Persona":"Person"}</th><th className="px-4 py-3">{es?"Consentimiento":"Consent"}</th></tr></thead><tbody>{people.map(p=><tr key={p.id} className="border-t border-border"><td className="px-4 py-3 font-mono">{p.person_number}</td><td className="px-4 py-3">{p.legal_name}<span className="block text-xs text-muted-foreground">{p.preferred_name}</span></td><td className="px-4 py-3">{p.consent_status}</td></tr>)}{!people.length&&<tr><td colSpan={3} className="px-4 py-8 text-center text-muted-foreground">{es?"Aún no hay personas registradas":"No people registered yet"}</td></tr>}</tbody></table></div>}
