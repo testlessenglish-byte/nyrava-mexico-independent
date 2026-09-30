@@ -119,12 +119,22 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: appCss,
       },
+      {
+        rel: "preload",
+        href: "/brand/hero-mobile.webp",
+        as: "image",
+        type: "image/webp",
+        media: "(max-width: 640px)",
+      },
+      {
+        rel: "preload",
+        href: "/brand/hero-desktop.webp",
+        as: "image",
+        type: "image/webp",
+        media: "(min-width: 641px)",
+      },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500&display=swap",
-      },
       { rel: "icon", href: "/brand/favicon.ico", sizes: "any" },
       { rel: "icon", href: "/brand/favicon_32.png", type: "image/png", sizes: "32x32" },
       { rel: "apple-touch-icon", href: "/brand/apple_touch_icon.png" },
@@ -156,6 +166,19 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang="es-MX">
       <head>
         <HeadContent />
+        <link
+          rel="preload"
+          as="style"
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500&display=swap"
+        />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500&display=swap"
+          media="print"
+          onLoad={(event) => {
+            event.currentTarget.media = "all";
+          }}
+        />
         {publicEnv && (
           <script
             id="public-env"
