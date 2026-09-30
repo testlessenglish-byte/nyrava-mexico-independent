@@ -78,7 +78,7 @@ const TARGETS: readonly {
     table: "case_findings",
     key: "case_id",
     idColumn: "id",
-    text: ["title", "description", "legal_significance", "strategic_significance", "potential_impact", "verification_notes"],
+    text: ["title", "legal_significance", "strategic_significance", "potential_impact", "verification_notes"],
     json: [],
   },
   {
