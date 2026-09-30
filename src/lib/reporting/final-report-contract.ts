@@ -451,7 +451,10 @@ export function composeFinalReportPayload(input: CaseExportData, sourceReviewFin
 function prepareReportCitationProducers(payload: FinalReportPayload): FinalReportPayload {
   const produced = canonicalizeReportCitations(payload);
   bindAttributedFindingCitations(produced);
-  return produced;
+  // Attribution binding can replace finding evidence refs after the first
+  // canonicalization pass. Re-canonicalize those newly bound references
+  // before the final citation-integrity audit.
+  return canonicalizeReportCitations(produced);
 }
 
 function assessmentPresentation(payload: FinalReportPayload): FinalReportPayload {
