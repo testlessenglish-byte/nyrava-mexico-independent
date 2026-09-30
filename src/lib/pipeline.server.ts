@@ -1442,7 +1442,7 @@ async function _runPipelineForCase(
         await updateCase(
           {
             status: "needs_revision",
-            status_message: `Report generation requires revision: ${msg.slice(0, 300)}`,
+            status_message: "Report generation needs review. Open the report's technical diagnostics for details.",
             next_stage: "report",
             error: msg.slice(0, 500),
           },
@@ -6043,7 +6043,7 @@ async function prepareReportIntelligence(args: {
     identityMetadata.case_identity?.case_number_normalized ?? identityMetadata.case_identity?.case_number);
   if (sourceIdentityAudit.status === "IDENTITY_CONFLICT") {
     await db.from("reports").update({ quality_blocked: true, quality_block_reasons: sourceIdentityAudit.reasons }).eq("case_id", caseId);
-    await setCase(db, caseId, { status: "needs_revision", status_message: sourceIdentityAudit.reasons.join(" "),
+    await setCase(db, caseId, { status: "needs_revision", status_message: "Report identity needs review before release.",
       matter_metadata: { ...identityMetadata, source_identity_audit: sourceIdentityAudit } as any });
     throw new Error(`IDENTITY_CONFLICT: ${sourceIdentityAudit.reasons.join(" ")}`);
   }

@@ -905,7 +905,7 @@ function FeaturedCaseCard({
             {t("dashboard.featured.title")}
           </div>
           <h2 className="mt-1 truncate text-xl font-semibold md:text-2xl">{caseRow.name}</h2>
-          <div className="mt-1 text-xs text-muted-foreground">
+          <div className="mt-1 line-clamp-2 break-words text-xs text-muted-foreground">
             {caseRow.status_message ?? caseRow.status}
           </div>
         </div>

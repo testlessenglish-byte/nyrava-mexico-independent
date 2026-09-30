@@ -20,6 +20,7 @@ import {
 } from "@/lib/intelligence/finding-selection";
 import { consolidateFindings } from "@/lib/intelligence/finding-dedupe";
 import { sha256HexSync as sha256Hex } from "@/lib/intelligence/sha256";
+import { caseStatusSummary } from "@/lib/case-status-summary";
 
 // Single source of truth for valid case_type values — derived from
 // PRACTICE_AREA_LABELS (practice-areas.ts) instead of hand-copied literal
@@ -2764,6 +2765,7 @@ export const listCases = createServerFn({ method: "GET" })
         : null;
       return {
         ...c,
+        status_message: caseStatusSummary(c.status, c.status_message),
         case_assessment: assessCase(r),
         findings_count: r?.findings_count ?? null,
         high_priority_findings: highPriorityByCase.get(c.id) ?? 0,
@@ -2975,7 +2977,7 @@ export const listAlerts = createServerFn({ method: "GET" })
           caseName: c.name,
           level: "critical",
           title: "Pipeline failed",
-          detail: c.status_message ?? null,
+          detail: caseStatusSummary(c.status, c.status_message),
           at: c.updated_at as string,
         });
       }
@@ -4079,7 +4081,7 @@ export const getCase = createServerFn({ method: "POST" })
       : null;
     const currentExecutionId = (c.data as any)?.execution_id ?? null;
     return {
-      case: c.data ? { ...c.data, client_name: clientForReport?.data?.display_name ?? null, matter_metadata: {
+      case: c.data ? { ...c.data, status_message: caseStatusSummary(c.data.status, c.data.status_message), client_name: clientForReport?.data?.display_name ?? null, matter_metadata: {
         ...((c.data.matter_metadata as any) ?? {}), source_identity_audit: sourceIdentityAudit,
       } } : c.data,
       documents: docs.data ?? [],

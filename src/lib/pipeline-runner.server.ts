@@ -2019,7 +2019,7 @@ async function _runPipelineForCase(
         console.warn(`[pipeline] report rendering failed: ${msg}`);
         await updateCase({
           status: "needs_revision",
-          status_message: `Report generation requires revision: ${msg.slice(0, 300)}`,
+          status_message: "Report generation needs review. Open the report's technical diagnostics for details.",
           next_stage: "report",
           error: msg.slice(0, 500),
         }, `stage.failed:report`);
@@ -2339,7 +2339,7 @@ async function _runPipelineForCase(
 
   const finalMessage = isNeedsRevision
     ? (postReport.quality_blocked
-      ? `Report needs review: ${(postReport.quality_block_reasons ?? []).join("; ")}`
+      ? "Report needs review before release. Open the report's technical diagnostics for details."
       : (postRun?.status_message ?? "Analysis complete — review required"))
     : isReleased
       ? (postRun?.status_message ?? "Pipeline complete and released.")

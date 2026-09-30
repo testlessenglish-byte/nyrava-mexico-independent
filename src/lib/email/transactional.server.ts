@@ -1,6 +1,6 @@
 /**
  * Provider-neutral server-side transactional email service.
- * Supports configurable email backends (Resend, SendGrid, custom HTTP webhook, or graceful local fallback).
+ * Supports configurable email backends (Resend, SendGrid, Zoho SMTP, custom HTTP webhook, or graceful local fallback).
  * Configuration is managed exclusively via server environment variables.
  * Credentials and API keys are NEVER exposed to client-side code.
  */
@@ -112,7 +112,49 @@ export async function sendTransactionalEmail(
     }
   }
 
-  // 3. Generic HTTP Webhook provider
+  // 3. Zoho SMTP provider. All credentials are read only in this server-only
+  // module; this branch must never be imported into a client bundle.
+  const zohoSmtpUser = process.env.ZOHO_SMTP_USER;
+  const zohoSmtpPassword = process.env.ZOHO_SMTP_PASSWORD;
+  if ((zohoSmtpUser && !zohoSmtpPassword) || (!zohoSmtpUser && zohoSmtpPassword)) {
+    return {
+      sent: false,
+      reason: "provider_error",
+      error: "Both ZOHO_SMTP_USER and ZOHO_SMTP_PASSWORD are required for Zoho SMTP.",
+    };
+  }
+  if (zohoSmtpUser && zohoSmtpPassword) {
+    try {
+      const { createTransport } = await import("nodemailer");
+      const port = Number(process.env.ZOHO_SMTP_PORT || 465);
+      const transporter = createTransport({
+        host: process.env.ZOHO_SMTP_HOST || "smtp.zoho.com",
+        port,
+        secure: process.env.ZOHO_SMTP_SECURE
+          ? process.env.ZOHO_SMTP_SECURE.toLowerCase() === "true"
+          : port === 465,
+        auth: { user: zohoSmtpUser, pass: zohoSmtpPassword },
+      });
+      const result = await transporter.sendMail({
+        from,
+        to,
+        replyTo,
+        subject,
+        html: html || undefined,
+        text: text || undefined,
+        headers: options.idempotencyKey
+          ? { "X-Idempotency-Key": options.idempotencyKey }
+          : undefined,
+      });
+      return { sent: true, id: result.messageId };
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      console.error(`[Email:Zoho SMTP] Delivery failed: ${errorMsg}`);
+      return { sent: false, reason: "provider_error", error: errorMsg };
+    }
+  }
+
+  // 4. Generic HTTP Webhook provider
   const emailWebhookUrl = process.env.EMAIL_WEBHOOK_URL;
   if (emailWebhookUrl) {
     try {
@@ -150,10 +192,10 @@ export async function sendTransactionalEmail(
     }
   }
 
-  // 4. No provider configured: fail gracefully and document requirement
+  // 5. No provider configured: fail gracefully and document requirement
   console.warn(
-    `[Email] No independent email provider configured (e.g. RESEND_API_KEY, SENDGRID_API_KEY, or EMAIL_WEBHOOK_URL). ` +
-      `Email to "${to}" ("${subject}") suppressed gracefully. To enable email delivery, set RESEND_API_KEY or SENDGRID_API_KEY in server environment.`,
+    `[Email] No independent email provider configured (for example RESEND_API_KEY, SENDGRID_API_KEY, ZOHO_SMTP_USER/ZOHO_SMTP_PASSWORD, or EMAIL_WEBHOOK_URL). ` +
+      `Email to "${to}" ("${subject}") suppressed gracefully. Configure a provider in the server environment to enable delivery.`,
   );
 
   return {

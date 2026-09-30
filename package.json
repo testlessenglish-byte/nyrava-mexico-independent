@@ -38,6 +38,7 @@
     "jspdf-autotable": "^5.0.8",
     "lucide-react": "^0.575.0",
     "mammoth": "^1.12.0",
+    "nodemailer": "^10.0.12",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-icons": "^5.7.0",

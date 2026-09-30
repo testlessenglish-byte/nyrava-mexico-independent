@@ -1,8 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useMutation } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { useRef, useState, type FormEvent } from "react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
-import { Mail, MapPin } from "lucide-react";
+import { Loader2, Mail, MapPin, Send } from "lucide-react";
 import { useI18n } from "@/i18n";
+import { sendContactInquiry } from "@/lib/contact.functions";
 
 export const Route = createFileRoute("/contact")({
   head: () => ({
@@ -22,6 +26,31 @@ export const Route = createFileRoute("/contact")({
 function ContactPage() {
   const { t, locale } = useI18n();
   const es = locale === "es";
+  const sendInquiry = useServerFn(sendContactInquiry);
+  const [submitted, setSubmitted] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  const inquiry = useMutation({
+    mutationFn: (values: { name: string; email: string; company: string; message: string; website: string }) =>
+      sendInquiry({ data: values }),
+    onSuccess: () => {
+      setSubmitted(true);
+      formRef.current?.reset();
+    },
+  });
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSubmitted(false);
+    const values = new FormData(event.currentTarget);
+    inquiry.mutate({
+      name: String(values.get("name") ?? ""),
+      email: String(values.get("email") ?? ""),
+      company: String(values.get("company") ?? ""),
+      message: String(values.get("message") ?? ""),
+      website: String(values.get("website") ?? ""),
+    });
+  }
+
   return (
     <div className="min-h-screen">
       <SiteHeader />
@@ -56,6 +85,50 @@ function ContactPage() {
             <p className="mt-1 text-sm text-muted-foreground">{t("contact.location.value")}</p>
           </div>
         </div>
+
+        <form ref={formRef} onSubmit={handleSubmit} className="panel mt-6 space-y-4 p-6" aria-label={es ? "Formulario de contacto de ventas" : "Sales contact form"}>
+          <div>
+            <h2 className="font-display text-xl font-semibold">{es ? "Cuéntenos sobre su organización" : "Tell us about your organization"}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {es ? "Nuestro equipo de ventas responderá a su consulta." : "Our sales team will follow up on your inquiry."}
+            </p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="space-y-1 text-sm">
+              <span>{es ? "Nombre" : "Name"}</span>
+              <input name="name" autoComplete="name" required maxLength={120} className="w-full rounded-md border border-border bg-background px-3 py-2" />
+            </label>
+            <label className="space-y-1 text-sm">
+              <span>{es ? "Correo electrónico" : "Email"}</span>
+              <input name="email" type="email" autoComplete="email" required maxLength={254} className="w-full rounded-md border border-border bg-background px-3 py-2" />
+            </label>
+          </div>
+          <label className="block space-y-1 text-sm">
+            <span>{es ? "Despacho u organización (opcional)" : "Firm or organization (optional)"}</span>
+            <input name="company" autoComplete="organization" maxLength={160} className="w-full rounded-md border border-border bg-background px-3 py-2" />
+          </label>
+          <label className="block space-y-1 text-sm">
+            <span>{es ? "¿Cómo podemos ayudarle?" : "How can we help?"}</span>
+            <textarea name="message" required minLength={10} maxLength={5000} rows={5} className="w-full resize-y rounded-md border border-border bg-background px-3 py-2" />
+          </label>
+          <label aria-hidden="true" className="absolute -left-[10000px] h-px w-px overflow-hidden">
+            Website <input name="website" tabIndex={-1} autoComplete="off" />
+          </label>
+          {submitted && (
+            <p role="status" className="text-sm text-primary">
+              {es ? "Gracias. Su consulta fue enviada al equipo de ventas." : "Thank you. Your inquiry has been sent to our sales team."}
+            </p>
+          )}
+          {inquiry.isError && (
+            <p role="alert" className="text-sm text-destructive">
+              {es ? "No pudimos enviar su consulta. Inténtelo de nuevo." : "We could not send your inquiry. Please try again."}
+            </p>
+          )}
+          <button type="submit" disabled={inquiry.isPending} className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60">
+            {inquiry.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            {es ? "Enviar consulta" : "Send inquiry"}
+          </button>
+        </form>
       </section>
       <SiteFooter />
     </div>
