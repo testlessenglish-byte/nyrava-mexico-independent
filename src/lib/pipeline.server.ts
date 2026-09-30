@@ -7749,7 +7749,7 @@ ${corpus.slice(0, REPORT_STAGE_CORPUS_CHARS)}${resolutivoAnchorBlock}${penalDisp
   for (const finding of findings) {
     if (Array.isArray(finding.evidence_refs)) finding.evidence_refs = relocateSourceRefs(finding.evidence_refs as any[], reportSourcePages, docIndex) as any;
   }
-  citations = writerCitationCatalog([...canonicalWriterCitations, ...verifyEvidenceRefs(citations, reportCorpus)], reportSourcePages, docIndex, [], { caseId, executionId });
+  citations = writerCitationCatalog([...canonicalWriterCitations, ...verifyEvidenceRefs(citations, reportCorpus)], reportSourcePages, docIndex, canonicalFindings as any, { caseId, executionId });
   if (citationsBeforeGrounding > citations.length) {
     pipelineWarnings.push(
       `citation_index_grounding: ${citationsBeforeGrounding - citations.length} citation(s) dropped from the citation appendix — quote did not verify against the real corpus.`,
