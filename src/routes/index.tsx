@@ -28,7 +28,7 @@ import { listPublishedDemoCases } from "@/lib/demo-cases.functions";
 
 const SITE_URL = "https://mexico.nyrava.com";
 const LOGO_URL = `${SITE_URL}/brand/nyrava-logo-original.png`;
-const SOCIAL_IMAGE_URL = `${SITE_URL}/__l5e/assets-v1/775b6578-f629-470f-8bb7-bb39be2faf3c/nyrava-mexico-social-2026.png`;
+const SOCIAL_IMAGE_URL = `${SITE_URL}/brand/nyrava-logo-original.png`;
 const SOCIAL_DESCRIPTION = "Inteligencia jurídica más allá del análisis humano.";
 
 const ORGANIZATION_JSON_LD = JSON.stringify({

@@ -99,4 +99,4 @@ export const footer = {
 
 export const siteName = "Nyrava Intelligence México";
 export const logoUrl =
-  "https://mexico.nyrava.com/__l5e/assets-v1/f790a1b1-bc41-4ae1-81ab-30a4c5a0fa46/nyrava-shield.png";
+  "https://mexico.nyrava.com/brand/nyrava-logo-original.png";
