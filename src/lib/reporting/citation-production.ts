@@ -130,6 +130,25 @@ export function completedCoreCitations<T extends { id: string; text: string; sou
   });
 }
 
+export function completedFindingsCitations<T extends Row>(
+  findings: T[], pages: MatterSourcePage[], index: Index,
+): T[] {
+  return findings.map(finding => {
+    const refs = Array.isArray(finding.evidence_refs) ? finding.evidence_refs : [];
+    return {
+      ...finding,
+      evidence_refs: refs.map(ref => {
+        const atomicProof = finding.metadata?.semantic_support_review ? {
+          claim: Object.fromEntries(['id','title','description','source_document_id','source_page','source_quote'].filter(k => finding[k] !== undefined).map(k => [k, finding[k]])),
+          review: finding.metadata.semantic_support_review
+        } as PropositionReview : undefined;
+        const proposition = String(ref.proposition_supported || finding.title || finding.description || "");
+        return createCanonicalCitation(ref, proposition, pages, index, atomicProof) ?? unresolvedCitation(ref, "FINDING_PROPOSITION_NOT_CERTIFIED");
+      })
+    };
+  });
+}
+
 export function completedTheoriesCitations<T extends Row>(
   theories: T[], findings: Row[], pages: MatterSourcePage[], index: Index,
 ): T[] {

@@ -6606,7 +6606,7 @@ async function _runReportInner(args: {
   const mandatoryDecisionCoreRequired = isCompletedReportCaseMode(reportCaseAnalysisMode);
   const { loadCaseSourcePages: loadReportSourcePages } = await import("./intelligence/source-matter-audit.server");
   const { relocateSourceRefs } = await import("./reporting/source-location-audit");
-  const { writerCitationCatalog, createCanonicalCitation, findingCitationReviews, resolveWriterCitationReferences, completedCoreCitations, completedTheoriesCitations, completedPerspectivesCitations,
+  const { writerCitationCatalog, createCanonicalCitation, findingCitationReviews, resolveWriterCitationReferences, completedCoreCitations, completedTheoriesCitations, completedPerspectivesCitations, completedFindingsCitations,
     safeResolveWriterCitationReferences, pruneQuarantinedSentences } = await import("./reporting/citation-production");
   const { attributeFindingsFromSource, validateSourceAttribution } = await import("./intelligence/source-speaker-provenance");
   const { loadReviewSourceSnapshot, scopedReviewPages } = await import('./intelligence/review-source-snapshot.server');
@@ -6729,6 +6729,7 @@ async function _runReportInner(args: {
     canonicalPerspectives = completedPerspectivesCitations(canonicalPerspectives, findings, reportSourcePages, docIndex) as any;
   }
 
+  const canonicalFindings = completedFindingsCitations(findings as any, reportSourcePages, docIndex, index);
   const canonicalWriterCitations = writerCitationCatalog([
     ...coreRegistry,
     ...mandatoryDecisionCore.flatMap(item => item.source_refs),
@@ -6961,7 +6962,7 @@ ${scoreExplainerBlock(s(10000))}
 
 ENGINE OUTPUT (perspectives / evidence intel / strategy / witnesses / trial prep / theories / opportunities):
 ${JSON.stringify({
-  perspectives: perspectives ?? [],
+  perspectives: canonicalPerspectives ?? [],
   evidence_intel: evidenceIntel ?? [],
   strategy: strategyRows ?? [],
   witnesses: witnesses ?? [],
@@ -7103,7 +7104,7 @@ ${scoreExplainerBlock(2000)}
 
 ENGINE OUTPUT (perspectives / evidence intel / strategy / witnesses / trial prep / theories / opportunities):
 ${JSON.stringify({
-  perspectives: perspectives ?? [],
+  perspectives: canonicalPerspectives ?? [],
   evidence_intel: evidenceIntel ?? [],
   strategy: strategyRows ?? [],
   witnesses: witnesses ?? [],
@@ -7448,7 +7449,7 @@ ${corpus.slice(0, REPORT_STAGE_CORPUS_CHARS)}${resolutivoAnchorBlock}${penalDisp
 
   // Deterministic legal memorandum assembly
   const { buildVerifiedLegalAnalysis } = await import("./reporting/legal-analysis");
-  const memoAnalysis = buildVerifiedLegalAnalysis(findings.slice(0, 5), canonicalWriterCitations);
+  const memoAnalysis = buildVerifiedLegalAnalysis(canonicalFindings.slice(0, 5), canonicalWriterCitations);
 
   const memoMotions = (opps && opps.length > 0 ? opps : [
     { title: "Ofrecimiento de Pruebas y Regularización del Procedimiento", description: "Solicitud formal de admisión y desahogo de pruebas conforme a las reglas del procedimiento aplicable." }
@@ -8816,8 +8817,8 @@ ${corpus.slice(0, REPORT_STAGE_CORPUS_CHARS)}${resolutivoAnchorBlock}${penalDisp
         }
       })(),
       intelligence: {
-        consolidated_findings: findings,
-        perspectives: perspectives ?? [],
+        consolidated_findings: canonicalFindings,
+        perspectives: canonicalPerspectives ?? [],
         evidence_classifications: evidenceIntel ?? [],
         strategy_rows: strategyRows ?? [],
         witnesses: witnesses ?? [],
