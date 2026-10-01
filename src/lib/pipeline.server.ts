@@ -5998,35 +5998,112 @@ export async function runReport(args: {
   apiKeys?: string[];
   executionId?: string;
 }) {
-  const { data: currentCase, error: caseError } = await args.db.from('cases').select('execution_id').eq('id', args.caseId).maybeSingle();
+  const { data: currentCase, error: caseError } = await args.db
+    .from("cases")
+    .select("execution_id")
+    .eq("id", args.caseId)
+    .maybeSingle();
+
   const executionId = args.executionId ?? currentCase?.execution_id;
-  if (caseError || !executionId || currentCase?.execution_id !== executionId) throw new Error('REPORT_EXECUTION_MISMATCH');
+
+  if (caseError || !executionId || currentCase?.execution_id !== executionId) {
+    throw new Error("REPORT_EXECUTION_MISMATCH");
+  }
+
   const scoped = { ...args, executionId };
+
   const readReport = async () => {
-    const { data, error } = await args.db.from('reports').select('*').eq('case_id', args.caseId).eq('execution_id', executionId).maybeSingle();
-    if (error) throw new Error('REPORT_PACKAGE_UNAVAILABLE');
+    const { data, error } = await args.db
+      .from("reports")
+      .select("*")
+      .eq("case_id", args.caseId)
+      .eq("execution_id", executionId)
+      .maybeSingle();
+
+    if (error) throw new Error("REPORT_PACKAGE_UNAVAILABLE");
     return data;
   };
-  let report = await readReport();
-  // All intelligence work and existing QA/Judge/Integrity reviews finish before
-  // entering the Report Generator telemetry scope. A render retry reuses it.
-  if (!(report?.full_report as any)?.final_review?.released || (report?.report_chunk_cache as any)?.__regenerate) {
-    const { withTelemetryScope } = await import('./ai/telemetry.server');
-    await withTelemetryScope({ runId: `report-intelligence:${executionId}` }, () => prepareReportIntelligence(scoped));
-    report = await readReport();
-  }
-  const { verifiedReportPackage, generateVerifiedReport } = await import('./reporting/verified-report');
-  if (!report) throw new Error('REPORT_PACKAGE_UNAVAILABLE');
-  const intelligence = verifiedReportPackage(report as any, args.caseId, executionId);
-  return runEngine(args.db, { caseId: args.caseId, userId: args.userId, engine: ENGINE.report, executionId }, async () => {
-    const payload = generateVerifiedReport(intelligence, args.caseId, executionId);
-    await logUsage(args.db, { userId: args.userId, caseId: args.caseId, operation: 'report',
-      model: 'deterministic-report-generator', provider: 'local', inputTokens: 0, outputTokens: 0,
-      totalTokens: 0, latencyMs: 0, success: true });
-    return { value: payload, stats: { generated: 0, accepted: 0,
-      meta: { source: 'verified_package', candidate_hash: intelligence.hash,
-        provider_calls: 0, new_findings: 0, new_propositions: 0, new_citations: 0 } } };
-  });
+
+  // Report Generator owns the complete report stage.
+  // Register it BEFORE preparation so the engine is visible in
+  // pipeline_engine_runs and the Pipeline Ledger while it is working.
+  return runEngine(
+    args.db,
+    {
+      caseId: args.caseId,
+      userId: args.userId,
+      engine: ENGINE.report,
+      executionId,
+    },
+    async () => {
+      let report = await readReport();
+
+      if (
+        !(report?.full_report as any)?.final_review?.released ||
+        (report?.report_chunk_cache as any)?.__regenerate
+      ) {
+        const { withTelemetryScope } = await import("./ai/telemetry.server");
+
+        await withTelemetryScope(
+          { runId: `report-intelligence:${executionId}` },
+          () => prepareReportIntelligence(scoped),
+        );
+
+        report = await readReport();
+      }
+
+      if (!report) {
+        throw new Error("REPORT_PACKAGE_UNAVAILABLE");
+      }
+
+      // Keep all existing verification and release protections.
+      const {
+        verifiedReportPackage,
+        generateVerifiedReport,
+      } = await import("./reporting/verified-report");
+
+      const intelligence = verifiedReportPackage(
+        report as any,
+        args.caseId,
+        executionId,
+      );
+
+      const payload = generateVerifiedReport(
+        intelligence,
+        args.caseId,
+        executionId,
+      );
+
+      await logUsage(args.db, {
+        userId: args.userId,
+        caseId: args.caseId,
+        operation: "report",
+        model: "deterministic-report-generator",
+        provider: "local",
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        latencyMs: 0,
+        success: true,
+      });
+
+      return {
+        value: payload,
+        stats: {
+          generated: 0,
+          accepted: 0,
+          meta: {
+            source: "verified_package",
+            candidate_hash: intelligence.hash,
+            provider_calls: 0,
+            new_findings: 0,
+            new_propositions: 0,
+            new_citations: 0,
+          },
+        },
+      };
+    },
+  );
 }
 
 /** Pre-freeze preparation retains useful intelligence and the existing reviews.
