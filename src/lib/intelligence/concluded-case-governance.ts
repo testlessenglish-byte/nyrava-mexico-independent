@@ -90,11 +90,21 @@ export function resolveReportGovernance(ctx: CaseGovernanceContext): ImmutableRe
   const remedyExhaustionVerified = Boolean(ctx.remedy_exhaustion_verified ?? ctx.matter_metadata?.remedy_exhaustion_verified);
   const now = new Date().toISOString();
 
-  const isConcluded =
-    posture === "concluded" ||
+  // Explicit subscriber case-analysis mode is authoritative.
+  // A document-derived concluded posture or final-resolution signal may describe
+  // an uploaded judgment or a completed lower proceeding, but it must never
+  // silently convert an Ongoing Case into a Concluded Case Legal Audit.
+  const explicitlyOngoing =
+    caseAnalysisMode === "ongoing" ||
+    caseAnalysisMode === "active_litigation";
+
+  const explicitlyConcluded =
     caseAnalysisMode === "concluded_audit" ||
-    caseAnalysisMode === "judgment_audit" ||
-    isFinal;
+    caseAnalysisMode === "judgment_audit";
+
+  const isConcluded =
+    explicitlyConcluded ||
+    (!explicitlyOngoing && (posture === "concluded" || isFinal));
 
   // Precedence 1: Explicit Post-Judgment Options Analysis
   if (allowPostJudgment) {
