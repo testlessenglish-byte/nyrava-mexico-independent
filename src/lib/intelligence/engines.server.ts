@@ -27,6 +27,7 @@ import type { Theory, Opportunity, WitnessProfile, TrialPrep, WorkProductDoc } f
 import { computeRoleAwareCredibility } from "./mx-witness-roles";
 import { isMexicanCaseType, type MexicanCaseType } from '../jurisdiction/mexico-types';
 import { loadLegalReasoningContext } from '../legal/case-law-context.server';
+import { evaluateClaimEntailment } from "./claim-evidence-entailment";
 
 // Research directions, not assertions of applicable law or competent forum.
 const MATTER_FOCUS: Record<MexicanCaseType, string> = {
@@ -663,9 +664,75 @@ ${JSON.stringify(ctx.findingsLite).slice(0, 15000)}`,
     confidence: typeof o.confidence === "number" ? o.confidence : 0.6,
   }));
   const { accepted: gatedAccepted, audit } = diagnoseEvidenceGate(gateInput, { mode, corpus: groundCorpus });
-  const kept = gatedAccepted.map((g) => typeFiltered[g.index]).filter(Boolean) as typeof typeFiltered;
-  const gated = gatedAccepted.map((g) => g.gated);
-  const acceptedIndexes = new Set(gatedAccepted.map((g) => g.index));
+  // Quote verification proves that the cited passage exists; it does not by
+  // itself prove every proposition in the model-written opportunity
+  // description. Run the already-established claim-level entailment check
+  // before a case_opportunities row or its mirrored case_finding can be
+  // treated as verified publication data.
+  const semanticRejections: Array<{
+    index: number;
+    original: (typeof typeFiltered)[number];
+    diagnostic: ReturnType<typeof evaluateClaimEntailment>;
+  }> = [];
+
+  const entailedAccepted = gatedAccepted.flatMap((entry) => {
+    const original = typeFiltered[entry.index];
+    if (!original) return [];
+
+    const diagnostic = evaluateClaimEntailment({
+      id: `opportunity-${entry.index}`,
+      title: original.title ?? "Opportunity",
+      description: original.description ?? "",
+      source_document_id: entry.gated.source_document_id ?? null,
+      source_page: entry.gated.source_page ?? null,
+      source_quote: entry.gated.source_quote ?? null,
+      source_doc_ids: gatedSourceDocIds(entry.gated),
+      evidence_refs: entry.gated.citations,
+      finding_type: entry.gated.finding_type ?? null,
+    });
+
+    if (!diagnostic.final_reportable ||
+        diagnostic.claim_action === "REMOVE" ||
+        diagnostic.claim_action === "QUARANTINE") {
+      semanticRejections.push({ index: entry.index, original, diagnostic });
+      return [];
+    }
+
+    const repaired = diagnostic.claim_action === "REPAIR"
+      ? {
+          ...original,
+          title: diagnostic.repaired_claim ?? original.title,
+          description: diagnostic.repaired_description ?? original.description,
+        }
+      : original;
+
+    return [{ ...entry, item: repaired, diagnostic }];
+  });
+
+  const kept = entailedAccepted.map((g) => g.item).filter(Boolean) as typeof typeFiltered;
+  const gated = entailedAccepted.map((g) => ({
+    ...g.gated,
+    title: g.item.title,
+    description: g.item.description,
+    claim_entailment_diagnostic: g.diagnostic,
+  }));
+  const acceptedIndexes = new Set(entailedAccepted.map((g) => g.index));
+
+  for (const { index, original, diagnostic } of semanticRejections) {
+    audit.rejected_unsupported_claim += 1;
+    audit.rejections.push({
+      index,
+      title: original.title ?? `Opportunity ${index + 1}`,
+      reason: "unsupported_claim",
+      detail: diagnostic.entailment_reason,
+      confidence: typeof original.confidence === "number" ? original.confidence : null,
+      citation_count: Array.isArray(original.citations) ? original.citations.length : 0,
+      verified_count: 1,
+      best_match_score: 1,
+    });
+  }
+  audit.accepted = entailedAccepted.length;
+
   const rejectedForReview = audit.rejections
     .map((rej) => ({ rej, original: typeFiltered[rej.index] }))
     .filter(
