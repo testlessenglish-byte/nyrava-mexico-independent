@@ -196,36 +196,70 @@ const TARGETS: readonly {
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [k: string]: JsonValue };
 
-function remediateJson(
+const MACHINE_IDENTIFIER_KEYS = new Set([
+  "enabled_engines",
+  "skipped_engines",
+  "enabled_sections",
+  "enabled_tabs",
+  "cross_domain_engines",
+]);
+
+export function remediateLegalQaJsonForTest(
   value: JsonValue,
   profile: MxPipelineProfile,
   sink: { from: string; to: string }[],
+  parentKey?: string,
 ): JsonValue {
+  // Internal routing/configuration identifiers are not legal prose. Preserve
+  // them byte-for-byte and never pass them through terminology remediation.
+  if (parentKey && MACHINE_IDENTIFIER_KEYS.has(parentKey)) return value;
+
   if (typeof value === "string") {
     const { text, replacements } = remediateText(value, profile);
     sink.push(...replacements);
     return text;
   }
-  if (Array.isArray(value)) return value.map((v) => remediateJson(v, profile, sink));
+  if (Array.isArray(value)) {
+    return value.map((v) => remediateLegalQaJsonForTest(v, profile, sink, parentKey));
+  }
   if (value && typeof value === "object") {
     const out: { [k: string]: JsonValue } = {};
-    for (const [k, v] of Object.entries(value)) out[k] = remediateJson(v as JsonValue, profile, sink);
+    for (const [k, v] of Object.entries(value)) {
+      out[k] = remediateLegalQaJsonForTest(v as JsonValue, profile, sink, k);
+    }
     return out;
   }
   return value;
 }
 
-function collectStrings(value: JsonValue, out: string[]): void {
+/**
+ * Machine-only identifier arrays inside report JSON are routing/configuration
+ * metadata, not attorney-facing legal prose. Their values may legitimately use
+ * internal English engine/section names such as "discovery",
+ * "discovery_gaps", "cross_examination", etc.
+ *
+ * Do NOT terminology-audit these values. Actual narrative remains subject to
+ * the full Mexican terminology gate regardless of materia.
+ */
+export function collectLegalQaStringsForTest(
+  value: JsonValue,
+  out: string[],
+  parentKey?: string,
+): void {
+  if (parentKey && MACHINE_IDENTIFIER_KEYS.has(parentKey)) return;
+
   if (typeof value === "string") {
     if (value.trim()) out.push(value);
     return;
   }
   if (Array.isArray(value)) {
-    for (const v of value) collectStrings(v, out);
+    for (const v of value) collectLegalQaStringsForTest(v, out, parentKey);
     return;
   }
   if (value && typeof value === "object") {
-    for (const v of Object.values(value)) collectStrings(v as JsonValue, out);
+    for (const [key, v] of Object.entries(value)) {
+      collectLegalQaStringsForTest(v as JsonValue, out, key);
+    }
   }
 }
 
@@ -392,7 +426,7 @@ export async function runLegalQaGate(args: {
         if (value === undefined || value === null) continue;
         checked_fields += 1;
         const sink: { from: string; to: string }[] = [];
-        let next = remediateJson(value, materia, sink);
+        let next = remediateLegalQaJsonForTest(value, materia, sink);
         let dirty = sink.length > 0;
         for (const rep of sink) remediations.push({ table: target.table, field, ...rep });
 
@@ -425,7 +459,7 @@ export async function runLegalQaGate(args: {
           patch[field] = next as unknown;
         }
         const strings: string[] = [];
-        collectStrings(next, strings);
+        collectLegalQaStringsForTest(next, strings);
         for (const s of strings) {
           for (const v of auditText(s, { profile: materia, locale })) {
             violations.push({ ...v, table: target.table, field });
