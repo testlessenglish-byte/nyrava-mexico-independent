@@ -6249,6 +6249,16 @@ async function prepareReportIntelligence(args: {
         "report_validator",
       ]);
   }
+  // Claim-level entailment must be finalized BEFORE Report Generator snapshots
+  // case_findings. Otherwise deterministic publication artifacts (legal
+  // memorandum, citation catalog, motions, appendix, risk presentation) can
+  // be derived from claims that Final Release later suppresses.
+  //
+  // Do not synchronize/release an older report at this boundary. Final Release
+  // performs the defensive reconciliation again with normal report sync.
+  const { reconcileCaseFindingsClaims } = await import("./intelligence/claim-level-reconciliation.server");
+  await reconcileCaseFindingsClaims(db, caseId, executionId, { syncReport: false });
+
   return _runReportInner({ ...args, pipelineWarnings, forceFinalize, executionId, sourceIdentityAudit });
 }
 

@@ -36,7 +36,9 @@ export async function reconcileCaseFindingsClaims(
   db: Db,
   caseId: string,
   executionId?: string,
+  options: { syncReport?: boolean } = {},
 ): Promise<ClaimReconciliationResult> {
+  const syncReport = options.syncReport !== false;
   let findingsQuery = (db as any)
     .from("case_findings")
     .select("*")
@@ -404,14 +406,18 @@ export async function reconcileCaseFindingsClaims(
     (f) => f.finding_status === "suppressed" || f.lifecycle_status === "superseded",
   );
 
-  // Synchronize report row
-  const { data: reportRow } = await (db as any)
-    .from("reports")
-    .select("*")
-    .eq("case_id", caseId)
-    .maybeSingle();
+  // Pre-report reconciliation must finalize the authoritative finding set
+  // without mutating an older report or marking the case released. Final
+  // Release keeps the default synchronization behavior after report creation.
+  const { data: reportRow } = syncReport
+    ? await (db as any)
+        .from("reports")
+        .select("*")
+        .eq("case_id", caseId)
+        .maybeSingle()
+    : { data: null };
 
-  if (reportRow) {
+  if (syncReport && reportRow) {
     const full = reportRow.full_report ?? {};
     const activeVerifiedCount = activeFindings.filter((f) => f.finding_status === "verified").length;
     const { sanitizeReportObjectiveAndProse } = await import("./final-claim-publication.server");
