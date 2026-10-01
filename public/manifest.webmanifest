@@ -1,6 +1,6 @@
 {
   "name": "Nyrava México",
-  "short_name": "Nyrava",
+  "short_name": "Nyrava México",
   "description": "Inteligencia legal para México.",
   "start_url": "/",
   "scope": "/",
@@ -20,6 +20,12 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
+    },
+    {
+      "src": "/brand/nyrava_n_maskable_512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
