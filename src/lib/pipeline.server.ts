@@ -6215,7 +6215,6 @@ async function prepareReportIntelligence(args: {
       .eq("case_id", caseId)
       .eq("execution_id", executionId)
       .in("engine", [
-        "report_generator",
         "motion",
         "ess_validator",
         "claim_validator",
