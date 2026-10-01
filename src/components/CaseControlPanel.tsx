@@ -419,7 +419,7 @@ export function CaseControlPanel({
         <button
           onClick={() => fileRef.current?.click()}
           disabled={addDisabled}
-          className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-400/40 bg-emerald-400/10 px-4 py-2.5 text-sm font-medium text-emerald-200 hover:bg-emerald-400/20 disabled:opacity-50"
+          className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-600/50 bg-emerald-100 px-4 py-2.5 text-sm font-semibold text-emerald-900 hover:bg-emerald-200 disabled:border-slate-300 disabled:bg-slate-100 disabled:text-slate-500 disabled:opacity-100"
         >
           {addBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FilePlus2 className="h-4 w-4" />}
           {addBusy ? t("caseControl.working") : t("caseControl.addEvidence")}
