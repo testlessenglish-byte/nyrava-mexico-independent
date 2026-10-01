@@ -6229,7 +6229,8 @@ async function _runReportInner(args: {
   const isCompletedSavedReport = Boolean(
     existingReportRow?.full_report &&
       typeof existingReportRow.full_report === "object" &&
-      Object.keys(existingReportRow.full_report).length > 0 &&
+      (existingReportRow.full_report as any)?.release_candidate?.payload &&
+      (existingReportRow.full_report as any)?.final_review &&
       (!executionId || !existingReportRow.execution_id || existingReportRow.execution_id === executionId) &&
       !(existingReportRow.report_chunk_cache as Record<string, unknown> | null)?.__regenerate,
   );
