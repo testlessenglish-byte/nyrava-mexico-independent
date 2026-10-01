@@ -129,7 +129,7 @@ export function completedCoreCitations<T extends { id: string; text: string; sou
           p.claim.source_document_id === document && p.claim.source_page === page &&
           citationText(p.claim.source_quote) === quote && findings.some(f => f.id === p.claim.id &&
             f.metadata?.mandatory_decision_core_id === item.id));
-        const certified = createCanonicalCitation(ref, atom, pages, index, proof);
+        const certified = createCanonicalCitation(ref, atom, pages, index, proof, { allowTrustedRecertification: Boolean(proof) });
         if (!certified) return [];
         registry.push(certified);
         return [certified];
