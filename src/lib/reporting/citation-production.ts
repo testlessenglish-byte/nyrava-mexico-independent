@@ -56,8 +56,6 @@ export function citationPropositionVerified(ref: Row, proposition: string, pages
   const proof = ref.proposition_verification as PropositionReview | undefined;
   if (!proof?.claim || proof.review?.version !== 1 || proof.review.verdict !== 'supported') return false;
   const claim = proof.claim, review = proof.review;
-  const debugInput = supportInput(claim, pages);
-  console.warn("[citation-proof-debug]", JSON.stringify({ finding_id: claim.id, document_id: claim.source_document_id, page: claim.source_page, stored_hash: review.hash, calculated_hash: debugInput.hash, hash_match: debugInput.hash === review.hash, supporting_quote_in_context: typeof review.supporting_quote === "string" && debugInput.context.includes(review.supporting_quote.normalize("NFC").replace(/\s+/g, " ").trim()), quote_match: citationText(claim.source_quote) === citationText(quote), proposition_match: citationText(claim.description) === citationText(proposition), trusted_review_count: trustedReviews.length }));
   if (!trustedReviews.some(trusted => trusted.claim.id === claim.id &&
       supportInput(trusted.claim, pages).hash === review.hash && trusted.review.hash === review.hash &&
       trusted.review.verdict === review.verdict && trusted.review.supporting_quote === review.supporting_quote)) return false;

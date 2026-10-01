@@ -6056,7 +6056,35 @@ export async function runReport(args: {
         throw new Error("REPORT_PACKAGE_UNAVAILABLE");
       }
 
-      // Keep all existing verification and release protections.
+      // Generation success and release approval are separate states.
+      // A successfully persisted draft may legitimately remain blocked by
+      // QA/Judge/citation governance. That must not make Report Generator
+      // itself fail. Only released reports enter the verified publication
+      // package path below.
+      const released =
+        (report.full_report as any)?.final_review?.released === true &&
+        report.quality_blocked === false;
+
+      if (!released) {
+        return {
+          value: undefined,
+          stats: {
+            generated: 0,
+            accepted: 0,
+            meta: {
+              source: "blocked_draft",
+              released: false,
+              provider_calls: 0,
+              new_findings: 0,
+              new_propositions: 0,
+              new_citations: 0,
+            },
+          },
+        };
+      }
+
+      // Released reports retain every existing deterministic verification
+      // and approval requirement.
       const {
         verifiedReportPackage,
         generateVerifiedReport,
