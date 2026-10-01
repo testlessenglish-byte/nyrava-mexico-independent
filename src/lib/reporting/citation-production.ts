@@ -270,7 +270,7 @@ export function writerCitationCatalog(
       (!scope.executionId || candidate.claim.execution_id === scope.executionId));
     const proposition = proof?.claim.description;
     const citation = proof && proposition
-      ? createCanonicalCitation({ ...ref, document_id: document, page, quote }, proposition, pages, index, proof)
+      ? createCanonicalCitation({ ...ref, document_id: document, page, quote }, proposition, pages, index, proof, { allowTrustedRecertification: true })
       : createCanonicalCitation(ref, String(ref.quote ?? ref.excerpt ?? ref.source_quote ?? ''), pages, index);
     if (citation && scope.executionId && citation.execution_id != null && citation.execution_id !== scope.executionId) return [];
     if (citation && scope.caseId && citation.case_id != null && citation.case_id !== scope.caseId) return [];
