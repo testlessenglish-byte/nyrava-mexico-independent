@@ -384,9 +384,13 @@ export function alignDecisionCoreFindings<T extends Record<string, any>>(finding
     if(!item) return ['DISPOSITION','REMEDY'].includes(f.metadata?.mandatory_decision_kind) ? [] : [f];
     // An already reviewed atom is immutable. Refreshing labels, legal
     // significance or its primary source invalidates the semantic-review hash.
-    if (decisionCoreAtoms(item.text).some(atom => normalized(atom) === normalized(String(f.description ?? '')))) return [f];
+    if (decisionCoreAtoms(item.text).some(atom => normalized(atom) === normalized(String(f.description ?? '')))) {
+      console.warn('[decision-core-align-debug]', JSON.stringify({ id:f.id, core_id:identity, action:'unchanged', has_review:Boolean(f.metadata?.semantic_support_review), description:f.description }));
+      return [f];
+    }
     const refreshed=mandatoryDecisionCoreToFindings({core:[item],caseId:f.case_id,userId:f.user_id,
       executionId:f.execution_id ?? f.metadata?.execution_id ?? null,locale})[0];
+    console.warn('[decision-core-align-debug]', JSON.stringify({ id:f.id, core_id:identity, action:'refreshed', had_review:Boolean(f.metadata?.semantic_support_review), old_description:f.description, new_description:refreshed.description }));
     return [{...f,...refreshed,metadata:{...f.metadata,...refreshed.metadata}} as T];
   });
 }
