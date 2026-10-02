@@ -57,8 +57,12 @@ export const listClients = createServerFn({ method: "GET" })
       .order("display_name", { ascending: true })
       .order("id", { ascending: true });
 
-    if (data?.status && data.status !== "all") {
-      query = query.eq("status", data.status);
+    // Active clients are the default operational dataset.
+    // Archived/inactive clients are returned only when a caller explicitly
+    // requests that lifecycle state (or explicitly requests "all").
+    const requestedStatus = data?.status ?? "active";
+    if (requestedStatus !== "all") {
+      query = query.eq("status", requestedStatus);
     }
     if (data?.search) {
       const q = data.search
@@ -315,67 +319,117 @@ export const archiveClient = createServerFn({ method: "POST" })
 export const deleteClientFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ clientId: z.string().uuid() }).parse(d))
-  .handler(async (ctx) => {
-    const { data, context } = ctx;
-    const supabase = context.supabase;
+  .handler(async ({ data, context }) => {
+    const ctx = context as { supabase: Db; userId: string };
+    const userId = await getAuthedUserId(ctx);
 
-    // Check if user has access to client
-    const { data: client, error: clientErr } = await clientsTable(supabase)
-      .select("id, user_id, created_by")
+    // Permanent client destruction is OWNER/CREATOR ONLY.
+    // Assignment and platform-admin status do not authorize destruction.
+    const { data: client, error: clientErr } = await clientsTable(ctx.supabase)
+      .select("id,user_id,created_by,display_name")
       .eq("id", data.clientId)
       .maybeSingle();
 
-    if (clientErr || !client) {
+    if (clientErr) throw new Error(clientErr.message);
+    if (!client) {
       throw new Error("Cliente no encontrado o no tiene permisos para eliminarlo.");
     }
-    // The cleanup below uses a service-role client. Verify ownership before
-    // making any privileged changes, even when SELECT policy grants access to
-    // a case worker or an assignee.
-    if (client.user_id !== context.userId && client.created_by !== context.userId) {
+    if (client.user_id !== userId && client.created_by !== userId) {
       throw new Error("Solo el propietario o creador puede eliminar este cliente.");
     }
 
-    // Check active cases
-    const CLOSED_STATUSES = ["complete", "released", "cancelled", "failed"];
     const admin = getAdminClient();
 
-    const { data: allCases, error: casesError } = await (admin as any)
+    // Scope privileged cleanup only AFTER owner verification.
+    const { data: caseRows, error: casesError } = await (admin as any)
       .from("cases")
-      .select("id, status")
-      .eq("client_id", data.clientId);
-    if (casesError) throw new Error("No se pudieron comprobar los casos del cliente.");
+      .select("id")
+      .eq("client_id", data.clientId)
+      .eq("user_id", userId);
 
-    const activeCases = (allCases ?? []).filter(
-      (c: { status?: string }) => !CLOSED_STATUSES.includes(c.status ?? ""),
-    );
-
-    if (activeCases.length > 0) {
-      throw new Error("No se puede eliminar el cliente porque tiene casos activos. Por favor, reasigne o elimine los casos activos primero.");
+    if (casesError) {
+      throw new Error("No se pudieron obtener los expedientes del cliente.");
     }
 
-    // Unlink non-active cases using admin client to bypass cases RLS during foreign key cleanup
-    const { error: unlinkError } = await (admin as any)
-      .from("cases")
-      .update({ client_id: null })
-      .eq("client_id", data.clientId);
-    if (unlinkError) throw new Error("No se pudieron desvincular los casos del cliente.");
+    const caseIds = (caseRows ?? []).map((row: { id: string }) => row.id);
 
-    // Remove client assignments
-    const { error: assignmentsError } = await (admin as any)
-      .from("client_assignments")
-      .delete()
-      .eq("client_id", data.clientId);
-    if (assignmentsError) throw new Error("No se pudieron eliminar las asignaciones del cliente.");
+    // Capture storage paths before deleting the case rows.
+    let storagePaths: string[] = [];
+    if (caseIds.length > 0) {
+      const { data: docs, error: docsError } = await (admin as any)
+        .from("documents")
+        .select("storage_path")
+        .in("case_id", caseIds);
 
-    // The user-scoped delete must be authorized by RLS. Never retry an
-    // authorization failure with the service-role client.
-    const { data: deleted, error } = await clientsTable(supabase)
+      if (docsError) {
+        throw new Error("No se pudieron obtener los archivos de los expedientes.");
+      }
+
+      storagePaths = (docs ?? [])
+        .map((row: { storage_path?: unknown }) => row.storage_path)
+        .filter((path: unknown): path is string => typeof path === "string" && path.length > 0);
+
+      // Delete only owner-scoped cases for this already owner-verified client.
+      // FK cascades remove case-scoped work product.
+      const { error: caseDeleteError } = await (admin as any)
+        .from("cases")
+        .delete()
+        .in("id", caseIds)
+        .eq("user_id", userId);
+
+      if (caseDeleteError) {
+        throw new Error(`No se pudieron eliminar los expedientes del cliente: ${caseDeleteError.message}`);
+      }
+    }
+
+    // Client assignments use ON DELETE CASCADE.
+    // Use the authenticated client so the final destructive action remains
+    // subject to the owner/creator RLS policy.
+    const { data: deleted, error: deleteError } = await clientsTable(ctx.supabase)
       .delete()
       .eq("id", data.clientId)
       .select("id");
-    if (error || !deleted?.length) throw new Error("No se pudo eliminar el cliente: acceso denegado o error de base de datos.");
 
-    return { success: true };
+    if (deleteError || !deleted?.length) {
+      throw new Error(
+        deleteError?.message
+          ? `No se pudo eliminar el cliente: ${deleteError.message}`
+          : "No se pudo eliminar el cliente: acceso denegado.",
+      );
+    }
+
+    // Storage cleanup is best-effort after authoritative DB deletion.
+    if (storagePaths.length > 0) {
+      for (let i = 0; i < storagePaths.length; i += 100) {
+        try {
+          await admin.storage.from("case-files").remove(storagePaths.slice(i, i + 100));
+        } catch {
+          // Database deletion has already succeeded.
+        }
+      }
+    }
+
+    try {
+      await activityTable(admin).insert({
+        actor_id: userId,
+        action: "client_deleted",
+        resource_type: "client",
+        resource_id: data.clientId,
+        metadata: {
+          display_name: client.display_name,
+          deleted_cases: caseIds.length,
+          removed_files: storagePaths.length,
+        },
+      });
+    } catch {
+      // Audit activity is non-critical to completed deletion.
+    }
+
+    return {
+      success: true,
+      deletedCases: caseIds.length,
+      removedFiles: storagePaths.length,
+    };
   });
 
 // ---------------------------------------------------------------------------

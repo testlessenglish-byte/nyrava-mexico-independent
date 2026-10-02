@@ -3325,71 +3325,60 @@ export const deleteCase = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ caseId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = await getAuthedContext(context, "Delete");
-    const { data: adminRole } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId)
-      .eq("role", "admin")
-      .maybeSingle();
-    const isAdmin = Boolean(adminRole);
 
-    // 1. Collect storage paths for all documents under this case
-    const { data: docs } = await supabase
+    // Permanent destruction is OWNER-ONLY.
+    // Platform admin status and case assignment are not deletion authority.
+    const { data: ownedCase, error: ownerError } = await supabase
+      .from("cases")
+      .select("id,name,user_id")
+      .eq("id", data.caseId)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (ownerError) throw new Error(ownerError.message);
+    if (!ownedCase) {
+      throw new Error("Case not found or you are not the owner.");
+    }
+
+    // Collect storage paths while the user's case access is still intact.
+    const { data: docs, error: docsError } = await supabase
       .from("documents")
       .select("storage_path")
       .eq("case_id", data.caseId);
+
+    if (docsError) throw new Error(docsError.message);
+
     const paths = (docs ?? [])
       .map((d) => d.storage_path)
       .filter((p): p is string => typeof p === "string" && p.length > 0);
 
-    // 2. Remove storage objects (best-effort, batched at 100)
+    // Remove storage objects best-effort. Database authorization/deletion
+    // remains fail-closed even if object storage cleanup has a transient error.
     if (paths.length > 0) {
       for (let i = 0; i < paths.length; i += 100) {
-        const slice = paths.slice(i, i + 100);
         try {
-          await supabase.storage.from("case-files").remove(slice);
+          await supabase.storage.from("case-files").remove(paths.slice(i, i + 100));
         } catch {
-          // best-effort — continue with DB delete even if storage fails
+          // Continue to authoritative DB deletion.
         }
       }
     }
 
-    // 3. Hard delete the case row and all its case-scoped dependencies explicitly
-    // to guarantee no orphans (even if some tables lack ON DELETE CASCADE).
-    const caseScopedTables = [
-      "documents",
-      "document_pages",
-      "case_findings",
-      "analyses",
-      "agent_findings",
-      "reports",
-      "case_theories",
-      "case_perspectives",
-      "case_opportunities",
-      "case_witnesses",
-      "case_timeline_events",
-      "case_trial_prep",
-      "case_chat_messages",
-      "pipeline_engine_runs",
-      "pipeline_trace",
-      "pipeline_events",
-      "case_scores",
-      "case_strategy",
-      "evidence_classifications",
-      "case_work_product",
-    ];
+    // The database FK graph is the authoritative cleanup mechanism.
+    // Case-scoped findings, reports, documents, agents, work product,
+    // pipeline history, motions, etc. use ON DELETE CASCADE.
+    // RLS + user_id condition make permanent deletion owner-only.
+    const { data: deleted, error } = await supabase
+      .from("cases")
+      .delete()
+      .eq("id", data.caseId)
+      .eq("user_id", userId)
+      .select("id,name")
+      .maybeSingle();
 
-    await Promise.all(
-      caseScopedTables.map((table) =>
-        supabase.from(table).delete().eq("case_id", data.caseId)
-      )
-    );
-
-    let deleteQuery = supabase.from("cases").delete().eq("id", data.caseId);
-    if (!isAdmin) deleteQuery = deleteQuery.eq("user_id", userId);
-    const { data: deleted, error } = await deleteQuery.select("id,name").maybeSingle();
     if (error) throw new Error(error.message);
-    if (!deleted) throw new Error("Case not found or already deleted");
+    if (!deleted) throw new Error("Case not found or already deleted.");
+
     const { logAudit } = await import("./audit.server");
     await logAudit({
       actorId: userId,
@@ -3398,9 +3387,10 @@ export const deleteCase = createServerFn({ method: "POST" })
       meta: {
         name: (deleted as { name?: string }).name ?? null,
         removed_files: paths.length,
-        admin_override: isAdmin,
+        owner_delete: true,
       },
     });
+
     return { ok: true, removed_files: paths.length };
   });
 

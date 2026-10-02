@@ -53,7 +53,10 @@ function NewCasePage() {
   const fetchClients = useServerFn(() =>
     import("@/lib/clients.functions").then((m) => m.listClients()),
   );
-  const { data: clientsList } = useQuery({ queryKey: ["clients"], queryFn: () => fetchClients() });
+  const { data: clientsList } = useQuery({
+    queryKey: ["clients", { status: "active", page: 1 }],
+    queryFn: () => fetchClients({ data: { status: "active", page: 1 } }),
+  });
 
   const fetchLegalAnalysisTypes = useServerFn(listLegalAnalysisTypes);
   const { data: legalAnalysisTypes } = useQuery({
