@@ -19,7 +19,7 @@
 // on every finding except ways_out_analysis (whose own hand-written schema
 // happened to already ask for it). Same fix, same shared-fragment pattern,
 // spliced immediately after the judicial-hierarchy fragment.
-import { describe, it, expect } from "vitest";
+import { beforeAll, describe, it, expect } from "vitest";
 import {
   judicialHierarchyInstructions,
   judicialHierarchySchemaFragment,
@@ -49,12 +49,21 @@ const UNWIRED_AGENT_TYPES = [
   "ways_out_analysis",
 ];
 
+// pipeline.server.ts is intentionally large. Import it once for this suite
+// instead of making each test independently pay the module initialization
+// cost and race Vitest's per-test timeout.
+let AGENTS: any[] = [];
+
+beforeAll(async () => {
+  const mod = await import("@/lib/pipeline.server");
+  AGENTS = mod.__test__AGENTS;
+}, 60000);
+
 describe("AGENTS array: judicial-hierarchy taxonomy wiring", () => {
   it("every targeted amparo/constitucional agent's prompt carries the shared schema fragment and instructions", async () => {
-    const { __test__AGENTS } = await import("@/lib/pipeline.server");
     const fragment = judicialHierarchySchemaFragment();
     const instructions = judicialHierarchyInstructions();
-    const byType = new Map(__test__AGENTS.map((a) => [a.type, a]));
+    const byType = new Map(AGENTS.map((a) => [a.type, a]));
 
     for (const type of WIRED_AGENT_TYPES) {
       const agent = byType.get(type);
@@ -65,9 +74,8 @@ describe("AGENTS array: judicial-hierarchy taxonomy wiring", () => {
   });
 
   it("agents outside Phase 1 item #1's scope were not touched", async () => {
-    const { __test__AGENTS } = await import("@/lib/pipeline.server");
     const fragment = judicialHierarchySchemaFragment();
-    const byType = new Map(__test__AGENTS.map((a) => [a.type, a]));
+    const byType = new Map(AGENTS.map((a) => [a.type, a]));
 
     for (const type of UNWIRED_AGENT_TYPES) {
       const agent = byType.get(type);
@@ -79,10 +87,9 @@ describe("AGENTS array: judicial-hierarchy taxonomy wiring", () => {
   });
 
   it("every wired agent's schema carries speaker_role/... immediately followed by audit_classification, then evidence_refs", async () => {
-    const { __test__AGENTS } = await import("@/lib/pipeline.server");
     const fragment = judicialHierarchySchemaFragment();
     const auditFragment = auditClassificationSchemaFragment();
-    const byType = new Map(__test__AGENTS.map((a) => [a.type, a]));
+    const byType = new Map(AGENTS.map((a) => [a.type, a]));
 
     for (const type of WIRED_AGENT_TYPES) {
       const prompt = byType.get(type)!.prompt;
@@ -91,9 +98,8 @@ describe("AGENTS array: judicial-hierarchy taxonomy wiring", () => {
   });
 
   it("every targeted agent's prompt also carries the shared audit_classification fragment", async () => {
-    const { __test__AGENTS } = await import("@/lib/pipeline.server");
     const auditFragment = auditClassificationSchemaFragment();
-    const byType = new Map(__test__AGENTS.map((a) => [a.type, a]));
+    const byType = new Map(AGENTS.map((a) => [a.type, a]));
 
     for (const type of WIRED_AGENT_TYPES) {
       const agent = byType.get(type);
@@ -105,9 +111,8 @@ describe("AGENTS array: judicial-hierarchy taxonomy wiring", () => {
   });
 
   it("agents outside Phase 1 item #1's scope do not carry the SHARED audit_classification fragment (ways_out_analysis keeps its own independently-defined field)", async () => {
-    const { __test__AGENTS } = await import("@/lib/pipeline.server");
     const auditFragment = auditClassificationSchemaFragment();
-    const byType = new Map(__test__AGENTS.map((a) => [a.type, a]));
+    const byType = new Map(AGENTS.map((a) => [a.type, a]));
 
     for (const type of UNWIRED_AGENT_TYPES) {
       const agent = byType.get(type);

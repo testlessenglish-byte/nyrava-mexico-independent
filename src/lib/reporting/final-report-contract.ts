@@ -280,9 +280,17 @@ export function composeFinalReportPayload(input: CaseExportData, sourceReviewFin
         ? 'VERIFIED_HOLDING'
         : checked.content_class;
 
-    const audit_classification = isParty
-      ? 'PARTY_ALLEGATION'
-      : checked.audit_classification;
+    // audit_classification is exclusively the canonical seven-state
+    // evidentiary/legal taxonomy. PARTY_ALLEGATION is presentation/claim
+    // identity and is already represented by content_class,
+    // proposition_type, adoption_status, speaker attribution and metadata.
+    //
+    // A party argument must never retain VERIFIED_COURT_HOLDING after
+    // deterministic attribution correction.
+    const audit_classification =
+      isParty && checked.audit_classification === 'VERIFIED_COURT_HOLDING'
+        ? null
+        : checked.audit_classification;
 
     const proposition_type = isParty
       ? 'party_argument'

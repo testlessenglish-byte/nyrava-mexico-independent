@@ -1019,7 +1019,10 @@ export function sweepReportForPdfPublication<T extends { findings?: any[]; repor
         finding_status: "verified",
         verification_status: "verified",
         lifecycle_status: null,
-        audit_classification: isParty ? "PARTY_ALLEGATION" : f.audit_classification,
+        audit_classification:
+          isParty && f.audit_classification === "VERIFIED_COURT_HOLDING"
+            ? null
+            : f.audit_classification,
         content_class: isParty ? "PARTY_ARGUMENT" : f.content_class,
         proposition_type: isParty ? "party_argument" : f.proposition_type,
         adoption_status: isParty ? "party_position" : f.adoption_status,
@@ -1361,7 +1364,6 @@ export async function reconcileCitationsAndDependentClaims(
         f.finding_status = "suppressed";
         f.lifecycle_status = "quarantined";
         f.verification_status = "unverified";
-        f.audit_classification = "QUARANTINED";
         f.metadata = {
           ...(f.metadata || {}),
           quarantined: true,
@@ -1381,7 +1383,6 @@ export async function reconcileCitationsAndDependentClaims(
                 finding_status: "suppressed",
                 lifecycle_status: "quarantined",
                 verification_status: "unverified",
-                audit_classification: "QUARANTINED",
                 metadata: f.metadata,
               })
               .eq("id", f.id);

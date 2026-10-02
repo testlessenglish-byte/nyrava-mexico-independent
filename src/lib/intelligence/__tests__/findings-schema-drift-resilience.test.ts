@@ -195,7 +195,7 @@ describe("addFindings: schema-drift resilience on the judicial-hierarchy columns
     expect(calls.insert[1][0]).toHaveProperty("proposition_type", "court_holding");
   });
 
-  it("falls back to stripping the full known-optional bundle when the single-column retry also fails", async () => {
+  it("fails closed when a targeted missing-column retry reveals another missing column", async () => {
     const { addFindings } = await import("@/lib/intelligence/findings.server");
     const calls = { insert: [] as Array<Record<string, unknown>[]> };
     const db = makeFakeDb(calls, [
@@ -209,27 +209,68 @@ describe("addFindings: schema-drift resilience on the judicial-hierarchy columns
       },
     ]);
 
-    const result = await addFindings(db as never, [sampleRow]);
+    await expect(addFindings(db as never, [sampleRow])).rejects.toThrow(
+      /missing-column compatibility retry \(speaker_role\)/,
+    );
 
-    expect(calls.insert).toHaveLength(3);
-    expect(calls.insert[2][0]).not.toHaveProperty("speaker_role");
-    expect(calls.insert[2][0]).not.toHaveProperty("proposition_type");
-    expect(calls.insert[2][0]).not.toHaveProperty("adoption_status");
-    expect(calls.insert[2][0]).not.toHaveProperty("audit_classification");
-    expect(calls.insert[2][0]).not.toHaveProperty("evidence_relationship");
-    expect(result).toHaveLength(1);
+    // Original insert + one narrowly targeted retry only.
+    // Never strip the complete legal-provenance bundle.
+    expect(calls.insert).toHaveLength(2);
+    expect(calls.insert[1][0]).not.toHaveProperty("speaker_role");
+    expect(calls.insert[1][0]).toHaveProperty("proposition_type");
+    expect(calls.insert[1][0]).toHaveProperty("adoption_status");
+    expect(calls.insert[1][0]).toHaveProperty("audit_classification");
   });
 
-  it("falls back to stripping the full bundle immediately when the error doesn't name a recognizable column", async () => {
+  it("fails closed immediately for an unrelated persistence error", async () => {
     const { addFindings } = await import("@/lib/intelligence/findings.server");
     const calls = { insert: [] as Array<Record<string, unknown>[]> };
     const db = makeFakeDb(calls, [{ message: "connection reset", code: "08006" }]);
 
-    const result = await addFindings(db as never, [sampleRow]);
+    await expect(addFindings(db as never, [sampleRow])).rejects.toThrow(
+      /case_findings persistence integrity failure: connection reset/,
+    );
 
-    expect(calls.insert).toHaveLength(2);
-    expect(calls.insert[1][0]).not.toHaveProperty("speaker_role");
-    expect(calls.insert[1][0]).not.toHaveProperty("audit_classification");
-    expect(result).toHaveLength(1);
+    // No compatibility retry for a network/integrity failure.
+    expect(calls.insert).toHaveLength(1);
+    expect(calls.insert[0][0]).toHaveProperty("speaker_role");
+  });
+
+  it("fails closed on the production authority_level NOT NULL violation without stripping provenance", async () => {
+    const { addFindings } = await import("@/lib/intelligence/findings.server");
+    const calls = { insert: [] as Array<Record<string, unknown>[]> };
+    const db = makeFakeDb(calls, [
+      {
+        message:
+          'null value in column "authority_level" of relation "case_findings" violates not-null constraint',
+        code: "23502",
+      },
+    ]);
+
+    const row = {
+      ...sampleRow,
+      execution_id: "exec-live-regression",
+      authority_level: null,
+      speaker_role: "scjn",
+      proposition_type: "court_holding",
+      adoption_status: "adopted",
+      audit_classification: "VERIFIED_COURT_HOLDING",
+    };
+
+    await expect(addFindings(db as never, [row] as any)).rejects.toThrow(
+      /case_findings persistence integrity failure/,
+    );
+
+    // Exact live-case invariant: an integrity failure may NEVER be converted
+    // into a degraded insert with execution/attribution fields removed.
+    expect(calls.insert).toHaveLength(1);
+    expect(calls.insert[0][0]).toMatchObject({
+      execution_id: "exec-live-regression",
+      authority_level: null,
+      speaker_role: "scjn",
+      proposition_type: "court_holding",
+      adoption_status: "adopted",
+      audit_classification: "VERIFIED_COURT_HOLDING",
+    });
   });
 });

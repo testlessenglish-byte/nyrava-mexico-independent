@@ -35,7 +35,7 @@ export function prepareCivilReport(data: CivilRow): void {
       description: unresolved ? 'Atribución pendiente de verificar en la fuente; no se presenta como hecho establecido.' : canonical.safe_proposition,
       legal_significance: `Alcance limitado a la atribución verificada: ${label}.`, potential_impact: 'El efecto jurídico requiere verificación independiente de autoridad y contexto aplicables.',
       canonical_actions: [],
-      ...(party ? { audit_classification: 'PARTY_ALLEGATION', proposition_type: 'party_argument', content_class: 'PARTY_ARGUMENT', adoption_status: 'party_position' } : {}),
+      ...(party ? { proposition_type: 'party_argument', content_class: 'PARTY_ARGUMENT', adoption_status: 'party_position' } : {}),
     };
     return result;
   });

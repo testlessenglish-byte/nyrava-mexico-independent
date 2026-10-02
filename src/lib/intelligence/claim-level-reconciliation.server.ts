@@ -164,7 +164,6 @@ export async function reconcileCaseFindingsClaims(
         patchObj.speaker_role_label = badge;
         patchObj.finding_type = "DIRECT_EVIDENCE";
         patchObj.proposition_type = "allegation";
-        patchObj.audit_classification = "PARTY_ALLEGATION";
         (patchObj.metadata as any).claim_classification = "PARTY_ALLEGATION";
         (patchObj.metadata as any).presentation_category = "PARTY_ALLEGATION";
         (patchObj.metadata as any).speaker_role_badge = badge;
@@ -184,7 +183,10 @@ export async function reconcileCaseFindingsClaims(
         speaker_role_label: isPartyAllegation ? badge : f.speaker_role_label,
         finding_type: isPartyAllegation ? "DIRECT_EVIDENCE" : f.finding_type,
         proposition_type: isPartyAllegation ? "allegation" : f.proposition_type,
-        audit_classification: isPartyAllegation ? "PARTY_ALLEGATION" : f.audit_classification,
+        audit_classification:
+          isPartyAllegation && f.audit_classification === "VERIFIED_COURT_HOLDING"
+            ? null
+            : f.audit_classification,
         metadata: {
           ...(f.metadata || {}),
           original_unrepaired_title: f.title,
@@ -206,7 +208,10 @@ export async function reconcileCaseFindingsClaims(
           speaker_role: roleLabel,
           speaker_role_label: badge,
           adoption_status: "party_position",
-          audit_classification: "PARTY_ALLEGATION",
+          audit_classification:
+            f.audit_classification === "VERIFIED_COURT_HOLDING"
+              ? null
+              : f.audit_classification,
           finding_status: "verified",
           verification_status: "verified",
           verification_notes: diag.entailment_reason,
@@ -227,7 +232,10 @@ export async function reconcileCaseFindingsClaims(
         speaker_role: roleLabel,
         speaker_role_label: badge,
         adoption_status: "party_position",
-        audit_classification: "PARTY_ALLEGATION",
+        audit_classification:
+          f.audit_classification === "VERIFIED_COURT_HOLDING"
+            ? null
+            : f.audit_classification,
         finding_status: "verified",
         verification_status: "verified",
         verification_notes: diag.entailment_reason,
@@ -381,12 +389,39 @@ export async function reconcileCaseFindingsClaims(
     }
   }
 
-  // Persist all finding updates to Supabase
+  // Persist all finding updates to Supabase.
+  //
+  // DB CONTRACT: audit_classification is ONLY the canonical seven-state
+  // evidentiary/legal taxonomy. Claim identity (PARTY_ALLEGATION) belongs
+  // in proposition/adoption/metadata fields; publication lifecycle
+  // (QUARANTINED) belongs in finding/lifecycle/verification status.
+  // Never send presentation/lifecycle labels into the DB audit column.
+  const canonicalAuditClassifications = new Set([
+    "VERIFIED_FACT",
+    "VERIFIED_COURT_HOLDING",
+    "VERIFIED_LEGAL_RULE",
+    "SUPPORTED_INFERENCE",
+    "POTENTIAL_ISSUE",
+    "EVIDENCE_GAP",
+    "NOT_FOUND",
+  ]);
+
   for (const { id, patch } of updates) {
     // Display labels are derived fields, not case_findings columns.
     // The badge remains available in metadata.speaker_role_badge.
     const databasePatch: Record<string, any> = { ...patch };
     delete databasePatch.speaker_role_label;
+
+    if (
+      databasePatch.audit_classification !== undefined &&
+      databasePatch.audit_classification !== null &&
+      !canonicalAuditClassifications.has(String(databasePatch.audit_classification))
+    ) {
+      // Preserve the existing DB classification rather than replacing it
+      // with a presentation/lifecycle label. Omitting the column from UPDATE
+      // leaves the authoritative stored value unchanged.
+      delete databasePatch.audit_classification;
+    }
     const patchWithExec = executionId
       ? { ...databasePatch, execution_id: executionId }
       : databasePatch;

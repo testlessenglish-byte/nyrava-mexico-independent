@@ -186,7 +186,12 @@ describe("Priority #3 Regression Tests — Final Published Claim Canonical Invar
     const f = swept.findings[0];
     expect(f.speaker_role).toBe("quejoso");
     expect(f.speaker_role_label).toBe("ARGUMENTO DEL QUEJOSO");
-    expect(f.audit_classification).toBe("PARTY_ALLEGATION");
+    // PARTY_ALLEGATION is claim/presentation identity, not a member of
+    // the persisted seven-state audit taxonomy. A former court-holding
+    // classification must be cleared rather than relabeled with an invalid
+    // audit value.
+    expect(f.audit_classification).toBeNull();
+    expect(f.audit_classification).not.toBe("VERIFIED_COURT_HOLDING");
     expect(f.content_class).toBe("PARTY_ARGUMENT");
     expect(f.proposition_type).toBe("party_argument");
     expect(f.adoption_status).toBe("party_position");
@@ -197,7 +202,8 @@ describe("Priority #3 Regression Tests — Final Published Claim Canonical Invar
     expect(composedFinding.speaker_role).toBe("quejoso");
     expect(composedFinding.speaker_role_label).toBe("ARGUMENTO DEL QUEJOSO");
     expect(composedFinding.content_class).toBe("PARTY_ARGUMENT");
-    expect(composedFinding.audit_classification).toBe("PARTY_ALLEGATION");
+    expect(composedFinding.audit_classification).toBeNull();
+    expect(composedFinding.audit_classification).not.toBe("VERIFIED_COURT_HOLDING");
 
     const card = composed.report_presentation.finding_cards[0];
     expect(card.finding.speaker_role).toBe("quejoso");
