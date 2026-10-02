@@ -3495,6 +3495,7 @@ export const draftMotion = createServerFn({ method: "POST" })
         caseId: z.string().uuid(),
         motionTitle: z.string().min(1).max(300),
         opportunityDescription: z.string().max(4000).nullish(),
+        templateId: z.string().trim().min(1).max(120).nullish(),
         caseLawCitations: z
           .array(
             z.object({
@@ -3531,6 +3532,64 @@ export const draftMotion = createServerFn({ method: "POST" })
       };
     }
 
+    let templateContext: string | null = null;
+
+    if (data.templateId) {
+      const { MEXICO_MOTION_TEMPLATES } = await import("@/lib/motion-template-library");
+      const template = MEXICO_MOTION_TEMPLATES.find((item) => item.id === data.templateId);
+
+      if (!template) {
+        throw new Error("[DraftMotion] Unknown Mexico legal filing template");
+      }
+
+      const { data: caseRow, error: caseError } = await supabase
+        .from("cases")
+        .select("case_type,jurisdiction,procedural_vehicle,underlying_materia,matter_metadata,report_language")
+        .eq("id", data.caseId)
+        .maybeSingle();
+
+      if (caseError) throw new Error(`[DraftMotion] ${caseError.message}`);
+      if (!caseRow) throw new Error("[DraftMotion] Case not found");
+
+      const materia = String(
+        caseRow.case_type ??
+        caseRow.underlying_materia ??
+        "",
+      ).toLowerCase();
+
+      const eligibleMateria = template.materia.some((item) =>
+        materia.includes(item.toLowerCase()),
+      );
+
+      if (!eligibleMateria) {
+        throw new Error(
+          "[DraftMotion] This filing template is not enabled for the selected materia.",
+        );
+      }
+
+      templateContext = [
+        "MEXICO LEGAL FILING TEMPLATE CONTRACT:",
+        `Template ID: ${template.id}`,
+        `Spanish title: ${template.titleEs}`,
+        `English title: ${template.titleEn}`,
+        `Category: ${template.category}`,
+        `Jurisdiction class: ${template.jurisdiction}`,
+        `Eligible stages: ${template.stages.join(", ")}`,
+        `Authority families requiring verification: ${template.authorityFamily.join("; ")}`,
+        "",
+        "MANDATORY TEMPLATE RULES:",
+        "- Produce an editable Mexican legal filing, not a generic explanatory memorandum.",
+        "- Use only facts supported by the selected case record.",
+        "- Do not invent party names, courts, authorities, expediente numbers, dates, deadlines, procedural posture, evidence, statutes, jurisprudence, tesis, registros digitales, quotations, or requested relief.",
+        "- Any required fact that is unavailable must remain visibly marked REQUIERE INFORMACIÓN.",
+        "- Any legal authority must pass the existing Nyrava authority/citation verification path before being represented as verified.",
+        "- Do not claim the filing is court-ready. It remains an attorney-editable draft requiring professional review.",
+        `Case jurisdiction: ${caseRow.jurisdiction ?? "REQUIERE INFORMACIÓN"}`,
+        `Procedural vehicle: ${caseRow.procedural_vehicle ?? "REQUIERE INFORMACIÓN"}`,
+        `Report language: ${caseRow.report_language ?? "es"}`,
+      ].join("\n");
+    }
+
     const { draftSingleMotion } = await import("@/lib/intelligence/motion-draft.server");
     try {
       const draft = await draftSingleMotion({
@@ -3540,9 +3599,15 @@ export const draftMotion = createServerFn({ method: "POST" })
         apiKey: activeKey,
         apiKeys: keys,
         motionTitle: data.motionTitle,
-        opportunityContext: data.opportunityDescription
-          ? { description: data.opportunityDescription }
-          : null,
+        opportunityContext:
+          data.opportunityDescription || templateContext
+            ? {
+                description: [
+                  data.opportunityDescription,
+                  templateContext,
+                ].filter(Boolean).join("\n\n"),
+              }
+            : null,
         caseLawCitations: data.caseLawCitations ?? null,
       });
       return { ok: true, draft };
