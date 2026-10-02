@@ -54,6 +54,7 @@ function UsageMeter({
   limit,
   remaining,
   unlimitedLabel,
+  periodLabel,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -61,6 +62,7 @@ function UsageMeter({
   limit: number | null;
   remaining: number | null;
   unlimitedLabel: string;
+  periodLabel: string;
 }) {
   const isUnlimited = limit == null;
   const percent = pct(used, limit);
@@ -77,7 +79,7 @@ function UsageMeter({
         <>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="text-2xl font-semibold text-foreground">{used}</span>
-            <span className="text-sm text-muted-foreground">/ {limit} this month</span>
+            <span className="text-sm text-muted-foreground">/ {limit} {periodLabel}</span>
           </div>
           <Progress value={percent} className={`mt-3 ${nearLimit ? "bg-destructive/20" : ""}`} />
           <div
@@ -148,6 +150,11 @@ function UsagePage() {
               {t("usage.currentPlan")}
             </div>
             <div className="text-lg font-semibold text-foreground">{data.planLabel}</div>
+            {data.subscriptionStatus === "trialing" && (
+              <span className="rounded-full border border-primary/40 bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
+                7-Day Trial
+              </span>
+            )}
             {data.source === "free" && (
               <span className="rounded-full border border-border/60 px-2.5 py-0.5 text-xs text-muted-foreground">
                 {t("usage.freeTrial")}
@@ -160,7 +167,13 @@ function UsagePage() {
             )}
             <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
               <CalendarClock className="h-3.5 w-3.5" />
-              {t("usage.nextReset")}: {new Date(data.nextResetDate).toLocaleDateString()}
+              {data.usagePeriod === "day" ? "Daily allowance resets" : t("usage.nextReset")}:{" "}
+              {data.usagePeriod === "day"
+                ? new Date(data.nextResetDate).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })
+                : new Date(data.nextResetDate).toLocaleDateString()}
             </div>
           </section>
 
@@ -172,6 +185,7 @@ function UsagePage() {
               limit={data.aiRequests.limit}
               remaining={data.aiRequests.remaining}
               unlimitedLabel={t("usage.unlimited")}
+              periodLabel={data.usagePeriod === "day" ? "today" : "this month"}
             />
             <UsageMeter
               icon={<MessageSquareText className="h-4 w-4 text-primary" />}
@@ -180,6 +194,7 @@ function UsagePage() {
               limit={data.talkToCase.limit}
               remaining={data.talkToCase.remaining}
               unlimitedLabel={t("usage.unlimited")}
+              periodLabel={data.usagePeriod === "day" ? "today" : "this month"}
             />
           </div>
 

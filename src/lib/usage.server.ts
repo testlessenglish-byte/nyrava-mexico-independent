@@ -313,6 +313,8 @@ export type UsageDashboardSnapshot = {
   storageGbLimit: number | null;
   teamMemberLimit: number | null;
   byokAllowed: boolean;
+  usagePeriod: "day" | "month";
+  subscriptionStatus: "active" | "trialing" | null;
   nextResetDate: string;
 };
 
@@ -329,11 +331,41 @@ export async function getUsageSnapshot(userId: string): Promise<UsageDashboardSn
     .eq("period_month", periodMonth)
     .maybeSingle();
 
-  const aiUsed = counters?.ai_requests_used ?? 0;
-  const talkUsed = counters?.talk_to_case_used ?? 0;
+  const isTrial = plan.source === "plan" && plan.subscriptionStatus === "trialing";
 
-  const aiLimit = plan.source === "unlimited" ? null : plan.limits.aiRequestsMonthly;
-  const talkLimit = plan.source === "unlimited" ? null : plan.limits.talkToCaseMonthly;
+  let aiUsed = counters?.ai_requests_used ?? 0;
+  let talkUsed = counters?.talk_to_case_used ?? 0;
+
+  let aiLimit = plan.source === "unlimited" ? null : plan.limits.aiRequestsMonthly;
+  let talkLimit = plan.source === "unlimited" ? null : plan.limits.talkToCaseMonthly;
+  let effectiveResetDate = nextResetDate;
+
+  if (isTrial) {
+    const today = new Date().toISOString().slice(0, 10);
+    const { data: daily } = await (admin as any)
+      .from("trial_daily_usage_counters")
+      .select("ai_requests_used,talk_to_case_used")
+      .eq("user_id", userId)
+      .eq("usage_date", today)
+      .maybeSingle();
+
+    aiUsed = daily?.ai_requests_used ?? 0;
+    talkUsed = daily?.talk_to_case_used ?? 0;
+    aiLimit = aiLimit == null ? null : Math.ceil(aiLimit / 30);
+    talkLimit = talkLimit == null ? null : Math.ceil(talkLimit / 30);
+
+    const now = new Date();
+    effectiveResetDate = new Date(
+      Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate() + 1,
+        0,
+        0,
+        0,
+      ),
+    ).toISOString();
+  }
 
   return {
     planKey: plan.planKey,
@@ -354,17 +386,22 @@ export async function getUsageSnapshot(userId: string): Promise<UsageDashboardSn
     storageGbLimit: plan.source === "unlimited" ? null : plan.limits.storageGbLimit,
     teamMemberLimit: plan.source === "unlimited" ? null : plan.limits.teamMemberLimit,
     byokAllowed: plan.limits.byokAllowed,
-    nextResetDate,
+    usagePeriod: isTrial ? "day" : "month",
+    subscriptionStatus: plan.subscriptionStatus,
+    nextResetDate: effectiveResetDate,
   };
 }
 
 /** Human-facing explanation for a blocked request, with the available next steps. */
 export function usageExceededMessage(feature: string, result: UsageCheckResult): string {
+  const isTrial = result.planLabel.endsWith(" trial");
   const scope = result.source === "free" ? "free trial" : `${result.planLabel} plan`;
+  const period = isTrial ? "daily" : "monthly";
+  const when = isTrial ? "today" : "this month";
   return (
-    `You've used your ${scope}'s monthly allowance for ${feature} ` +
-    `(${result.used}${result.limit != null ? `/${result.limit}` : ""} this month). ` +
-    `Upgrade your plan, buy additional usage, connect your own AI provider key (BYOK), ` +
+    `You've used your ${scope}'s ${period} allowance for ${feature} ` +
+    `(${result.used}${result.limit != null ? `/${result.limit}` : ""} ${when}). ` +
+    `Upgrade your plan, connect your own AI provider key (BYOK), ` +
     `or wait until your usage resets to continue.`
   );
 }

@@ -175,7 +175,8 @@ function BillingPage() {
   const statusLabel = (() => {
     if (!data) return "";
     if (data.isBetaTester) return t("billing.status.beta");
-    if (data.status === "active" || data.status === "trialing") return t("billing.status.active");
+    if (data.status === "trialing") return locale === "es" ? "Prueba de 7 días" : "7-Day Trial";
+    if (data.status === "active") return t("billing.status.active");
     if (data.status === "past_due") return t("billing.status.pastDue");
     if (data.status === "canceled") return t("billing.status.canceled");
     return t("billing.status.none");
