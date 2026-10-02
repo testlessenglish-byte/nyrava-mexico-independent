@@ -91,7 +91,7 @@ export async function getBillingAccess(userId: string, caseId?: string): Promise
   if ((data as { is_beta_tester?: boolean } | null)?.is_beta_tester) {
     return { allowed: true, plan, status, freeCaseUsed, reason: "beta_tester" };
   }
-  if (status === "active") {
+  if (status === "active" || status === "trialing") {
     return { allowed: true, plan, status, freeCaseUsed, reason: "subscribed" };
   }
   if (!freeCaseUsed) {
@@ -139,7 +139,7 @@ async function computeNeedsPlanSelection(
   const createdAt = userResp?.user?.created_at;
   if (!createdAt) return false;
   if (new Date(createdAt).getTime() < new Date(TRIAL_SIGNUP_CUTOFF_ISO).getTime()) return false;
-  return access.status !== "active";
+  return access.status !== "active" && access.status !== "trialing";
 }
 
 export const getMyBillingStatus = createServerFn({ method: "GET" })

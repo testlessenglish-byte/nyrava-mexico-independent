@@ -64,10 +64,12 @@ function limitsFromPlanRow(row: {
 }
 
 export type ResolvedPlan = {
-  /** null when the user has no active subscription (free tier). */
+  /** null when the user has no active/trialing subscription (free tier). */
   planKey: string | null;
   planLabel: string;
-  /** 'unlimited' = admin/beta bypass, 'plan' = paid subscription, 'free' = no subscription. */
+  /** Real subscription lifecycle state when source === "plan". */
+  subscriptionStatus: "active" | "trialing" | null;
+  /** 'unlimited' = admin/beta bypass, 'plan' = subscription, 'free' = no subscription. */
   source: "unlimited" | "plan" | "free";
   limits: PlanLimits;
 };
@@ -79,6 +81,7 @@ export async function resolveUserPlan(admin: Db, userId: string): Promise<Resolv
     return {
       planKey: null,
       planLabel: "Administrator",
+      subscriptionStatus: null,
       source: "unlimited",
       limits: {
         aiRequestsMonthly: null,
@@ -102,6 +105,7 @@ export async function resolveUserPlan(admin: Db, userId: string): Promise<Resolv
     return {
       planKey: (sub?.plan as string | null) ?? null,
       planLabel: "Beta tester",
+      subscriptionStatus: null,
       source: "unlimited",
       limits: {
         aiRequestsMonthly: null,
@@ -127,13 +131,20 @@ export async function resolveUserPlan(admin: Db, userId: string): Promise<Resolv
       return {
         planKey: sub.plan,
         planLabel: planRow.label ?? sub.plan,
+        subscriptionStatus: sub.status === "trialing" ? "trialing" : "active",
         source: "plan",
         limits: limitsFromPlanRow(planRow),
       };
     }
   }
 
-  return { planKey: null, planLabel: "Free", source: "free", limits: FREE_TIER_LIMITS };
+  return {
+    planKey: null,
+    planLabel: "Free",
+    subscriptionStatus: null,
+    source: "free",
+    limits: FREE_TIER_LIMITS,
+  };
 }
 
 export type UsageCheckResult = {
@@ -195,6 +206,39 @@ export async function checkAndConsumeUsage(args: {
 
   const limit =
     kind === "ai_request" ? plan.limits.aiRequestsMonthly : plan.limits.talkToCaseMonthly;
+
+  if (plan.source === "plan" && plan.subscriptionStatus === "trialing") {
+    // Trials receive only a proportional daily slice of the configured
+    // monthly allowance. The database RPC atomically checks BOTH ceilings,
+    // so a request rejected by either one consumes neither counter.
+    const dailyLimit = limit == null ? null : Math.ceil(limit / 30);
+    const { data, error } = await (admin as any).rpc("consume_trial_usage", {
+      p_user_id: userId,
+      p_kind: kind,
+      p_monthly_limit: limit,
+      p_daily_limit: dailyLimit,
+      p_amount: amount,
+    });
+    if (error) throw new Error(error.message);
+
+    const row = Array.isArray(data) ? data[0] : data;
+    const allowed = Boolean(row?.allowed);
+    const monthlyUsed = Number(row?.monthly_used ?? 0);
+    const dailyUsed = Number(row?.daily_used ?? 0);
+
+    if (allowed) {
+      void logUsageEvent(admin, { userId, kind, feature, caseId, source: "platform" });
+    }
+
+    return {
+      allowed,
+      used: dailyUsed,
+      limit: dailyLimit,
+      remaining: dailyLimit == null ? null : Math.max(0, dailyLimit - dailyUsed),
+      source: plan.source,
+      planLabel: `${plan.planLabel} trial`,
+    };
+  }
 
   const { data, error } = await admin.rpc("consume_usage", {
     p_user_id: userId,

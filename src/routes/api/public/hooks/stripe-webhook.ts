@@ -177,16 +177,55 @@ export const Route = createFileRoute("/api/public/hooks/stripe-webhook")({
                 typeof session.customer === "string" ? session.customer : (session.customer?.id ?? null);
               const subscriptionId =
                 typeof session.subscription === "string" ? session.subscription : (session.subscription?.id ?? null);
+
+              // Checkout completion only tells us that Checkout finished; it
+              // does not mean a subscription with a free trial is already
+              // "active". Retrieve Stripe's subscription and persist the real
+              // lifecycle state so trial customers receive access as trialing
+              // and Admin -> Subscribers reports the same state.
+              let subscriptionStatus: Database["public"]["Tables"]["subscriptions"]["Row"]["status"] = "incomplete";
+              let periodEnd: string | null = null;
+              let cancelAtPeriodEnd = false;
+
+              if (subscriptionId) {
+                const { getStripe } = await import("@/lib/stripe.server");
+                const stripeSubscription = await getStripe().subscriptions.retrieve(subscriptionId);
+
+                subscriptionStatus =
+                  stripeSubscription.status === "trialing"
+                    ? "trialing"
+                    : stripeSubscription.status === "active"
+                      ? "active"
+                      : stripeSubscription.status === "past_due" || stripeSubscription.status === "unpaid"
+                        ? "past_due"
+                        : stripeSubscription.status === "canceled" ||
+                            stripeSubscription.status === "incomplete_expired"
+                          ? "canceled"
+                          : "incomplete";
+
+                const periodEndUnix =
+                  stripeSubscription.items.data[0]?.current_period_end ??
+                  (stripeSubscription as unknown as { current_period_end?: number }).current_period_end;
+
+                periodEnd = periodEndUnix
+                  ? new Date(periodEndUnix * 1000).toISOString()
+                  : null;
+                cancelAtPeriodEnd = stripeSubscription.cancel_at_period_end ?? false;
+              }
+
               await admin.from("subscriptions").upsert(
                 {
                   user_id: userId,
                   stripe_customer_id: customerId,
                   stripe_subscription_id: subscriptionId,
                   plan,
-                  status: "active",
+                  status: subscriptionStatus,
+                  current_period_end: periodEnd,
+                  cancel_at_period_end: cancelAtPeriodEnd,
                 },
                 { onConflict: "user_id" },
               ).throwOnError();
+
               await provisionOrganizationSubscription(admin, {
                 eventId: event.id,
                 eventType: event.type,
@@ -195,7 +234,8 @@ export const Route = createFileRoute("/api/public/hooks/stripe-webhook")({
                 plan: organizationPlan,
                 customerId,
                 subscriptionId,
-                status: "active",
+                status: subscriptionStatus,
+                periodEnd,
                 payloadHash,
               });
               // Tell the business inbox a new subscriber just signed up.
@@ -203,7 +243,7 @@ export const Route = createFileRoute("/api/public/hooks/stripe-webhook")({
               await notifyAdminNewSubscription({
                 eventId: event.id,
                 plan,
-                status: "active",
+                status: subscriptionStatus,
                 subscriptionId,
                 customerEmail:
                   customerDetails?.email ??
