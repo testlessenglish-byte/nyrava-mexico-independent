@@ -239,3 +239,18 @@ describe("full stall sequence: checkpoint -> requeue -> late heartbeat -> sweepe
     expect(isClaimableQueuedCase(row as never)).toBe(true);
   });
 });
+
+describe("execution lease heartbeat migration", () => {
+  it("prevents an old heartbeat from re-locking queued or revision cases", () => {
+    const source = readFileSync(
+      "supabase/migrations/20261002040000_fix_execution_lease_checkpoint_race.sql",
+      "utf8",
+    );
+
+    expect(source).toContain("'queued'");
+    expect(source).toContain("'needs_revision'");
+    expect(source).toContain("worker_lease_until IS NOT NULL");
+    expect(source).toContain("worker_lease_until > now()");
+    expect(source).toContain("execution_id = p_execution_id");
+  });
+});
