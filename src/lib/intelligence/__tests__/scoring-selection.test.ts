@@ -15,8 +15,22 @@ const finalized = {
   scored_at: "2026-01-01T00:03:00Z",
 };
 
+const certifiedMetadata = {
+  semantic_support_review: {
+    version: 1,
+    verdict: "supported",
+    hash: "test-semantic-support",
+  },
+};
+
 const mkF = (id: string, source_module: string, extra: Record<string, unknown> = {}) =>
-  ({ id, source_module, ...extra }) as never;
+  ({
+    id,
+    source_module,
+    verification_status: "verified",
+    metadata: certifiedMetadata,
+    ...extra,
+  }) as never;
 
 describe("scoring-selection single source of truth", () => {
   it("derivePipelineState marks finalized only when all three timestamps present", () => {
@@ -39,14 +53,14 @@ describe("scoring-selection single source of truth", () => {
       findings: [
         mkF("a", "engine:contradictions", { title: "Issue A", category: "A" }),
         mkF("b", "analyzer:foo", { title: "Issue B", category: "B" }),
-        mkF("c", "engine:discovery", { title: "Issue C", category: "C", metadata: { provisional: true } }),
+        mkF("c", "engine:discovery", { title: "Issue C", category: "C", metadata: { ...certifiedMetadata, provisional: true } }),
         mkF("d", "engine:witness", { title: "Issue D", category: "D" }),
         mkF("e", "agent:chain_of_custody", { title: "Issue E", category: "E" }),
         mkF("f", "agent:constitutional_compliance", { title: "Issue F", category: "F" }),
         mkF("g", "agent:procedural_violations", {
           title: "Issue G",
           category: "G",
-          metadata: { provisional: true },
+          metadata: { ...certifiedMetadata, provisional: true },
         }),
       ],
     });

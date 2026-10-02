@@ -71,6 +71,46 @@ function makeFakeDb(store: Record<string, unknown[]>) {
 }
 
 const CASE_ID = "case-cache-1";
+const EXECUTION_ID = "exec-cache-current";
+
+function certifiedFinding(
+  id: string,
+  caseId: string,
+  title: string,
+  description = "v1",
+) {
+  return {
+    id,
+    case_id: caseId,
+    execution_id: EXECUTION_ID,
+    source_module: "agent:test_verified",
+    title,
+    description,
+    category: "x",
+    severity: "low",
+    affected_party: "plaintiff",
+    finding_status: "candidate",
+    verification_status: "verified",
+    metadata: {
+      execution_id: EXECUTION_ID,
+      semantic_support_review: {
+        version: 1,
+        verdict: "supported",
+        hash: `test-support-${id}`,
+      },
+    },
+  };
+}
+
+function withCurrentCase(
+  store: Record<string, unknown[]>,
+  caseId = CASE_ID,
+): Record<string, unknown[]> {
+  return {
+    ...store,
+    cases: [{ id: caseId, execution_id: EXECUTION_ID }],
+  };
+}
 
 beforeEach(() => {
   invalidateChatContext(CASE_ID);
@@ -79,9 +119,9 @@ beforeEach(() => {
 
 describe("Talk to Case context cache", () => {
   it("caches the built context across calls within the TTL", async () => {
-    const store: Record<string, unknown[]> = {
-      case_findings: [{ id: "f1", case_id: CASE_ID, title: "Original finding", description: "v1", category: "x", severity: "low", affected_party: "plaintiff" }],
-    };
+    const store: Record<string, unknown[]> = withCurrentCase({
+      case_findings: [certifiedFinding("f1", CASE_ID, "Original finding", "v1")],
+    });
     const db = makeFakeDb(store);
 
     const first = await buildChatContext(db, CASE_ID);
@@ -89,23 +129,23 @@ describe("Talk to Case context cache", () => {
 
     // Mutate underlying data WITHOUT invalidating — cached call must still
     // return the old snapshot (this is the baseline the fix improves on).
-    store.case_findings = [{ id: "f2", case_id: CASE_ID, title: "Updated finding", description: "v2", category: "x", severity: "low", affected_party: "plaintiff" }];
+    store.case_findings = [certifiedFinding("f2", CASE_ID, "Updated finding", "v2")];
     const second = await buildChatContext(db, CASE_ID);
     expect(second.ctx).toContain("Original finding");
     expect(second.ctx).not.toContain("Updated finding");
   });
 
   it("rerun clears cache and next chat rebuilds context from fresh data", async () => {
-    const store: Record<string, unknown[]> = {
-      case_findings: [{ id: "f1", case_id: CASE_ID, title: "Pre-rerun finding", description: "v1", category: "x", severity: "low", affected_party: "plaintiff" }],
-    };
+    const store: Record<string, unknown[]> = withCurrentCase({
+      case_findings: [certifiedFinding("f1", CASE_ID, "Pre-rerun finding", "v1")],
+    });
     const db = makeFakeDb(store);
 
     await buildChatContext(db, CASE_ID);
 
     // Simulate an intelligence rerun: derived tables get new data, then the
     // rerun completes and invalidates the cache.
-    store.case_findings = [{ id: "f2", case_id: CASE_ID, title: "Post-rerun finding", description: "v2", category: "x", severity: "low", affected_party: "plaintiff" }];
+    store.case_findings = [certifiedFinding("f2", CASE_ID, "Post-rerun finding", "v2")];
     invalidateChatContext(CASE_ID);
 
     const rebuilt = await buildChatContext(db, CASE_ID);
@@ -114,9 +154,9 @@ describe("Talk to Case context cache", () => {
   });
 
   it("no stale findings remain: old finding text never reappears after invalidation", async () => {
-    const store: Record<string, unknown[]> = {
-      case_findings: [{ id: "f1", case_id: CASE_ID, title: "Stale-candidate finding", description: "v1", category: "x", severity: "low", affected_party: "plaintiff" }],
-    };
+    const store: Record<string, unknown[]> = withCurrentCase({
+      case_findings: [certifiedFinding("f1", CASE_ID, "Stale-candidate finding", "v1")],
+    });
     const db = makeFakeDb(store);
     await buildChatContext(db, CASE_ID);
 
@@ -129,9 +169,9 @@ describe("Talk to Case context cache", () => {
 
   it("invalidateAndRebuildChatContext clears, eagerly rebuilds, and logs diagnostics", async () => {
     const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
-    const store: Record<string, unknown[]> = {
-      case_findings: [{ id: "f1", case_id: CASE_ID, title: "Fresh finding", description: "v1", category: "x", severity: "low", affected_party: "plaintiff" }],
-    };
+    const store: Record<string, unknown[]> = withCurrentCase({
+      case_findings: [certifiedFinding("f1", CASE_ID, "Fresh finding", "v1")],
+    });
     const db = makeFakeDb(store);
 
     // Prime the cache with something, so we can prove it gets replaced.
@@ -166,15 +206,15 @@ describe("Talk to Case context cache", () => {
   });
 
   it("handles multiple reruns in sequence — each invalidation reflects the latest data only", async () => {
-    const store: Record<string, unknown[]> = {
-      case_findings: [{ id: "f1", case_id: CASE_ID, title: "Run 1 finding", description: "v1", category: "x", severity: "low", affected_party: "plaintiff" }],
-    };
+    const store: Record<string, unknown[]> = withCurrentCase({
+      case_findings: [certifiedFinding("f1", CASE_ID, "Run 1 finding", "v1")],
+    });
     const db = makeFakeDb(store);
 
     await buildChatContext(db, CASE_ID);
 
     for (const label of ["Run 2 finding", "Run 3 finding", "Run 4 finding"]) {
-      store.case_findings = [{ id: label, case_id: CASE_ID, title: label, description: "v", category: "x", severity: "low", affected_party: "plaintiff" }];
+      store.case_findings = [certifiedFinding(label, CASE_ID, label, "v")];
       await invalidateAndRebuildChatContext(db, CASE_ID, { runId: label });
       const ctx = (await buildChatContext(db, CASE_ID)).ctx;
       expect(ctx).toContain(label);
@@ -183,18 +223,18 @@ describe("Talk to Case context cache", () => {
   });
 
   it("updated report and chat agree: context rebuilt post-rerun matches the newest findings only", async () => {
-    const store: Record<string, unknown[]> = {
+    const store: Record<string, unknown[]> = withCurrentCase({
       case_findings: [
-        { id: "f1", case_id: CASE_ID, title: "Old report claim", description: "outdated", category: "x", severity: "low", affected_party: "plaintiff" },
+        certifiedFinding("f1", CASE_ID, "Old report claim", "outdated"),
       ],
-    };
+    });
     const db = makeFakeDb(store);
     await buildChatContext(db, CASE_ID); // simulates chat opened before the rerun
 
     // Attorney corrects evidence + reruns pipelines: report regenerates with
     // new findings, and the rerun invalidates+rebuilds the chat cache.
     store.case_findings = [
-      { id: "f1", case_id: CASE_ID, title: "Corrected report claim", description: "up to date", category: "x", severity: "low", affected_party: "plaintiff" },
+      certifiedFinding("f1", CASE_ID, "Corrected report claim", "up to date"),
     ];
     await invalidateAndRebuildChatContext(db, CASE_ID, { runId: "run-correction" });
 
@@ -204,9 +244,9 @@ describe("Talk to Case context cache", () => {
   });
 
   it("concurrent users of the same case never receive stale context after invalidation", async () => {
-    const store: Record<string, unknown[]> = {
-      case_findings: [{ id: "f1", case_id: CASE_ID, title: "Before concurrent rerun", description: "v1", category: "x", severity: "low", affected_party: "plaintiff" }],
-    };
+    const store: Record<string, unknown[]> = withCurrentCase({
+      case_findings: [certifiedFinding("f1", CASE_ID, "Before concurrent rerun", "v1")],
+    });
     const db = makeFakeDb(store);
 
     // Two "users" (independent request contexts, same shared process cache)
@@ -216,7 +256,7 @@ describe("Talk to Case context cache", () => {
     expect(userA.ctx).toContain("Before concurrent rerun");
     expect(userB.ctx).toContain("Before concurrent rerun");
 
-    store.case_findings = [{ id: "f2", case_id: CASE_ID, title: "After concurrent rerun", description: "v2", category: "x", severity: "low", affected_party: "plaintiff" }];
+    store.case_findings = [certifiedFinding("f2", CASE_ID, "After concurrent rerun", "v2")];
     await invalidateAndRebuildChatContext(db, CASE_ID, { runId: "run-concurrent" });
 
     // Both users' NEXT requests — regardless of who asks first — must see
@@ -230,16 +270,18 @@ describe("Talk to Case context cache", () => {
   });
 
   it("invalidating one case never affects another case's cache", async () => {
-    const storeA: Record<string, unknown[]> = { case_findings: [{ id: "a1", case_id: CASE_ID, title: "Case A finding", description: "v1", category: "x", severity: "low", affected_party: "plaintiff" }] };
-    const storeB: Record<string, unknown[]> = { case_findings: [{ id: "b1", case_id: "case-cache-2", title: "Case B finding", description: "v1", category: "x", severity: "low", affected_party: "plaintiff" }] };
+    const storeA: Record<string, unknown[]> = withCurrentCase({ case_findings: [certifiedFinding("a1", CASE_ID, "Case A finding", "v1")] });
+    const storeB: Record<string, unknown[]> = withCurrentCase({ case_findings: [certifiedFinding("b1", "case-cache-2", "Case B finding")] });
+    storeA.cases = [{ id: CASE_ID, execution_id: EXECUTION_ID }];
     const dbA = makeFakeDb(storeA);
+    storeB.cases = [{ id: "case-cache-2", execution_id: EXECUTION_ID }];
     const dbB = makeFakeDb(storeB);
 
     await buildChatContext(dbA, CASE_ID);
     const beforeB = await buildChatContext(dbB, "case-cache-2");
     expect(beforeB.ctx).toContain("Case B finding");
 
-    storeA.case_findings = [{ id: "a2", case_id: CASE_ID, title: "Case A rerun finding", description: "v2", category: "x", severity: "low", affected_party: "plaintiff" }];
+    storeA.case_findings = [certifiedFinding("a2", CASE_ID, "Case A rerun finding", "v2")];
     await invalidateAndRebuildChatContext(dbA, CASE_ID, { runId: "run-case-a" });
 
     // Case B's cache is untouched by Case A's invalidation.
@@ -248,9 +290,9 @@ describe("Talk to Case context cache", () => {
   });
 
   it("rebuild failure still leaves the cache cleared, not stale", async () => {
-    const store: Record<string, unknown[]> = {
-      case_findings: [{ id: "f1", case_id: CASE_ID, title: "Stale before failure", description: "v1", category: "x", severity: "low", affected_party: "plaintiff" }],
-    };
+    const store: Record<string, unknown[]> = withCurrentCase({
+      case_findings: [certifiedFinding("f1", CASE_ID, "Stale before failure", "v1")],
+    });
     const db = makeFakeDb(store);
     await buildChatContext(db, CASE_ID);
 
@@ -278,7 +320,7 @@ describe("Talk to Case context cache", () => {
     infoSpy.mockRestore();
 
     // The cache must not still be serving the pre-rerun snapshot.
-    store.case_findings = [{ id: "f2", case_id: CASE_ID, title: "Fresh after recovery", description: "v2", category: "x", severity: "low", affected_party: "plaintiff" }];
+    store.case_findings = [certifiedFinding("f2", CASE_ID, "Fresh after recovery", "v2")];
     const recovered = await buildChatContext(db, CASE_ID);
     expect(recovered.ctx).toContain("Fresh after recovery");
     expect(recovered.ctx).not.toContain("Stale before failure");

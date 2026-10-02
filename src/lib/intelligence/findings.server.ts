@@ -1295,12 +1295,16 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
       potential_impact: r.potential_impact,
       affected_party,
       benefited_party: normParty(r.benefited_party),
+      // FAIL CLOSED: judicial hierarchy is attribution data, not a default.
+      // If the producer/source did not establish an authority level, preserve
+      // it as unknown. Never silently promote an unattributed proposition to
+      // a plausible court rank.
       authority_level:
         typeof r.authority_level === "number" && r.authority_level >= 0 && r.authority_level <= 5
           ? r.authority_level
           : typeof r.authority_level === "string" && /^[0-5]$/.test(r.authority_level)
             ? parseInt(r.authority_level, 10)
-            : 1,
+            : null,
       score_dimension: r.score_dimension ?? null,
       reason_for_score_effect: r.reason_for_score_effect ?? null,
       speaker_role,

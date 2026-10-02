@@ -178,6 +178,33 @@ function isQuarantinedFinding(f: SelectableFinding): boolean {
   );
 }
 
+/**
+ * Positive publication certification.
+ *
+ * Working findings may exist before hallucination/semantic review completes,
+ * but they are not authoritative publication material until the current
+ * source-bound semantic review has positively certified them.
+ *
+ * Hash freshness is enforced by the release snapshot/supportSnapshotValid
+ * boundary. This selector deliberately requires the positive persisted
+ * certification rather than treating the absence of a negative flag as proof.
+ */
+export function isPublicationCertifiedFinding(f: SelectableFinding): boolean {
+  const verification = String(f.verification_status ?? "").toLowerCase();
+  const review = f.metadata?.semantic_support_review as
+    | { verdict?: unknown; version?: unknown; hash?: unknown }
+    | null
+    | undefined;
+
+  return (
+    verification === "verified" &&
+    review?.version === 1 &&
+    review?.verdict === "supported" &&
+    typeof review?.hash === "string" &&
+    review.hash.length > 0
+  );
+}
+
 export function isCanonicalFinding(f: SelectableFinding): boolean {
   const cls = classifyFindingSource(f);
   return (
@@ -186,7 +213,8 @@ export function isCanonicalFinding(f: SelectableFinding): boolean {
     !canonicalEvidenceIntegrityIssue(f) &&
     !isProvisionalFinding(f) &&
     !isSuppressedFinding(f) &&
-    !isQuarantinedFinding(f)
+    !isQuarantinedFinding(f) &&
+    isPublicationCertifiedFinding(f)
   );
 }
 

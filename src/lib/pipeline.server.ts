@@ -513,7 +513,7 @@ async function _runPipelineForCase(
   // call that used to populate apiKey/apiKeys here.
   const apiKey = "";
   const keys: string[] = [];
-  const baseArgs = { db: supabase, caseId, userId, apiKey, apiKeys: keys };
+  const baseArgs = { db: supabase, caseId, userId, apiKey, apiKeys: keys, executionId };
 
   const pipe = await import("@/lib/pipeline.server");
   const eng = await import("@/lib/intelligence/engines.server");
@@ -6571,20 +6571,21 @@ async function _runReportInner(args: {
   } catch (e) {
     const code = (e as { code?: string })?.code ?? "CANONICAL_GUARD_FAILED";
     pipelineWarnings.push(code);
-    findings = allFindings.filter(
-      (f) => !String((f as { source_module?: string }).source_module ?? "").startsWith("analyzer:"),
-    );
+
+    // FAIL CLOSED: raw, pending, contradicted, insufficient, quarantined,
+    // provisional, stale or otherwise uncertified findings must never be
+    // restored merely to keep an attorney-facing report non-empty.
+    //
+    // Working findings remain in the database for pipeline/audit/debug use.
+    // Publication waits for positive semantic certification.
+    findings = [];
   }
-  // Defensive fallback (mirrors cases.functions.ts): if the strict canonical
-  // filter (engine:*-sourced only) leaves nothing, but the case genuinely has
-  // findings, fall back to the unfiltered set for both consolidated_findings
-  // and finding_counters. Without this, a case whose only findings are
-  // analyzer:*-sourced reports "0 findings" on the cover page while the
-  // exported Key Findings table (which applies the same fallback) still
-  // renders them — the exact mismatch this fallback exists to prevent.
+
+  // A non-empty raw working set with zero canonical findings is an
+  // evidence-limited publication state, never permission to republish the
+  // rejected working set.
   if (findings.length === 0 && allFindings.length > 0) {
-    pipelineWarnings.push(`canonical_findings_empty_fallback:${allFindings.length}`);
-    findings = allFindings;
+    pipelineWarnings.push(`canonical_findings_withheld:${allFindings.length}`);
   }
   if (allFindings.length !== findings.length) {
     pipelineWarnings.push(`analyzer_findings_excluded:${allFindings.length - findings.length}`);

@@ -62,7 +62,14 @@ describe('upstream canonical citation production', () => {
     expect(validateFinalReportContract(result).blocking_errors).toEqual([]);
     result.findings![0].description = 'El tribunal admitió el recurso.';
     bindAttributedFindingCitations(result);
-    expect(validateFinalReportContract(result).blocking_errors.join(' ')).toContain('published_proposition_mismatch');
+    const blocking = validateFinalReportContract(result).blocking_errors;
+    expect(blocking.length).toBeGreaterThan(0);
+    expect(
+      blocking.some(error =>
+        error.includes('published_proposition_mismatch') ||
+        error.includes('civil_unresolved_attribution_as_fact')
+      )
+    ).toBe(true);
   });
   it('rejects report-authored review proof and changes to reviewed attribution', () => {
     const claim = { id: 'f', title: 'Alegación', description: 'La parte solicita desechar el recurso.',

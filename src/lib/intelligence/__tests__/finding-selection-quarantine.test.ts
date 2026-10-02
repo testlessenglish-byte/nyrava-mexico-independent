@@ -7,6 +7,13 @@ describe("citation quarantine finding selection", () => {
     source_module: "agent:constitutional_rights_mapping",
     verification_status: "verified",
     finding_status: "candidate",
+    metadata: {
+      semantic_support_review: {
+        version: 1,
+        verdict: "supported",
+        hash: "current-support-snapshot",
+      },
+    },
   };
   const noCitation = {
     source_module: "agent:ways_out_analysis",
@@ -35,13 +42,28 @@ describe("citation quarantine finding selection", () => {
     ).toHaveLength(2);
   });
 
-  it("preserves pre-verification behavior while a run is still in progress", () => {
+  it("does not publish a finding while semantic verification is still pending", () => {
     expect(
       isCanonicalFinding({
         source_module: "agent:procedural_violations",
         verification_status: null,
       }),
-    ).toBe(true);
+    ).toBe(false);
+  });
+
+  it.each([
+    undefined,
+    { version: 1, verdict: "insufficient", hash: "snapshot" },
+    { version: 1, verdict: "contradicted", hash: "snapshot" },
+    { version: 1, verdict: "supported", hash: "" },
+  ])("requires positive semantic certification before canonical publication", (semantic_support_review) => {
+    const finding = {
+      source_module: "agent:procedural_violations",
+      verification_status: "verified",
+      finding_status: "candidate",
+      metadata: semantic_support_review ? { semantic_support_review } : {},
+    };
+    expect(isCanonicalFinding(finding)).toBe(false);
   });
 });
 
@@ -53,6 +75,11 @@ describe("claim entailment quarantine boundary", () => {
     verification_status: "verified",
     finding_status: "candidate",
     metadata: {
+      semantic_support_review: {
+        version: 1,
+        verdict: "supported",
+        hash: "current-support-snapshot",
+      },
       claim_entailment_diagnostic: {
         claim_action: "KEEP",
         final_reportable: true,
@@ -81,7 +108,14 @@ describe("claim entailment quarantine boundary", () => {
   it.each(rejectedDiagnostics)(
     "excludes verified findings with claim_action=$claim_action and final_reportable=$final_reportable",
     (diagnostic) => {
-      const finding = { ...verified, metadata: { claim_entailment_diagnostic: diagnostic } };
+      const finding = { ...verified, metadata: {
+          semantic_support_review: {
+            version: 1,
+            verdict: "supported",
+            hash: "current-support-snapshot",
+          },
+          claim_entailment_diagnostic: diagnostic,
+        } };
       expect(isCanonicalFinding(finding)).toBe(false);
       expect(selectFindings([finding])).toEqual([]);
     },
@@ -108,7 +142,14 @@ describe("claim entailment quarantine boundary", () => {
       ...rejectedDiagnostics.map((diagnostic, index) => ({
         ...verified,
         id: `rejected-${index}`,
-        metadata: { claim_entailment_diagnostic: diagnostic },
+        metadata: {
+          semantic_support_review: {
+            version: 1,
+            verdict: "supported",
+            hash: "current-support-snapshot",
+          },
+          claim_entailment_diagnostic: diagnostic,
+        },
       })),
     ];
     const args = {

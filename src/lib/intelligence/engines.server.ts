@@ -230,8 +230,9 @@ export async function runTheoryEngine(args: {
   userId: string;
   apiKey: string;
   apiKeys?: string[];
+  executionId?: string;
 }) {
-  const { db, caseId, userId, apiKey, apiKeys } = args;
+  const { db, caseId, userId, apiKey, apiKeys, executionId } = args;
 
   // STRICT-mode firewall — theory synthesis is interpretive, not
   // extraction/validation, and is not allowed in strict mode.
@@ -435,6 +436,7 @@ ${JSON.stringify(ctx.findingsLite).slice(0, 20000)}`,
       keptTheories.map((t, idx) => ({
         case_id: caseId,
         user_id: userId,
+        execution_id: executionId ?? null,
         theory_type: t.theory_type,
         narrative: t.narrative ?? "",
         supporting_evidence: (t.supporting_evidence ?? []) as J,
@@ -501,8 +503,9 @@ export async function runOpportunityEngine(args: {
   userId: string;
   apiKey: string;
   apiKeys?: string[];
+  executionId?: string;
 }) {
-  const { db, caseId, userId, apiKey, apiKeys } = args;
+  const { db, caseId, userId, apiKey, apiKeys, executionId } = args;
 
   // STRICT-mode firewall — opportunity synthesis is interpretive, not
   // extraction/validation, and is not allowed in strict mode.
@@ -767,6 +770,7 @@ ${JSON.stringify(ctx.findingsLite).slice(0, 15000)}`,
       ...kept.map((o, idx) => ({
         case_id: caseId,
         user_id: userId,
+        execution_id: executionId ?? null,
         // typeFiltered already rejected any o.side outside validSides above,
         // so this fallback should never actually trigger — kept only as a
         // defensive default, using the materia's own primary role instead
@@ -787,6 +791,7 @@ ${JSON.stringify(ctx.findingsLite).slice(0, 15000)}`,
       ...rejectedForReview.map(({ original: o, rej }) => ({
         case_id: caseId,
         user_id: userId,
+        execution_id: executionId ?? null,
         // typeFiltered already rejected any o.side outside validSides above,
         // so this fallback should never actually trigger — kept only as a
         // defensive default, using the materia's own primary role instead

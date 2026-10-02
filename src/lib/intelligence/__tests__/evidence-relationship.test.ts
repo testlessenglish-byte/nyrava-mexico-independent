@@ -106,10 +106,14 @@ describe("diagnoseEvidenceGate: SOURCE_ARGUMENT can never back a DIRECT_EVIDENCE
       },
     ];
     const { accepted, audit } = diagnoseEvidenceGate(items, { mode: "balanced", corpus: corpusWith(quote) });
-    expect(accepted).toHaveLength(1);
-    expect(accepted[0].gated.finding_type).toBe("EVIDENCE_BASED_INFERENCE");
-    expect(accepted[0].gated.evidence_relationship).toBe("SOURCE_ARGUMENT");
+    // A party allegation proves that the party made the allegation; it
+    // does not prove the alleged violation occurred. The universal strict
+    // publication gate therefore downgrades SOURCE_ARGUMENT away from
+    // DIRECT_EVIDENCE and then quarantines the resulting inference.
+    expect(accepted).toHaveLength(0);
     expect(audit.downgraded_inference).toBe(1);
+    expect(audit.rejected_unsupported_claim).toBe(1);
+    expect(audit.rejections.some((r) => r.reason === "unsupported_claim")).toBe(true);
   });
 
   it("a finding grounded in a real dispositive holding keeps DIRECT_EVIDENCE and is tagged SOURCE_HOLDING", () => {

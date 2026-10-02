@@ -38,13 +38,39 @@ describe('Pipeline Concurrency and Stale Worker Protections', () => {
   });
 
   it('Fix 8 - Stale worker cannot write completed row for new execution', async () => {
+    let pipelineRunMaybeSingleCalls = 0;
+
     const dbMock = createMockDb((table) => {
       const chain = createChain(null);
-      chain.insert = vi.fn().mockResolvedValue({ data: { id: 'row-1' }, error: null });
+      chain.insert = vi.fn().mockReturnValue(chain);
+
       chain.maybeSingle = vi.fn().mockImplementation(() => {
-        if (table === 'cases') return Promise.resolve({ data: { execution_id: 'exec-2' }, error: null });
+        if (table === 'cases') {
+          return Promise.resolve({
+            data: { execution_id: 'exec-2' },
+            error: null,
+          });
+        }
+
+        if (table === 'pipeline_engine_runs') {
+          pipelineRunMaybeSingleCalls += 1;
+
+          // 1. Active-run pre-check: no duplicate is running.
+          // 2. Queued-row claim: no checkpoint row exists.
+          // 3. Insert(...).select(...).maybeSingle(): ledger row created.
+          if (pipelineRunMaybeSingleCalls <= 2) {
+            return Promise.resolve({ data: null, error: null });
+          }
+
+          return Promise.resolve({
+            data: { id: 'row-1' },
+            error: null,
+          });
+        }
+
         return Promise.resolve({ data: null, error: null });
       });
+
       return chain;
     });
 

@@ -19,15 +19,37 @@ const CASE_ROW = {
   scored_at: "2026-01-01T00:03:00Z",
 };
 
+const certifiedMetadata = {
+  semantic_support_review: {
+    version: 1,
+    verdict: "supported",
+    hash: "test-semantic-support",
+  },
+};
+
+const certified = (row: Record<string, unknown>) => ({
+  verification_status: "verified",
+  metadata: certifiedMetadata,
+  ...row,
+});
+
 const FIXTURE = [
-  { source_module: "engine:contradictions", severity: "critical", metadata: {} },
-  { source_module: "engine:evidence_intelligence", severity: "high", metadata: {} },
-  { source_module: "engine:timeline", severity: "medium", metadata: { provisional: true } },
-  { source_module: "agent:witness_credibility", severity: "high", metadata: {} },
-  { source_module: "agent:chain_of_custody", severity: "critical", metadata: {} },
-  { source_module: "analyzer:facts", severity: "critical", metadata: {} },
-  { source_module: "analyzer:entities", severity: "low", metadata: { provisional: true } },
-  { source_module: "legacy_import", severity: "high", metadata: {} },
+  certified({ source_module: "engine:contradictions", severity: "critical" }),
+  certified({ source_module: "engine:evidence_intelligence", severity: "high" }),
+  certified({
+    source_module: "engine:timeline",
+    severity: "medium",
+    metadata: { ...certifiedMetadata, provisional: true },
+  }),
+  certified({ source_module: "agent:witness_credibility", severity: "high" }),
+  certified({ source_module: "agent:chain_of_custody", severity: "critical" }),
+  certified({ source_module: "analyzer:facts", severity: "critical" }),
+  certified({
+    source_module: "analyzer:entities",
+    severity: "low",
+    metadata: { ...certifiedMetadata, provisional: true },
+  }),
+  certified({ source_module: "legacy_import", severity: "high" }),
 ];
 
 describe("classifyFindingSource", () => {
@@ -47,8 +69,10 @@ describe("classifyFindingSource", () => {
 
 describe("isCanonicalFinding", () => {
   it("accepts engine and agent, rejects analyzer, other, provisional, quarantined, and suppressed", () => {
-    expect(isCanonicalFinding({ source_module: "engine:a" })).toBe(true);
-    expect(isCanonicalFinding({ source_module: "agent:a" })).toBe(true);
+    expect(isCanonicalFinding(certified({ source_module: "engine:a" }))).toBe(true);
+    expect(isCanonicalFinding(certified({ source_module: "agent:a" }))).toBe(true);
+    expect(isCanonicalFinding({ source_module: "engine:a" })).toBe(false);
+    expect(isCanonicalFinding({ source_module: "agent:a" })).toBe(false);
     expect(isCanonicalFinding({ source_module: "analyzer:a" })).toBe(false);
     expect(isCanonicalFinding({ source_module: "legacy" })).toBe(false);
     expect(isCanonicalFinding({ source_module: "engine:a", metadata: { provisional: true } })).toBe(false);
@@ -77,7 +101,7 @@ describe("selectFindings parity with getCanonicalScoringFindings", () => {
     ]);
   });
 
-  it("reproduces the dashboard high-priority badge rule exactly", () => {
+  it("audit selectors may explicitly include raw high-priority rows without making them canonical", () => {
     const legacy = FIXTURE.filter((f) => f.severity === "critical" || f.severity === "high");
     const viaSelector = selectFindings(FIXTURE, {
       include: ["engine", "agent", "analyzer", "other"],
@@ -101,8 +125,8 @@ describe("selectFindings parity with getCanonicalScoringFindings", () => {
 
   it("never lets a suppressed finding re-enter canonical report/scoring surfaces unless explicitly requested", () => {
     const rows = [
-      { source_module: "engine:good", finding_status: "verified", severity: "high" },
-      { source_module: "engine:rejected", finding_status: "suppressed", severity: "critical" },
+      certified({ source_module: "engine:good", finding_status: "verified", severity: "high" }),
+      certified({ source_module: "engine:rejected", finding_status: "suppressed", severity: "critical" }),
     ];
     expect(selectFindings(rows).map((r) => r.source_module)).toEqual(["engine:good"]);
     expect(getCanonicalScoringFindings({ caseRow: CASE_ROW, findings: rows as never }).map((r) => r.source_module)).toEqual([

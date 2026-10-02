@@ -5209,6 +5209,25 @@ function deriveMatterId(data: CaseExportData): string {
 }
 
 export async function downloadPdf(data: CaseExportData, name: string, opts?: { citationMode?: CitationMode; validateOnly?: boolean }) {
+  // HARD RELEASE BOUNDARY:
+  // A report explicitly blocked by verification may not enter the public
+  // PDF export path. Internal preflight/rendering has its own path below,
+  // but attorney-facing download must fail closed before normalization,
+  // composition, citation processing, or rendering can occur.
+  if (
+    asObj(data.report).quality_blocked === true ||
+    asObj(data.report).verification_status === "VERIFICATION_FAILED" ||
+    asStr(asObj(data.report).release_decision) === "BLOCK"
+  ) {
+    const reasons = Array.isArray(asObj(data.report).quality_block_reasons)
+      ? asObj(data.report).quality_block_reasons.map(String).filter(Boolean)
+      : [];
+
+    throw new Error(
+      `REPORT_BLOCKED${reasons.length ? `: ${reasons.join("; ")}` : ": report failed release verification"}`,
+    );
+  }
+
   if (asObj(data.report?.full_report).release_candidate) {
     const { verifiedReportPackage, generateVerifiedReport } = await import('./reporting/verified-report');
     const caseId = String(data.case?.id ?? ''), executionId = String(data.case?.execution_id ?? '');

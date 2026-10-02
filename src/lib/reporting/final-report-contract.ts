@@ -606,6 +606,42 @@ export function validateFinalReportContract(payload: FinalReportPayload, capabil
   if (restricted && !rules.verificationStepsOnly) violations.push("verificationStepsOnly");
   const sourceReview = validateMigratorioPreRelease(payload);
   violations.push(...sourceReview.errors);
+
+  // FINAL PUBLICATION BOUNDARY:
+  // Every attorney-visible finding card must carry at least one positively
+  // certified publication reference. The report-tree citation audit below is
+  // intentionally publication-scoped and therefore must not be relied on to
+  // discover a finding card that has no auditable citation object at all.
+  //
+  // Missing certification is itself a release blocker. A surviving finding
+  // may never become publishable merely because there was no citation object
+  // for auditReportCitationIntegrity() to reject.
+  view.finding_cards.forEach((card, index) => {
+    const finding = obj(card.finding);
+    const refs = [
+      ...arr(finding.evidence_refs),
+      ...arr(finding.source_refs),
+      ...arr(finding.citations),
+    ];
+
+    const certified = refs.some((ref) => {
+      const row = obj(ref);
+      return (
+        String(row.verification_status ?? "").toLowerCase() === "verified" &&
+        row.publication_status !== "QUARANTINED" &&
+        String(row.proposition_supported ?? "").trim().length > 0 &&
+        String(row.quote ?? row.excerpt ?? row.source_quote ?? "").trim().length > 0 &&
+        String(row.canonical_source_id ?? "").trim().length > 0
+      );
+    });
+
+    if (!certified) {
+      violations.push(
+        `citation_integrity:report_presentation.finding_cards[${index}]:publication_citation_missing`,
+      );
+    }
+  });
+
   violations.push(...auditReportCitationIntegrity(payload).errors);
   violations.push(...auditCivilReport(payload).errors, ...arr(obj(payload.report?.full_report).civil_quality?.errors).map(String));
   return { ok: violations.length === 0, blocking_errors: violations, checked_rules: rules, source_review: sourceReview,

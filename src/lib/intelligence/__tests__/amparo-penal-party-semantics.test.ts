@@ -145,15 +145,20 @@ describe("Hallucination gate reports the real blocker", () => {
   it("does not convert an upstream integrity block into a hallucination failure", async () => {
     const { readFileSync } = await import("node:fs");
     const hal = readFileSync("src/lib/intelligence/hallucination.server.ts", "utf8");
-    // Its own rendered-report check still throws.
-    expect(hal).toContain("if (renderedDecision.blocked) {");
-    // An earlier stage's block is reported, not re-thrown.
+    // Rendered-report failures remain real release blockers, but are
+    // attributed to the stage that actually found them rather than being
+    // re-thrown and mislabeled as a hallucination failure.
+    expect(hal).toContain("renderedDecision.blocked ? renderedDecision.reasons : []");
+    expect(hal).toContain("const upstreamReleaseBlock = qualityBlocked");
+    expect(hal).toContain("quality_blocked: qualityBlocked");
     expect(hal).toContain("upstreamReleaseBlock");
     const orch = readFileSync("src/lib/agents/orchestrator.server.ts", "utf8");
     expect(orch).toContain("upstream_release_block: upstreamBlock");
-    // Nonblocking generation must retain the actual verification outcome.
-    expect(orch).toContain("const pass = report.total > 0 && report.verified === report.total && report.unverified === 0 && report.no_citation === 0;");
-    expect(orch).toContain("hallucination_verification_passed: pass");
-    expect(orch).toContain("blocking: false");
+    // Hallucination approval now uses the release-bound semantic snapshot,
+    // not the legacy aggregate verified/unverified counters.
+    expect(orch).toContain("supportSnapshotValid");
+    expect(orch).toContain("SEMANTIC_SNAPSHOT_UNVERIFIED");
+    expect(orch).toContain("const passed = errors.length === 0");
+    expect(orch).toContain("hallucination_verification_passed: key === 'hallucination' ? passed : undefined");
   });
 });

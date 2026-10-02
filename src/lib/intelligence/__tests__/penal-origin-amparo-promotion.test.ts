@@ -57,6 +57,14 @@ function persisted(overrides: Record<string, unknown> = {}): Finding {
     verification_status: "verified",
     source_document_id: "doc-1",
     source_quote: normalized.evidence_refs?.[0]?.quote ?? null,
+    metadata: {
+      ...(normalized.metadata ?? {}),
+      semantic_support_review: {
+        version: 1,
+        verdict: "supported",
+        hash: "penal-origin-amparo-certified-test",
+      },
+    },
     ...overrides,
   } as unknown as Finding;
 }

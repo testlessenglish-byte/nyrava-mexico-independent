@@ -5,6 +5,7 @@ import { mexicoLock, groundingContract, getReportLocale } from "@/lib/mexico-loc
 import type { Database } from "@/integrations/supabase/types";
 import { callGroq } from "../groq.server";
 import { listFindings } from "./findings.server";
+import { isCanonicalFinding, filterFindingsForExecution } from "./finding-selection";
 
 type Db = SupabaseClient<Database>;
 
@@ -75,7 +76,7 @@ const MAX_TOTAL_CONTEXT_CHARS = 14_000;
 const MAX_HISTORY_CHARS = 4_000;
 
 async function fetchChatSections(db: Db, caseId: string): Promise<{ sections: ChatSections; corpus: string }> {
-  const [findings, analysis, agents, score, theories, opps, witnesses, trial, docs, reportRow] = await Promise.all([
+  const [findings, analysis, agents, score, theories, opps, witnesses, trial, docs, reportRow, caseExecution] = await Promise.all([
     listFindings(db, caseId),
     db.from("analyses").select("*").eq("case_id", caseId).maybeSingle(),
     db.from("agent_findings").select("agent_type,summary,findings").eq("case_id", caseId),
@@ -90,7 +91,34 @@ async function fetchChatSections(db: Db, caseId: string): Promise<{ sections: Ch
       .eq("case_id", caseId)
       .order("created_at", { ascending: true }),
     db.from("reports").select("full_report,change_log,version,citations,missing_evidence_struct,contradictions_struct").eq("case_id", caseId).maybeSingle(),
+    db.from("cases").select("execution_id").eq("id", caseId).maybeSingle(),
   ]);
+
+  // Talk-to-Case distinguishes authoritative case intelligence from raw
+  // working AI output. Only positively certified findings enter the
+  // authoritative findings section. Source documents remain independently
+  // available in `corpus`, so the attorney can still ask what a party argued,
+  // what a document says, or where a proposition appears even when an
+  // intermediate AI finding was rejected.
+  const currentExecutionId = caseExecution.data?.execution_id ?? null;
+  const executionFindings = currentExecutionId
+    ? filterFindingsForExecution(findings, currentExecutionId)
+    : findings;
+
+  const authoritativeFindings = executionFindings.filter((f) =>
+    isCanonicalFinding(f),
+  );
+
+  const currentTheories = currentExecutionId
+    ? (theories.data ?? []).filter((t) => t.execution_id === currentExecutionId)
+    : (theories.data ?? []);
+
+  const currentOpportunities = (currentExecutionId
+    ? (opps.data ?? []).filter((o) => o.execution_id === currentExecutionId)
+    : (opps.data ?? [])
+  ).filter(
+    (o) => !String(o.opportunity_type ?? "").startsWith("requires_attorney_review:"),
+  );
 
   const docList = (docs.data ?? []).map((d) => ({
     filename: d.filename,
@@ -110,7 +138,7 @@ async function fetchChatSections(db: Db, caseId: string): Promise<{ sections: Ch
 
   const sections: ChatSections = {
     docList,
-    findings: findings.map((f) => ({
+    findings: authoritativeFindings.map((f) => ({
       id: f.id,
       category: f.category,
       severity: f.severity,
@@ -119,10 +147,10 @@ async function fetchChatSections(db: Db, caseId: string): Promise<{ sections: Ch
       affected_party: f.affected_party,
     })),
     analysis: analysis.data,
-    agents: (agents.data ?? []) as ChatSections["agents"],
-    assessment: assessCase(reportRow.data, findings.data ?? []),
-    theories: (theories.data ?? []) as Array<Record<string, unknown>>,
-    opportunities: (opps.data ?? []) as Array<Record<string, unknown>>,
+    agents: [] as ChatSections["agents"],
+    assessment: assessCase(reportRow.data, authoritativeFindings),
+    theories: currentTheories as Array<Record<string, unknown>>,
+    opportunities: currentOpportunities as Array<Record<string, unknown>>,
     witnesses: (witnesses.data ?? []) as Array<Record<string, unknown>>,
     trial: trial.data,
     objective:

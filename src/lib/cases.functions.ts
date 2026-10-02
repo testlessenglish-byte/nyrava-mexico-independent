@@ -4234,7 +4234,13 @@ export const getCase = createServerFn({ method: "POST" })
         // getCase()'s serialized return type to collapse for every
         // downstream consumer.
         const canonical = all.filter((f) => isCanonicalFinding(f as unknown as SelectableFinding));
-        return canonical.length > 0 ? canonical : all;
+
+        // FAIL CLOSED: attorney-facing case views and exports must never
+        // resurrect raw working findings merely because every finding failed
+        // canonical publication certification. Raw rows remain available to
+        // audit/debug pipeline surfaces, but ordinary case/report/export
+        // consumers receive only positively certified findings.
+        return canonical;
       })(),
       theories: (() => {
         return (theories.data ?? []).filter((t: any) => !currentExecutionId || !t.execution_id || t.execution_id === currentExecutionId);

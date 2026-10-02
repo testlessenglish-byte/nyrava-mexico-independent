@@ -8,6 +8,7 @@
 // builds a fuller fake db that answers all three query shapes
 // (cases/legal_authorities/legal_articles) with configurable rows.
 import { describe, it, expect } from "vitest";
+import { sha256Hex } from "@/lib/intelligence/evidence-provenance.server";
 import {
   enforceRemedyLegalAuthorityGate,
   normalizeLlmFindings,
@@ -23,12 +24,18 @@ type Article = {
 };
 
 function makeCitationDb(opts: { createdAt: string | null; article: Article | null }) {
+  const authorityBody = "Fuente oficial de prueba de la Ley de Amparo.";
   const authority = {
     id: "authority-1",
     title: "Ley de Amparo",
     short_title: "Ley de Amparo",
     citation: "LA",
     jurisdiction: "federal",
+    body: authorityBody,
+    verification_status: "verified",
+    superseded_by_id: null,
+    source_url: "https://example.test/ley-de-amparo",
+    content_hash: sha256Hex(authorityBody),
   };
   return {
     from: (table: string) => {

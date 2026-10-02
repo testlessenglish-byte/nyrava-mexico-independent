@@ -10,35 +10,44 @@ const derivedEngines = readFileSync(
   "utf8",
 );
 
-function chunkCacheBlock(): string {
-  const start = pipeline.indexOf("const persistChunkCache");
-  const end = pipeline.indexOf("const clearChunkCache");
+function chunkCacheClearBlock(): string {
+  const marker = ".update({ report_chunk_cache: {} })";
+  const update = pipeline.indexOf(marker);
+  expect(update).toBeGreaterThan(-1);
+
+  const start = pipeline.lastIndexOf('let clearQuery = db', update);
+  const end = pipeline.indexOf("const { error: clearChunkCacheError }", update);
+
   expect(start).toBeGreaterThan(-1);
-  expect(end).toBeGreaterThan(start);
+  expect(end).toBeGreaterThan(update);
   return pipeline.slice(start, end);
 }
 
 describe("report persistence invariants", () => {
-  it("the chunk cache can never author a report row (update-only)", () => {
-    const block = chunkCacheBlock();
-    expect(block).not.toContain(".upsert(");
+  it("the chunk cache clear is update-only and can never author a report row", () => {
+    const block = chunkCacheClearBlock();
     expect(block).toContain('.from("reports")');
-    expect(block).toContain(".update(");
+    expect(block).toContain(".update({ report_chunk_cache: {} })");
     expect(block).toContain('.eq("case_id", caseId)');
+    expect(block).not.toContain(".insert(");
+    expect(block).not.toContain(".upsert(");
   });
 
-  it("the chunk cache never writes a null execution_id", () => {
-    const block = chunkCacheBlock();
+  it("the chunk cache clear scopes to execution_id when one is available", () => {
+    const block = chunkCacheClearBlock();
+    expect(block).toContain("if (executionId)");
+    expect(block).toContain('.eq("execution_id", executionId)');
     expect(block).not.toContain("execution_id: executionId ?? null");
-    expect(block).toContain("if (executionId) patch.execution_id = executionId;");
   });
 
-  it("the chunk cache never writes full_report", () => {
-    const code = chunkCacheBlock()
+  it("the chunk cache clear can never write full_report", () => {
+    const block = chunkCacheClearBlock()
       .split("\n")
       .filter((line) => !line.trim().startsWith("//"))
       .join("\n");
-    expect(code).not.toContain("full_report");
+
+    expect(block).not.toContain("full_report");
+    expect(block).toContain("report_chunk_cache");
   });
 
 
