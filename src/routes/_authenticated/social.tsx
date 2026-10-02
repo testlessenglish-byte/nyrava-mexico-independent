@@ -183,6 +183,7 @@ function SocialCarePage(){
   const organizationAccount=allOrganizationAccounts.find((x:any)=>x.orgId===resolvedOrg);
   const organizationMembers=organizationAccount?.members??[];
   const canManageOrganization=organizationAccount?.can_manage===true;
+  const canCreateCases=organizationAccount?.can_create_cases===true;
   const {isAdmin:isPlatformAdmin}=useRoles();
   const canAdministerResources=isPlatformAdmin||canManageOrganization;
   const navigationAreas=canManageOrganization
@@ -222,7 +223,10 @@ function SocialCarePage(){
     mutationFn:()=>createCaseFn({data:{
       orgId:resolvedOrg,programId:caseDraft.programId||programs[0]?.id,
       personId:caseDraft.personId||undefined,newClientName:caseDraft.personId?undefined:caseDraft.newClientName,
-      familyId:caseDraft.familyId||undefined,assignedUserId:caseDraft.assignedUserId||undefined,
+      familyId:caseDraft.familyId||undefined,
+      assignedUserId:canManageOrganization
+        ? (caseDraft.assignedUserId||currentUserId)
+        : currentUserId,
       caseType:caseDraft.caseType,priority:caseDraft.priority,
     }}),
     onSuccess:(row:any)=>{
@@ -324,9 +328,9 @@ function SocialCarePage(){
       <div className="flex gap-2"><AlertTriangle className="mt-0.5 h-5 w-5 text-warning"/><div><h2 className="font-semibold">{es?"La organización aún no está disponible":"Organization is not available yet"}</h2><p className="mt-1 text-sm text-muted-foreground">{es?"La suscripción y el perfil deben crear la organización automáticamente. Actualice la página; si continúa, un administrador debe revisar el evento de aprovisionamiento.":"Subscription and profile completion create the organization automatically. Refresh the page; if this remains, an administrator should inspect the provisioning event."}</p></div></div>
     </section>}
 
-    {canManageOrganization&&<OpenAndAssignCaseModal open={caseModalOpen} es={es} draft={caseDraft} setDraft={setCaseDraft}
+    {canCreateCases&&<OpenAndAssignCaseModal open={caseModalOpen} es={es} draft={caseDraft} setDraft={setCaseDraft}
       programs={programs} people={visiblePeople} families={visibleFamilies} members={organizationMembers}
-      currentUserId={workspace.data?.userId??""} pending={createCaseMutation.isPending}
+      currentUserId={workspace.data?.userId??""} canAssignTeam={canManageOrganization} pending={createCaseMutation.isPending}
       onClose={()=>setCaseModalOpen(false)} onSubmit={()=>createCaseMutation.mutate()}/>} 
     <div className="mt-5 grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">
       <aside className="h-fit rounded-xl border border-border bg-card p-2 lg:sticky lg:top-4">
@@ -354,7 +358,7 @@ function SocialCarePage(){
             <div className="flex gap-2"><AlertTriangle className="mt-0.5 h-5 w-5 text-destructive"/><div><p className="text-sm font-semibold text-destructive">{es?alert.title_es:alert.title_en}</p><p className="text-xs text-muted-foreground">{es?"Caso de emergencia asignado. Requiere atención y acuse inmediato.":"Assigned emergency case. Immediate attention and acknowledgement are required."}</p></div></div>
             <div className="flex gap-2"><button type="button" onClick={()=>setSelectedCaseId(alert.social_case_id)} className="rounded-lg bg-destructive px-3 py-2 text-xs font-semibold text-destructive-foreground">{es?"Abrir caso":"Open case"}</button><button type="button" disabled={acknowledgeMutation.isPending} onClick={()=>acknowledgeMutation.mutate(alert.id)} className="rounded-lg border border-destructive/30 px-3 py-2 text-xs font-semibold">{es?"Acusar recibo":"Acknowledge"}</button></div>
           </div>)}
-          {canManageOrganization&&!visibleCases.length&&<div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4"><div><p className="text-sm font-semibold">{es?"Registre su primer caso":"Register your first case"}</p><p className="text-xs text-muted-foreground">{es?"Registre o seleccione al cliente, defina el tipo y asigne al responsable en un solo flujo.":"Register or select the client, choose the case type, and assign responsibility in one workflow."}</p></div><button type="button" onClick={()=>setCaseModalOpen(true)} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">{es?"Registrar nuevo caso":"Register New Case"}</button></div>}
+          {canCreateCases&&!visibleCases.length&&<div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4"><div><p className="text-sm font-semibold">{es?"Registre su primer caso":"Register your first case"}</p><p className="text-xs text-muted-foreground">{es?"Registre o seleccione al cliente, defina el tipo y asigne al responsable en un solo flujo.":"Register or select the client, choose the case type, and assign responsibility in one workflow."}</p></div><button type="button" onClick={()=>setCaseModalOpen(true)} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">{es?"Registrar nuevo caso":"Register New Case"}</button></div>}
           <div className="mt-5 flex flex-wrap items-end justify-between gap-3">
             <div><h2 className="text-base font-semibold">{canManageOrganization?(es?"Casos de la organización":"Organization cases"):(es?"Casos asignados":"Assigned cases")}</h2><p className="text-xs text-muted-foreground">{es?`${dashboardCases.length} casos autorizados`:`${dashboardCases.length} authorized cases`}</p></div>
             <label className="min-w-[260px] text-xs font-medium text-muted-foreground">{es?"Buscar por nombre o folio":"Search by name or case number"}<input value={caseListQuery} onChange={event=>setCaseListQuery(event.target.value)} placeholder={es?"Nombre o NYR-SOC-…":"Name or NYR-SOC-…"} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"/></label>
@@ -366,7 +370,7 @@ function SocialCarePage(){
         {area==="caseWork"&&<section className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-5">
             <div><h2 className="font-semibold">{es?"Trabajo del caso":"Case Work"}</h2><p className="mt-1 text-sm text-muted-foreground">{es?"Abra un caso autorizado para trabajar ingreso, riesgo, plan, intervenciones, servicios, canalizaciones, documentos, actividad y cierre con el mismo expediente.":"Open an authorized case to work intake, risk, care plan, interventions, services, referrals, documents, activity, and closure in one continuous record."}</p></div>
-            {canManageOrganization&&<button type="button" onClick={()=>setCaseModalOpen(true)} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">{es?"Registrar nuevo caso":"Register New Case"}</button>}
+            {canCreateCases&&<button type="button" onClick={()=>setCaseModalOpen(true)} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">{es?"Registrar nuevo caso":"Register New Case"}</button>}
           </div>
           <CaseTable cases={visibleCases} members={organizationMembers} es={es} onOpen={setSelectedCaseId}/>
         </section>}
@@ -374,7 +378,7 @@ function SocialCarePage(){
         {area==="cases"&&<section>
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-4">
             <div><h2 className="font-semibold">{es?"Casos de Atención Integral":"Comprehensive Care cases"}</h2><p className="text-xs text-muted-foreground">{es?"Cada caso se abre y asigna mediante una sola transacción auditable.":"Every case is opened and assigned through one auditable transaction."}</p></div>
-            {canManageOrganization&&<button type="button" onClick={()=>setCaseModalOpen(true)} disabled={!resolvedOrg||!programs.length} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">{es?"Registrar nuevo caso":"Register New Case"}</button>}
+            {canCreateCases&&<button type="button" onClick={()=>setCaseModalOpen(true)} disabled={!resolvedOrg||!programs.length} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">{es?"Registrar nuevo caso":"Register New Case"}</button>}
           </div>
           <div className="mb-4 flex flex-wrap gap-2"><input value={query} onChange={e=>setQuery(e.target.value)} placeholder={es?"Buscar por nombre, folio, teléfono, estado…":"Search name, ID, phone, status…"} className="min-w-[260px] flex-1 rounded-lg border border-border bg-card px-3 py-2 text-sm"/><button onClick={()=>search.mutate()} disabled={!resolvedOrg||search.isPending} className="rounded-lg border border-border px-4 py-2 text-sm"><Search className="mr-2 inline h-4 w-4"/>{es?"Búsqueda amplia":"Broad search"}</button></div>
           {search.data&&<div className="mb-4 rounded-lg border border-border bg-card p-3 text-sm">{es?"Resultados autorizados":"Authorized results"}: {search.data.length}</div>}
@@ -397,7 +401,7 @@ function SocialCarePage(){
         {area==="tasks"&&<section className="rounded-xl border border-border bg-card p-5"><h2 className="font-semibold">{es?"Alertas operativas":"Operational alerts"}</h2><div className="mt-3 space-y-2">{visibleAlerts.map((x:any)=><div key={x.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-3"><div><p className={x.severity==="critical"?"font-semibold text-destructive":"font-medium"}>{es?x.title_es:x.title_en}</p><p className="text-xs text-muted-foreground">{x.alert_type} · {x.due_at?new Date(x.due_at).toLocaleString():"—"}</p></div><button disabled={acknowledgeMutation.isPending} onClick={()=>acknowledgeMutation.mutate(x.id)} className="rounded-lg border border-border px-3 py-1.5 text-xs">{es?"Resolver":"Resolve"}</button></div>)}{!visibleAlerts.length&&<p className="text-sm text-muted-foreground">{es?"No hay alertas pendientes.":"No pending alerts."}</p>}</div></section>}
         {area==="indicators"&&<section className="rounded-xl border border-border bg-card p-5"><div className="flex flex-wrap items-end gap-3"><div><h2 className="font-semibold">{es?"Indicadores institucionales":"Institutional indicators"}</h2><p className="text-xs text-muted-foreground">{es?"Solo agregados; grupos pequeños se suprimen automáticamente.":"Aggregates only; small groups are automatically suppressed."}</p></div><Field label={es?"Desde":"From"} type="date" value={indicatorRange.from} onChange={v=>setIndicatorRange({...indicatorRange,from:v})}/><Field label={es?"Hasta":"To"} type="date" value={indicatorRange.to} onChange={v=>setIndicatorRange({...indicatorRange,to:v})}/></div><div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{(indicators.data??[]).map((x:any,i:number)=><div key={x.id??i} className="rounded-lg border border-border p-4"><p className="text-xs uppercase text-muted-foreground">{x.name_es??x.indicator_code??x.code??(es?"Indicador":"Indicator")}</p><p className="mt-1 text-2xl font-semibold">{x.suppressed?(es?"Suprimido":"Suppressed"):(x.value??x.count??"—")}</p></div>)}{indicators.isLoading&&<Loader2 className="h-5 w-5 animate-spin"/>}{!indicators.isLoading&&!(indicators.data??[]).length&&<p className="text-sm text-muted-foreground">{es?"Sin datos agregados para el periodo.":"No aggregate data for this period."}</p>}</div></section>}
         {area==="activity"&&<TeamActivity es={es} account={organizationAccount} orgId={resolvedOrg} onOpenCase={setSelectedCaseId}/>}
-        {area==="documents"&&<SocialDocumentsHub cases={visibleCases} people={visiblePeople} families={visibleFamilies} programs={programs} orgId={resolvedOrg} canCreateCases={canManageOrganization} onOpenCase={setSelectedCaseId} onRegisterPerson={()=>setCaseModalOpen(true)} onOpenNewCase={()=>setCaseModalOpen(true)}/>}
+        {area==="documents"&&<SocialDocumentsHub cases={visibleCases} people={visiblePeople} families={visibleFamilies} programs={programs} orgId={resolvedOrg} canCreateCases={canCreateCases} onOpenCase={setSelectedCaseId} onRegisterPerson={()=>setCaseModalOpen(true)} onOpenNewCase={()=>setCaseModalOpen(true)}/>}
         {effectiveArea==="resources"&&<ResourceKnowledgeNetwork mode="resources" orgId={resolvedOrg}/>}
         {area==="knowledge"&&<KnowledgeCenter orgId={resolvedOrg}/>}
         {effectiveArea==="resourceAdmin"&&canAdministerResources&&<><ResourceKnowledgeNetwork mode="admin" orgId={resolvedOrg}/><KnowledgeCenter orgId={resolvedOrg} admin/></>}
@@ -407,15 +411,19 @@ function SocialCarePage(){
   </div>;
 }
 
-function OpenAndAssignCaseModal({open,es,draft,setDraft,programs,people,families,members,currentUserId,pending,onClose,onSubmit}:{
+function OpenAndAssignCaseModal({open,es,draft,setDraft,programs,people,families,members,currentUserId,canAssignTeam,pending,onClose,onSubmit}:{
   open:boolean;es:boolean;draft:any;setDraft:(value:any)=>void;programs:any[];people:any[];families:any[];members:any[];
-  currentUserId:string;pending:boolean;onClose:()=>void;onSubmit:()=>void;
+  currentUserId:string;canAssignTeam:boolean;pending:boolean;onClose:()=>void;onSubmit:()=>void;
 }){
   if(!open)return null;
   const selected=people.find((p:any)=>p.id===draft.personId);
   const activeMembers=members.filter((m:any)=>m.status==="active");
   const validClient=Boolean(draft.personId||draft.newClientName.trim().length>=2);
-  const validAssignee=Boolean(draft.assignedUserId&&activeMembers.some((m:any)=>m.user_id===draft.assignedUserId));
+  const effectiveAssignee=canAssignTeam ? draft.assignedUserId : currentUserId;
+  const validAssignee=Boolean(
+    effectiveAssignee &&
+    activeMembers.some((m:any)=>m.user_id===effectiveAssignee)
+  );
   return <div role="dialog" aria-modal="true" aria-label={es?"Abrir y asignar caso":"Open and Assign Case"} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
     <section className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-2xl">
       <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[.16em] text-primary">{es?"Nuevo expediente":"New case"}</p><h2 className="text-xl font-semibold">{es?"Abrir y asignar caso":"Open and Assign Case"}</h2><p className="mt-1 text-sm text-muted-foreground">{es?"El cliente, el caso, la asignación, el historial y las alertas se guardan juntos.":"Client, case, assignment, history, and alerts are saved together."}</p></div><button type="button" onClick={onClose} className="rounded-lg border border-border px-3 py-1.5 text-sm">{es?"Cerrar":"Close"}</button></div>
@@ -424,7 +432,36 @@ function OpenAndAssignCaseModal({open,es,draft,setDraft,programs,people,families
         {!draft.personId&&<Field label={es?"Nombre legal del cliente nuevo":"New client legal name"} value={draft.newClientName} onChange={v=>setDraft({...draft,newClientName:v})}/>}
         {selected&&<div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm md:col-span-2"><span className="font-semibold">{selected.legal_name}</span><span className="ml-2 text-muted-foreground">{selected.person_number}</span></div>}
         <label className="text-xs font-medium text-muted-foreground">{es?"Programa":"Program"}<select value={draft.programId||programs[0]?.id||""} onChange={e=>setDraft({...draft,programId:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">{programs.map((p:any)=><option key={p.id} value={p.id}>{es?p.name_es:p.name_en} · {p.case_prefix}</option>)}</select></label>
-        <label className="text-xs font-medium text-muted-foreground">{es?"Asignado a":"Assigned to"}<select value={draft.assignedUserId} onChange={e=>setDraft({...draft,assignedUserId:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="">{es?"Seleccione integrante del equipo":"Select team member"}</option>{activeMembers.map((m:any)=><option key={m.user_id} value={m.user_id}>{m.user_id===currentUserId?(es?"Yo":"Me"):m.name}{m.title?` — ${m.title}`:""} · {memberRoleLabel(m.role,es)}</option>)}</select></label>
+        {canAssignTeam ? (
+          <label className="text-xs font-medium text-muted-foreground">
+            {es?"Asignado a":"Assigned to"}
+            <select
+              value={draft.assignedUserId}
+              onChange={e=>setDraft({...draft,assignedUserId:e.target.value})}
+              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+            >
+              <option value="">{es?"Seleccione integrante del equipo":"Select team member"}</option>
+              {activeMembers.map((m:any)=>
+                <option key={m.user_id} value={m.user_id}>
+                  {m.user_id===currentUserId?(es?"Yo":"Me"):m.name}
+                  {m.title?` — ${m.title}`:""} · {memberRoleLabel(m.role,es)}
+                </option>
+              )}
+            </select>
+          </label>
+        ) : (
+          <div className="text-xs font-medium text-muted-foreground">
+            {es?"Asignado a":"Assigned to"}
+            <div className="mt-1 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-foreground">
+              {activeMembers.find((m:any)=>m.user_id===currentUserId)?.name ?? (es?"Mi cuenta":"My account")}
+            </div>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              {es
+                ?"Este caso se asignará automáticamente a su cuenta."
+                :"This case will automatically be assigned to your account."}
+            </p>
+          </div>
+        )}
         <label className="text-xs font-medium text-muted-foreground">{es?"Tipo de caso":"Case type"}<select value={draft.caseType} onChange={e=>setDraft({...draft,caseType:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="individual">{es?"Individual":"Individual"}</option><option value="minor_child">{es?"Menor / protección infantil":"Minor / Child"}</option><option value="family">{es?"Familia":"Family"}</option></select></label>
         {draft.caseType==="family"&&<label className="text-xs font-medium text-muted-foreground">{es?"Familia vinculada (opcional)":"Linked family (optional)"}<select value={draft.familyId} onChange={e=>setDraft({...draft,familyId:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="">—</option>{families.map((x:any)=><option key={x.id} value={x.id}>{x.family_number} · {x.family_name}</option>)}</select></label>}
         <label className="text-xs font-medium text-muted-foreground">{es?"Prioridad":"Priority"}<select value={draft.priority} onChange={e=>setDraft({...draft,priority:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">{socialCasePriorityOptions(es).map(({value,label})=><option key={value} value={value}>{label}</option>)}</select></label>

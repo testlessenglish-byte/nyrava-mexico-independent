@@ -48,8 +48,13 @@ export const getSocialWorkspace=createServerFn({method:"GET"})
     ]);
     [programs,offices,cases,people,families,alerts,referrals,tasks,institutions,templates,roleAssignments,recentActivity].forEach((r:any)=>fail(r.error));
     const organizationAccounts=await Promise.all(orgIds.map(async(orgId:string)=>{
-      const {data,error}=await supabase.rpc("get_social_organization_account",{p_org:orgId});
-      fail(error);return {orgId,...(data??{})};
+      const [{data:account,error},{data:canCreate,error:createError}]=await Promise.all([
+        supabase.rpc("get_social_organization_account",{p_org:orgId}),
+        supabase.rpc("social_can_create_case_for_current_user",{p_org:orgId}),
+      ]);
+      fail(error);
+      fail(createError);
+      return {orgId,...(account??{}),can_create_cases:canCreate===true};
     }));
     const now=Date.now();const caseRows=cases.data??[];
     return {
@@ -123,11 +128,22 @@ export const createAndAssignCareCase=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
   .inputValidator((d:unknown)=>socialCaseInput.parse(d))
   .handler(async({data,context})=>{
-    const {supabase}=ctx(context);
+    const {supabase,userId}=ctx(context);
+
+    const {data:normalizedAssignee,error:assigneeError}=await supabase.rpc(
+      "social_validate_case_assignee",
+      {
+        p_org:data.orgId,
+        p_requested_user:data.assignedUserId??userId,
+        p_actor:userId,
+      },
+    );
+    fail(assigneeError);
+
     const {data:row,error}=await supabase.rpc("create_and_assign_care_case",{
       p_org:data.orgId,p_program:data.programId,p_person:data.personId??null,
       p_client_name:data.newClientName??null,p_family:data.familyId??null,p_case_type:data.caseType,
-      p_priority:data.priority,p_assigned_user:data.assignedUserId??null,
+      p_priority:data.priority,p_assigned_user:normalizedAssignee??userId,
     });
     fail(error);return row;
   });

@@ -247,12 +247,13 @@ describe("social-care migration security coverage",()=>{
     expect(caseAssignmentWorkflow).toContain("'emergency_case_supervision'");
     expect(caseAssignmentWorkflow).toContain("coalesce(p_assigned_user,v_actor)");
   });
-  it("limits case creation and assignment controls to organization managers",()=>{
+  it("allows primary subscribers to create cases while organization managers control team assignment",()=>{
     expect(managerOnlyCaseCreation).toContain("public.social_can_manage_org(new.org_id,auth.uid())");
     expect(managerOnlyCaseCreation).toContain("social_cases_manager_only_insert");
     expect(routeSource).toContain("canManageOrganization");
     expect(routeSource).toContain("availableOrganizations");
-    expect(routeSource).toContain("canCreateCases={canManageOrganization}");
+    expect(routeSource).toContain("canCreateCases={canCreateCases}");
+    expect(routeSource).toContain("canAssignTeam={canManageOrganization}");
     expect(documentsHubSource).toContain("This is a team-member account");
   });
   it("allocates collision-proof case numbers and paginates organization cases",()=>{
