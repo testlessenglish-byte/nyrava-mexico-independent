@@ -65,10 +65,11 @@ describe("Comprehensive Care priority contract", () => {
     expect(SOCIAL_CASE_PRIORITIES).toEqual(["low", "normal", "high", "urgent"]);
     for (const value of SOCIAL_CASE_PRIORITIES) expect(socialCasePriority.parse(value)).toBe(value);
     expect(route).toContain('priority:"normal" as "low"|"normal"|"high"|"urgent"');
-    for (const [operation, input] of operations.slice(0, 2)) {
+    for (const [operation, input, rpcName] of operations.slice(0, 2)) {
       const rpc = vi.fn().mockResolvedValue({ data: { id }, error: null });
       await (operation as any)({ data: input, context: { userId: id, supabase: { rpc } } });
-      expect(rpc.mock.calls[0][1].p_priority).toBe("normal");
+      const persistenceCall = rpc.mock.calls.find(([name]) => name === rpcName);
+      expect(persistenceCall?.[1]?.p_priority).toBe("normal");
     }
   });
 

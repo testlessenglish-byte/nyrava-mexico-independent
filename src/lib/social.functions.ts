@@ -173,7 +173,7 @@ export const createAndAssignCareCase=createServerFn({method:"POST"})
     const {data:row,error}=await supabase.rpc("create_and_assign_care_case",{
       p_org:data.orgId,p_program:data.programId,p_person:data.personId??null,
       p_client_name:data.newClientName??null,p_family:data.familyId??null,p_case_type:data.caseType,
-      p_priority:data.priority,p_assigned_user:normalizedAssignee??userId,
+      p_priority:data.priority??"normal",p_assigned_user:normalizedAssignee??userId,
     });
     fail(error);
 
@@ -1255,7 +1255,7 @@ export const openCareCaseFromIntake=createServerFn({method:"POST"})
   .handler(async({data,context})=>{
     const {supabase}=ctx(context);
     const {data:row,error}=await supabase.rpc("open_care_case_from_intake",{
-      p_intake:data.intakeId,p_case_type:data.caseType,p_priority:data.priority,
+      p_intake:data.intakeId,p_case_type:data.caseType,p_priority:data.priority??"normal",
       p_assigned_user:data.assignedUserId??null,
     });
     fail(error);return row;
