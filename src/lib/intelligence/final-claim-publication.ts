@@ -1445,6 +1445,51 @@ export async function reconcileCitationsAndDependentClaims(
   ];
   fullReport.reconciled_findings = activeFindings;
 
+  // Rebind only positively verified canonical citations to their owning
+  // active finding before Final Claim Publication rebuilds the report.
+  //
+  // The source-location audit above is authoritative. Never manufacture a
+  // publication citation from writer prose/source_ids alone.
+  const verifiedRefsByFinding = new Map<string, any[]>();
+
+  for (const citation of verifiedCitations) {
+    const ref = citation as any;
+    const parentFindingId =
+      ref.__parent_finding_id ??
+      ref.finding_id ??
+      ref.claim_id ??
+      null;
+
+    if (!parentFindingId) continue;
+
+    const certified =
+      String(ref.verification_status ?? "").toLowerCase() === "verified" &&
+      ref.publication_status !== "QUARANTINED" &&
+      String(ref.proposition_supported ?? "").trim().length > 0 &&
+      String(ref.quote ?? ref.excerpt ?? ref.source_quote ?? "").trim().length > 0 &&
+      String(ref.canonical_source_id ?? "").trim().length > 0;
+
+    if (!certified) continue;
+
+    const key = String(parentFindingId);
+    const cleanRef = { ...ref };
+    delete cleanRef.__origin;
+    delete cleanRef.__parent_finding_id;
+    delete cleanRef.__parent_finding_title;
+    delete cleanRef.__parent_core_id;
+
+    const existing = verifiedRefsByFinding.get(key) ?? [];
+    existing.push(cleanRef);
+    verifiedRefsByFinding.set(key, existing);
+  }
+
+  for (const finding of activeFindings) {
+    const refs = verifiedRefsByFinding.get(String(finding.id));
+    if (refs?.length) {
+      finding.evidence_refs = refs;
+    }
+  }
+
   // Rebuild published claims & prose from surviving claims
   const { published, all } = classifyValidatePublishClaims(activeFindings, context);
   fullReport.final_published_claims = published;
