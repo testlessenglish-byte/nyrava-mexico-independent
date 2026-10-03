@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import type { PreparedPdfDownload } from "@/lib/pdf/pdf-download";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -41,7 +42,7 @@ export interface ReportDownloadsCardProps {
   pipelineStage?: string | null;
   busy?: boolean;
   rawError?: string | null;
-  onDownloadPdf: () => Promise<void> | void;
+  onDownloadPdf: (onPrepared?: (file: PreparedPdfDownload) => void) => Promise<void> | void;
   onDownloadJson?: () => Promise<void> | void;
   onRetry?: () => Promise<void> | void;
   className?: string;
@@ -68,7 +69,16 @@ export function ReportDownloadsCard({
 }: ReportDownloadsCardProps) {
   const { t } = useI18n();
   const { isAdmin, isSuperAdmin, roles } = useRoles();
+  const [preparedPdf, setPreparedPdf] = useState<PreparedPdfDownload | null>(null);
+  const exportGeneration = useRef(0);
+  useEffect(() => () => { if (preparedPdf) URL.revokeObjectURL(preparedPdf.url); }, [preparedPdf]);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  useEffect(() => {
+    exportGeneration.current++;
+    setPreparedPdf(null);
+    setDownloadingPdf(false);
+    return () => { exportGeneration.current++; };
+  }, [caseId, executionId, releaseDecision, isBlocked]);
   const [downloadingJson, setDownloadingJson] = useState(false);
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
 
@@ -116,15 +126,23 @@ export function ReportDownloadsCard({
 
   const handleDownloadPdf = async () => {
     if (!subscriberStatus.canDownloadPdf || downloadingPdf) return;
+    const generation = ++exportGeneration.current;
     setDownloadingPdf(true);
     try {
-      await onDownloadPdf();
+      setPreparedPdf(null);
+      await onDownloadPdf((file) => {
+        if (generation !== exportGeneration.current) {
+          URL.revokeObjectURL(file.url);
+          return;
+        }
+        setPreparedPdf(file);
+      });
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : t("reports.export.failed", "Error al exportar PDF"),
       );
     } finally {
-      setDownloadingPdf(false);
+      if (generation === exportGeneration.current) setDownloadingPdf(false);
     }
   };
 
@@ -196,7 +214,12 @@ export function ReportDownloadsCard({
               size="sm"
               variant="outline"
               disabled={isRetrying}
-              onClick={() => retryMutation.mutate()}
+              onClick={() => {
+                exportGeneration.current++;
+                setPreparedPdf(null);
+                setDownloadingPdf(false);
+                retryMutation.mutate();
+              }}
               className="text-xs border-[#C5A880]/50 hover:bg-[#FAF4EB] dark:hover:bg-[#132B21]/40 flex items-center gap-1.5"
             >
               <RotateCw className={`h-3.5 w-3.5 ${isRetrying ? "animate-spin" : ""}`} />
@@ -241,6 +264,15 @@ export function ReportDownloadsCard({
             </div>
           )}
         </div>
+      )}
+
+      {preparedPdf && (
+        <Button asChild className="w-full">
+          <a href={preparedPdf.url} download={preparedPdf.filename} data-testid="save-prepared-pdf">
+            <FileDown className="h-4 w-4" />
+            {t("reports.savePreparedPdf", "Guardar PDF")}
+          </a>
+        </Button>
       )}
 
       {/* 3. SUBSCRIBER VIEW: EMPTY / NOT READY */}

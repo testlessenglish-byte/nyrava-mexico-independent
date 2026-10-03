@@ -131,7 +131,6 @@ function ReportsPage() {
     }
   };
 
-  if (contractError) return <p role="alert">{contractError}</p>;
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 md:px-8 md:py-8">
       <ModuleHeader
@@ -240,12 +239,10 @@ function ReportsPage() {
                   releaseWarnings={(report?.full_report as any)?.release_warnings ?? []}
                   contractError={contractError}
                   executionId={(report as any)?.execution_id ?? null}
-                  onDownloadPdf={() =>
-                    run(async () => {
-                      const { downloadPdf } = await import("@/lib/export");
-                      return downloadPdf(await freshExportData(), name);
-                    }, "reports.export.pdf")
-                  }
+                  onDownloadPdf={async (onPrepared) => {
+                    const { downloadReportPdf } = await import("@/lib/export");
+                    await downloadReportPdf(await freshExportData(), name, { onPrepared });
+                  }}
                   onDownloadJson={() =>
                     run(async () => {
                       const { downloadJson } = await import("@/lib/export");
@@ -440,6 +437,7 @@ function ReportsPage() {
                   </>
                 )}
 
+                {!contractError && <>
                 {finalPayload && <CanonicalReportFindings payload={finalPayload} />}
 
                 <LegalScopeSummary fullReport={report.full_report} />
@@ -484,6 +482,7 @@ function ReportsPage() {
                   itemFlags={report?.item_flags}
                 />
                 <AttorneyWorkProduct fullReport={report?.full_report} caseId={caseId} itemFlags={report?.item_flags} />
+                </>}
               </div>
             )
           ) : null}

@@ -8,13 +8,16 @@ type Row = Record<string, any>;
 type Index = Array<{ document_id: string; doc_n: number; canonical_source_id?: string }>;
 export type PropositionReview = { claim: SupportClaim; review: SupportVerdict };
 export function reviewedAttributionMatches(value: Row, claim: SupportClaim): boolean {
-  const canonical = (key: string, v: unknown) => key === 'proposition_type' && v === 'court_holding' ? 'holding' : v;
+  const canonical = (key: string, v: unknown) => key === 'speaker_role' && (v == null || v === 'unresolved')
+    ? null : key === 'proposition_type' && v === 'court_holding' ? 'holding' :
+      key === 'proposition_type' && ['allegation','party_argument'].includes(String(v)) &&
+      value.adoption_status === 'party_position' && claim.adoption_status === 'party_position' ? 'party_argument' : v;
   return ['speaker_role','proposition_type','adoption_status'].every(key =>
     value[key] == null || canonical(key, value[key]) === canonical(key, (claim as Row)[key]));
 }
 /** This input comes from engine finding records, never Report Writer objects. */
 export function findingCitationReviews(findings: Row[]): PropositionReview[] {
-  return findings.flatMap(f => f.metadata?.semantic_support_review && isClaimReportable(f) ? [{
+  return findings.flatMap(f => f.metadata?.semantic_support_review && isReviewedFindingReportable(f) ? [{
     claim: Object.fromEntries(['id','case_id','execution_id','title','description','source_document_id','source_page','source_quote',
       'speaker_role','proposition_type','adoption_status','legal_significance','potential_impact','rationale',
       'audit_classification','finding_type','authority_level'].filter(k => f[k] !== undefined || k === 'execution_id' && f.metadata?.execution_id !== undefined)
@@ -23,6 +26,18 @@ export function findingCitationReviews(findings: Row[]): PropositionReview[] {
   }] : []);
 }
 export const citationText = (s: unknown) => typeof s === 'string' ? s.normalize('NFC').replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/\s+/g, ' ').trim().replace(/[.!?]$/, '') : '';
+
+// A repaired claim may already have an independent review of its CURRENT text.
+// This eligibility is limited to finding records; citation flags never authorize repair.
+function isReviewedFindingReportable(f: Row): boolean {
+  if (isClaimReportable(f)) return true;
+  const diagnostic = f.metadata?.claim_entailment_diagnostic;
+  const review = f.metadata?.semantic_support_review;
+  return f.verification_status !== 'quarantined' && diagnostic?.claim_action === 'RECLASSIFY' &&
+    diagnostic.final_reportable === true && diagnostic.entailment_status === 'ENTAILED' &&
+    diagnostic.repaired_description === f.description && diagnostic.repaired_claim === f.title &&
+    review?.version === 1 && review.verdict === 'supported';
+}
 
 function isClaimReportable(value: Row): boolean {
   if (String(value.verification_status ?? '').toLowerCase() === 'quarantined') return false;
@@ -41,10 +56,11 @@ export function unresolvedCitation(ref: Row, reason: string): Row {
 /** Re-use an existing semantic review only for its exact claim and source input.
  * A verified flag or lexical overlap is never semantic proof. */
 export function citationPropositionVerified(ref: Row, proposition: string, pages: MatterSourcePage[], trustedReviews: PropositionReview[] = []): boolean {
-  if (!isClaimReportable(ref)) return false;
+  const repairedFinding = !isClaimReportable(ref);
+  if (repairedFinding && !isReviewedFindingReportable(ref)) return false;
   const quote = String(ref.quote ?? '');
   if (!proposition || !quote) return false;
-  if (citationText(proposition) === citationText(quote) || citationText(quote).includes(citationText(proposition))) {
+  if (!repairedFinding && (citationText(proposition) === citationText(quote) || citationText(quote).includes(citationText(proposition)))) {
     const party = /^(?:quejoso|quejosa|actor|actora|defensa|party|parte_actora)$/i.test(String(ref.speaker_role ?? ''));
     const court = /court|tribunal|scjn|sala/i.test(String(ref.speaker_role ?? ''));
     if (party && /^(?:el tribunal|la sala|la scjn|la suprema corte)\s/i.test(quote)) return false;
@@ -159,14 +175,17 @@ export function completedFindingsCitations<T extends Row>(
           Number(refPage) === Number(finding.source_page) &&
           citationText(refQuote) === citationText(finding.source_quote);
 
-        const atomicProof = matchesReviewedFinding && finding.metadata?.semantic_support_review ? {
-          claim: Object.fromEntries(
-            ['id','title','description','source_document_id','source_page','source_quote']
-              .filter(k => finding[k] !== undefined)
-              .map(k => [k, finding[k]])
-          ),
-          review: finding.metadata.semantic_support_review
-        } as PropositionReview : undefined;
+        // Reuse the complete authoritative claim: every field participates in
+        // supportInput().hash, including scope, attribution and legal rationale.
+        const atomicProof = matchesReviewedFinding
+          ? findingCitationReviews([finding])[0] : undefined;
+        const linkedId = ref.finding_id ?? ref.claim_id ?? ref.proposition_id;
+        if (linkedId != null && linkedId !== finding.id ||
+            ref.case_id != null && ref.case_id !== finding.case_id ||
+            ref.execution_id != null && ref.execution_id !== (finding.execution_id ?? finding.metadata?.execution_id) ||
+            finding.verification_status != null && finding.verification_status !== 'verified' ||
+            finding.publication_status === 'QUARANTINED')
+          return unresolvedCitation(ref, 'FINDING_OWNERSHIP_NOT_CERTIFIED');
 
         const proposition = String(
           ref.proposition_supported ??

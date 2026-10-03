@@ -4,6 +4,9 @@ import path from 'node:path';
 import { downloadPdf } from '../../export';
 import { validateFinalReportContract } from '../final-report-contract';
 const rendered=vi.hoisted(()=>({pdf:null as ArrayBuffer|null,pages:new Map<number,string[]>()}));
+vi.mock('../../pdf/pdf-download', () => ({
+ savePdfDownload: (bytes:ArrayBuffer) => {rendered.pdf=bytes;},
+}));
 vi.mock('jspdf',async original=>{
  const actual=await original<typeof import('jspdf')>();
  function Pdf(options:any){const pdf=new actual.jsPDF(options);

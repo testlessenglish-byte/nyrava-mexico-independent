@@ -44,8 +44,17 @@ function database() {
 }
 
 describe('report-stage release input', () => {
+  it('withholds a restricted theory without altering its stored source data',async()=>{
+    const input=base(),db=database(),stored=structuredClone(invalidTheory);
+    const complete=await composeReportStagePayload(db,'case-1',input,input.findings);
+    expect(complete.theories ?? []).toEqual([]);
+    expect(invalidTheory).toEqual(stored);
+    expect(auditReportCitationIntegrity(complete).errors.some(error=>error.includes('theories[0]'))).toBe(false);
+  });
+
   it('validates the same stored theory citations seen by the final release path', async () => {
     const input = base();
+    input.case.case_analysis_mode='ongoing';input.report!.report_mode='FULL';
     const incomplete = composeFinalReportPayload({ ...input, analysis: null, agents: [], score: null });
     expect(auditReportCitationIntegrity(incomplete).errors.some(error => error.includes('theories[0]'))).toBe(false);
 

@@ -10,6 +10,9 @@ import type { CaseExportData } from "../../export";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 const rendered = vi.hoisted(() => ({pdf:null as ArrayBuffer|null}));
+vi.mock('../../pdf/pdf-download', () => ({
+  savePdfDownload: (bytes: ArrayBuffer) => { rendered.pdf = bytes; },
+}));
 vi.mock("jspdf", async (original) => {
   const actual = await original<typeof import("jspdf")>();
   function Pdf(options:any) {

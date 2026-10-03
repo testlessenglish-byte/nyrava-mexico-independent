@@ -14,6 +14,66 @@ const text = (value: unknown) => typeof value === 'string' ? value.trim() : '';
 const normalized = (value: string) => value.normalize('NFC').replace(/[“”]/g, '"')
   .replace(/[‘’]/g, "'").replace(/\s+/g, ' ').trim().replace(/[.!?]$/, '');
 const assertion = (value: unknown) => text(value).replace(/\[DOC\s+[^\]]+\]/gi, '').trim();
+
+// Reconstruct only the existing Civil subscriber view for proof comparison.
+// Keep this export-boundary projection local; Civil analysis code is unchanged.
+function projectCivilFinding(f: Row, pages: MatterSourcePage[]): Row {
+  const canonical = attributeCivilProposition(f, pages);
+  const labels: Record<string,string> = { PARTY_ALLEGATION:'Alegación de parte', COURT_HOLDING:'Determinación del órgano emisor', LOWER_COURT_HOLDING:'Determinación del órgano de origen', DOCUMENTED_FACT:'Hecho documentado', PROCEDURAL_HISTORY:'Antecedente procesal', EXPERT_OPINION:'Opinión pericial', NYRAVA_INFERENCE:'Inferencia de NYRAVA', UNRESOLVED:'Atribución pendiente de verificar' };
+  const label=labels[canonical.attribution_type],party=canonical.attribution_type==='PARTY_ALLEGATION',unresolved=canonical.attribution_type==='UNRESOLVED';
+  const metadata={...f.metadata};delete metadata.published_claim;
+  return {...f,canonical_attribution:canonical,attribution_type:canonical.attribution_type,
+    speaker_role:party?'party':canonical.attribution_type==='COURT_HOLDING'?'reviewing_court':canonical.attribution_type==='LOWER_COURT_HOLDING'?'lower_court':unresolved?'unresolved':canonical.speaker,
+    speaker_role_label:label,metadata,title:label+': '+(canonical.source_verified?canonical.supporting_excerpt:'revisar la fuente del hallazgo'),
+    description:unresolved?'Atribución pendiente de verificar en la fuente; no se presenta como hecho establecido.':canonical.safe_proposition,
+    legal_significance:'Alcance limitado a la atribución verificada: '+label+'.',potential_impact:'El efecto jurídico requiere verificación independiente de autoridad y contexto aplicables.',canonical_actions:[],
+    ...(party?{proposition_type:'party_argument',content_class:'PARTY_ARGUMENT',adoption_status:'party_position'}:{})};
+}
+
+/** A publication view may omit strategy and label an unknown speaker, but it
+ * cannot alter the reviewed claim. Validate the original proof first, then
+ * compare the current view to ONLY those deterministic display changes. Never
+ * replace a stored review hash or borrow verification for changed content. */
+function publicationReviewMatches(finding: Row, proof: PropositionReview, pages: MatterSourcePage[], payload: CaseExportData): boolean {
+  if (proof.review.version !== 1 || proof.review.verdict !== 'supported' ||
+      supportInput(proof.claim, pages).hash !== proof.review.hash) return false;
+  if (supportInput(finding as SupportClaim, pages).hash === proof.review.hash) return true;
+  const view = (payload as Row).report_presentation;
+  const civil = finding.canonical_attribution != null;
+  if (!civil && !view?.capability) return false;
+  const projected = civil ? projectCivilFinding(proof.claim, pages) : { ...proof.claim };
+  // Final presentation restores the ORIGINAL reviewed core speaker only when
+  // the same authoritative core atom has the same source binding. An unresolved
+  // Civil notice cannot authorize a new court identity.
+  if (civil && projected.canonical_attribution?.attribution_type === 'UNRESOLVED' &&
+      finding.speaker_role === proof.claim.speaker_role &&
+      rows(obj(obj(payload.report).full_report).mandatory_decision_core?.items).some(item =>
+        item.id === finding.metadata?.mandatory_decision_core_id && item.speaker_role === proof.claim.speaker_role &&
+        normalized(text(item.text)) === normalized(text(proof.claim.description)) && rows(item.source_refs).some(ref =>
+          ref.document_id === proof.claim.source_document_id && ref.page === proof.claim.source_page &&
+          normalized(text(ref.quote)) === normalized(text(proof.claim.source_quote)))))
+    projected.speaker_role = proof.claim.speaker_role;
+  if (view?.capability && !view.capability.strategic_recommendations_allowed) delete projected.potential_impact;
+  // Both representations explicitly retain UNKNOWN attribution; no court or
+  // party identity can be inferred by this display conversion.
+  if (projected.speaker_role == null) projected.speaker_role = 'unresolved';
+  // Existing presentation names a party allegation 'party_argument'. The party
+  // and its non-adopted status must be retained; all other fields remain hash-bound.
+  if (view?.capability && projected.proposition_type === 'allegation' &&
+      projected.adoption_status === 'party_position' &&
+      /^(?:quejoso|quejosa|actor|actora|defensa|party|parte_actora)$/i.test(String(projected.speaker_role)))
+    projected.proposition_type = 'party_argument';
+  return supportInput(finding as SupportClaim, pages).hash === supportInput(projected, pages).hash;
+}
+
+function publicationFindingOwners(payload: CaseExportData): Set<Row> {
+  const findings = rows(payload.findings), owners = new Set(findings);
+  for (const card of rows((payload as Row).report_presentation?.finding_cards)) {
+    const finding = obj(card.finding);
+    owners.add(finding);
+  }
+  return owners;
+}
 function inlineAssertion(before: string): string {
   const trimmed = before.trim();
   const quoted = /[“"]([^“”"]+)[”"]$/.exec(trimmed);
@@ -104,6 +164,7 @@ export function auditReportCitationIntegrity(payload: CaseExportData) {
   const reviews = (payload as Row).citation_review_registry ?? findingCitationReviews(rows(payload.findings));
   const index = payload.documents.map((doc, i) => ({ document_id: String(doc.id ?? doc.document_id ?? ''),
     doc_n: Number(doc.doc_n ?? i + 1), canonical_source_id: text(doc.canonical_source_id) }));
+  const owners = publicationFindingOwners(payload);
   const errors: string[] = [], verified: Row[] = [], unresolved: Row[] = [];
   const coreItems = rows(obj(full.mandatory_decision_core).items);
   const isCore = (parent: Row) => coreItems.some(item => item === parent ||
@@ -115,6 +176,12 @@ export function auditReportCitationIntegrity(payload: CaseExportData) {
         errors.push(`citation_integrity:mandatory_decision_core:${item.id}:atomic_binding_missing`);
     }
   }
+  for (const card of rows((payload as Row).report_presentation?.finding_cards)) {
+    const finding = obj(card.finding);
+    if (!rows(payload.findings).some(f => f.id === finding.id && f.case_id === finding.case_id &&
+        (f.execution_id ?? f.metadata?.execution_id) === (finding.execution_id ?? finding.metadata?.execution_id)))
+      errors.push('citation_integrity:report_presentation.finding_cards:finding_owner_missing');
+  }
   let checked = 0;
   const auditRef = (raw: Row, path: string, parent: Row = {}) => {
     checked++;
@@ -122,6 +189,21 @@ export function auditReportCitationIntegrity(payload: CaseExportData) {
       page: raw.page ?? raw.source_page, quote: text(raw.quote ?? raw.excerpt ?? raw.source_quote) };
     const proposition = text(raw.proposition_supported);
     const reasons: string[] = [];
+    if (owners.has(parent)) {
+      if (!rows(payload.findings).some(f => f.id === parent.id && f.case_id === parent.case_id &&
+          (f.execution_id ?? f.metadata?.execution_id) === (parent.execution_id ?? parent.metadata?.execution_id)))
+        reasons.push('finding_owner_missing');
+      const linkedId = raw.finding_id ?? raw.claim_id ?? raw.proposition_id;
+      if (linkedId != null && linkedId !== parent.id) reasons.push('finding_ownership_mismatch');
+      if (payload.case?.id && parent.case_id !== payload.case.id) reasons.push('finding_case_mismatch');
+      if (payload.case?.execution_id && (parent.execution_id ?? parent.metadata?.execution_id) !== payload.case.execution_id ||
+          parent.metadata?.execution_id != null && payload.case?.execution_id && parent.metadata.execution_id !== payload.case.execution_id)
+        reasons.push('finding_execution_mismatch');
+      if (parent.verification_status != null && parent.verification_status !== 'verified') reasons.push('finding_unverified');
+      const proof = reviews.find((review: PropositionReview) => review.claim.id === parent.id);
+      if ((proof || parent.metadata?.semantic_support_review || raw.proposition_verification) &&
+          (!proof || !publicationReviewMatches(parent, proof, pages, payload))) reasons.push('finding_review_stale');
+    }
     if (raw.publication_status === 'QUARANTINED') reasons.push('citation_quarantined');
     if (raw.execution_id && raw.execution_id !== payload.case?.execution_id) reasons.push('citation_execution_mismatch');
     if (raw.case_id && raw.case_id !== payload.case?.id) reasons.push('citation_case_mismatch');
@@ -189,17 +271,12 @@ export function auditReportCitationIntegrity(payload: CaseExportData) {
       } else walk(child, `${path}.${k}`, k, row);
     }
   };
-  // Release integrity is publication-scoped. Upstream intelligence objects
-  // (findings, theories, perspectives, strategy, etc.) are inputs to the
-  // report and may also be copied into report_presentation. Auditing those
-  // copies as independent publication surfaces duplicates one citation failure
-  // several times and can block an otherwise verified report.
-  //
-  // Keep canonicalization broad, but make the release audit authoritative over
-  // the actual published report tree only. Published inline citations,
-  // citation annex entries, memorandum content, decision core and other
-  // full-report publication sections remain fail-closed.
+  // Audit every section supplied to the publication renderers, including
+  // cards with rejected or absent certification. Diagnostics remain excluded.
   walk(report, 'report');
+  for (const key of ['findings', 'theories', 'opportunities', 'witnesses', 'trial_prep', 'work_product',
+    'perspectives', 'evidence_intel', 'strategy', 'strategy_center', 'report_presentation'])
+    walk((payload as Row)[key], key);
   return { ok: errors.length === 0, errors: [...new Set(errors)], checked, verified, unresolved, unverified: unresolved };
 }
 
@@ -216,6 +293,7 @@ export function canonicalizeReportCitations<T extends CaseExportData>(input: T):
   const trustedReviews = Array.isArray((payload as Row).citation_review_registry)
     ? (payload as Row).citation_review_registry as PropositionReview[]
     : findingCitationReviews(rows(payload.findings));
+  const owners = publicationFindingOwners(payload);
   const bindings = new Map<string, string[]>();
   const roots = [report, ...['findings', 'theories', 'opportunities', 'witnesses', 'trial_prep', 'work_product',
     'perspectives', 'evidence_intel', 'strategy', 'strategy_center', 'report_presentation'].map(k => (payload as Row)[k])];
@@ -245,12 +323,11 @@ export function canonicalizeReportCitations<T extends CaseExportData>(input: T):
   });
   const certify = (ref: Row, statements: string[], parent: Row) => {
     const quote = text(ref.quote ?? ref.excerpt ?? ref.source_quote);
-    if (!statements.length || !quote || placeholder.test(quote) ||
-      (ref.proposition_supported != null && normalized(text(ref.proposition_supported)) !== normalized(statements[0]))) return;
+    if (!statements.length || !quote || placeholder.test(quote)) return;
     const coreFinding = rows(payload.findings).find(f => f.metadata?.mandatory_decision_core_id === parent.id);
     // Only a real finding may supply the fallback identity. A report section's
     // arbitrary `id` is not a claim ID. Explicit links never fall back on failure.
-    const owner = rows(payload.findings).find(f => typeof f.id === 'string' && f.id === parent.id);
+    const owner = owners.has(parent) ? parent : undefined;
     const stableId = ref.finding_id ?? ref.proposition_id ?? ref.evidence_id ?? ref.claim_id ?? owner?.id ?? coreFinding?.id;
     const proof = typeof stableId === 'string' ? trustedReviews.find(review => review.claim.id === stableId) : undefined;
     if (owner) {
@@ -265,21 +342,30 @@ export function canonicalizeReportCitations<T extends CaseExportData>(input: T):
       if (proof || parent.metadata?.semantic_support_review) {
         if (!proof || proof.claim.id !== owner.id || proof.review.version !== 1 ||
             proof.review.verdict !== 'supported' ||
-            supportInput(parent as SupportClaim, pages).hash !== proof.review.hash ||
+            !publicationReviewMatches(parent, proof, pages, payload) ||
             supportInput(proof.claim, pages).hash !== proof.review.hash ||
             !reviewedAttributionMatches(ref, proof.claim)) return;
       }
     }
+    if (ref.proposition_supported != null && normalized(text(ref.proposition_supported)) !== normalized(statements[0])) {
+      // Legacy source-only citations may be bound to the full reviewed party
+      // statement. Never replace a different assertion or reuse stale proof.
+      if (!owner || !proof || normalized(text(ref.proposition_supported)) !== normalized(quote) ||
+          normalized(statements[0]) !== normalized(text(proof.claim.description)) ||
+          !publicationReviewMatches(parent, proof, pages, payload)) return;
+    }
     const recovering = ref.publication_status === 'QUARANTINED' ||
       (ref.verification_status != null && String(ref.verification_status).toLowerCase() !== 'verified');
-    if (recovering && !proof) return;
+    // Rejected references require a new trusted producer run, not automatic
+    // rehabilitation by a presentation canonicalizer.
+    if (recovering || owner && parent.verification_status != null && parent.verification_status !== 'verified') return;
     const certified = createCanonicalCitation(
       ref,
       statements[0],
       pages,
       index,
       proof,
-      { allowTrustedRecertification: recovering && proof != null },
+      { allowTrustedRecertification: false },
     );
     if (!certified || statements.some(s => normalized(s) !== normalized(statements[0]))) return;
     Object.assign(ref, certified, owner && proof ? { finding_id: owner.id } : {});
@@ -300,7 +386,7 @@ export function canonicalizeReportCitations<T extends CaseExportData>(input: T):
       // whenever the writer omits inline citations. The trusted review only
       // supplies the proposition here; certify() still checks its full hash,
       // attribution, quote, page, and source binding before publication.
-      const owner = rows(payload.findings).find(f => typeof f.id === 'string' && f.id === parent.id);
+      const owner = owners.has(parent) ? parent : undefined;
       const ownerId = owner?.id;
       const explicitLink = row.finding_id ?? row.proposition_id ?? row.evidence_id ?? row.claim_id;
       const ownerProof = owner && typeof ownerId === 'string' &&

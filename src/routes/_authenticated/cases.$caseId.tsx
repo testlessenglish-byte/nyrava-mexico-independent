@@ -682,9 +682,9 @@ function Workspace() {
             pipelineStage={c.status}
             busy={running}
             rawError={c.error}
-            onDownloadPdf={async () => {
-              const { downloadPdf } = await import("@/lib/export");
-              await downloadPdf(await buildFreshExportData(), c.name);
+            onDownloadPdf={async (onPrepared) => {
+              const { downloadReportPdf } = await import("@/lib/export");
+              await downloadReportPdf(await buildFreshExportData(), c.name, { onPrepared });
               void logReportExport({
                 data: { caseId: c.id, format: "pdf", caseName: c.name },
               }).catch(() => {});
@@ -735,8 +735,8 @@ function Workspace() {
             hasReport={hasReport}
             reportBlocked={reportBlocked}
             onDownloadPdf={async () => {
-              const { downloadPdf } = await import("@/lib/export");
-              downloadPdf(await buildFreshExportData(), c.name);
+              const { downloadReportPdf } = await import("@/lib/export");
+              await downloadReportPdf(await buildFreshExportData(), c.name);
               void logReportExport({
                 data: { caseId: c.id, format: "pdf", caseName: c.name },
               }).catch(() => {});

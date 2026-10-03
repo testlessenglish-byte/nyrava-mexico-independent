@@ -95,7 +95,7 @@ export function resolveReportSpeaker(finding: Row, core: Row[]): string {
 const STRATEGY_FIELDS = new Set(["recommendations", "canonical_recommendations", "next_actions", "strategy_recommendations",
   "ways_out_analysis", "settlement_opportunities", "litigation_strategy", "trial_strategy", "defense_strategy", "prosecution_strategy",
   "future_motions", "case_opportunities", "urgent_actions", "potential_impact", "strategic_importance", "strategic_significance",
-  "recommended_motions", "strategy", "strategy_center", "opportunities", "trial_prep", "work_product",
+  "recommended_motions", "theories", "perspectives", "strategy", "strategy_center", "opportunities", "trial_prep", "work_product",
   "cross_examination", "cross_examination_questions", "defense_theory_report", "prosecution_theory_report", "alternative_theory_report",
   "attorney_work_product", "motion_opportunities", "case_strategy", "trial_themes", "jury_themes", "canonical_actions",
   "dispositive_recommendation", "risk_matrix", "motions", "legal_theories", "legal_theory",

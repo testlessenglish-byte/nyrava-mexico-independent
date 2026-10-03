@@ -1,3 +1,4 @@
+import { supportInput } from '../../intelligence/claim-support-review';
 import { describe, it, expect } from 'vitest';
 import { composeFinalReportPayload, validateFinalReportContract } from '../final-report-contract';
 import { MX_CASE_TYPES } from '../../jurisdiction/mexico-types';
@@ -27,7 +28,9 @@ describe('shared report contracts across every configured materia',()=>{
     expect(out.findings![0].title).toContain(quote);
   });
   it('keeps verified decision reconstruction findings in the canonical report and Judge input',()=>{
-    const finding={id:'decision',source_module:'decision_core',verification_status:'verified',finding_status:'verified',title:quote};
+    const finding={id:'decision',source_module:'decision_core',verification_status:'verified',finding_status:'verified',title:quote,
+      description:quote,source_document_id:'doc',source_page:31,source_quote:quote,metadata:{semantic_support_review:{version:1,verdict:'supported',hash:''}}};
+    finding.metadata.semantic_support_review.hash=supportInput(finding,[{document_id:'doc',page:31,text:quote}]).hash;
     expect(isCanonicalFinding(finding)).toBe(true);
     expect(selectFindings([finding])).toHaveLength(1);
     expect(isCanonicalFinding({...finding,verification_status:'unverified'})).toBe(false);

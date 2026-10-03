@@ -15,6 +15,7 @@ import {assertNarrativeExportReady} from './reporting/narrative-export-gate';
 // trail, and source appendix. Raw JSON is never exposed to the user — every
 // internal structure is rendered as readable prose, tables, or callouts.
 import jsPDF from "jspdf";
+import { savePdfDownload, type PreparedPdfDownload } from "./pdf/pdf-download";
 import { composeFinalReportPayload, releaseFinalReportPayload, releaseRenderedReportOutput, preflightFinalReportPayload, preflightRenderedReportOutput, type FinalReportPayload } from "./reporting/final-report-contract";
 import { canonicalSourceCount } from "./reporting/report-sources";
 import autoTable from "jspdf-autotable";
@@ -995,7 +996,7 @@ export class PdfBuilder {
     this.doc.setFontSize(6.8);
     this.doc.setTextColor(...ACCENT);
     const badgeText = this.isDraftReview
-      ? spaced("BORRADOR — REQUIERE REVISIÓN")
+      ? spaced(getReportTemplateLocale()==="en" ? "DRAFT - REVIEW REQUIRED" : "BORRADOR — REQUIERE REVISIÓN")
       : spaced("CONFIDENCIAL");
     this.doc.text(badgeText, leftX + badgeW / 2, curY + 9.5, { align: "center" });
 
@@ -1004,9 +1005,9 @@ export class PdfBuilder {
     this.doc.setFontSize(7.2);
     this.doc.setTextColor(...MUTED);
     if (this.isDraftReview) {
-      this.doc.text("Borrador técnico sujeto a revisión. No constituye informe final.", leftX, curY);
+      this.doc.text(getReportTemplateLocale()==="en" ? "Technical review draft. This is not a final report." : "Borrador técnico sujeto a revisión. No constituye informe final.", leftX, curY);
       curY += 9.5;
-      this.doc.text("Verifique todos los hallazgos y constancias antes de su uso.", leftX, curY);
+      this.doc.text(getReportTemplateLocale()==="en" ? "Verify every finding and source before use." : "Verifique todos los hallazgos y constancias antes de su uso.", leftX, curY);
     } else {
       this.doc.text("Sustentado en evidencia. Citas auditadas.", leftX, curY);
       curY += 9.5;
@@ -2049,7 +2050,7 @@ export class PdfBuilder {
         this.doc.setFont("helvetica", "bold");
         this.doc.setFontSize(7.5);
         this.doc.setTextColor(...ACCENT_SOFT);
-        this.doc.text("BORRADOR — REQUIERE REVISIÓN", this.pageW / 2, markCy + 2.5, { align: "center" });
+        this.doc.text(getReportTemplateLocale()==="en" ? "DRAFT - REVIEW REQUIRED" : "BORRADOR — REQUIERE REVISIÓN", this.pageW / 2, markCy + 2.5, { align: "center" });
       } else if (currentSecTitle) {
         this.doc.setFont("helvetica", "bold");
         this.doc.setFontSize(7.5);
@@ -2131,7 +2132,7 @@ export class PdfBuilder {
         this.doc.setFont("helvetica", "bold");
         this.doc.setFontSize(7.7);
         this.doc.setTextColor(...ACCENT);
-        this.doc.text("BORRADOR — REQUIERE REVISIÓN · Trabajo Jurídico", this.pageW / 2, this.pageH - 30, {
+        this.doc.text(getReportTemplateLocale()==="en" ? "DRAFT - REVIEW REQUIRED - Legal Work Product" : "BORRADOR — REQUIERE REVISIÓN · Trabajo Jurídico", this.pageW / 2, this.pageH - 18, {
           align: "center",
         });
       } else if (LEGAL_MODE) {
@@ -2139,7 +2140,7 @@ export class PdfBuilder {
           align: "center",
         });
       }
-      if (meta && _citationMode === "audit") {
+      if (meta && _citationMode === "audit" && !this.isDraftReview) {
         this.doc.setFontSize(7);
         const stamp = `parity ${meta.parity}  ·  ESS ${meta.ess}  ·  ${meta.generatedAt}  ·  NYRAVA v${NYRAVA_REPORT_VERSION}`;
         this.doc.text(stamp, this.pageW / 2, this.pageH - 18, { align: "center" });
@@ -2259,12 +2260,12 @@ export class PdfBuilder {
     this.doc.setFontSize(7.5);
     this.doc.setTextColor(...ACCENT);
     const endWatermark = this.isDraftReview
-      ? spaced("FIN DEL BORRADOR · REQUIERE REVISIÓN")
+      ? spaced(getReportTemplateLocale()==="en" ? "END OF DRAFT - REVIEW REQUIRED" : "FIN DEL BORRADOR · REQUIERE REVISIÓN")
       : spaced("FIN DEL INFORME · DOCUMENTO AUDITADO");
     this.doc.text(endWatermark, cx, watermarkY, { align: "center" });
   }
 
-  async save(filename: string, meta: { parity: string; ess: string; generatedAt: string } | null = null, validateOnly = false, internalPreflight = false) {
+  async save(filename: string, meta: { parity: string; ess: string; generatedAt: string } | null = null, validateOnly = false, internalPreflight = false, onPrepared?: (file: PreparedPdfDownload) => void) {
     this.finalizeLayout(meta);
     if (!this.finalPayload) throw new Error("REPORT_CONTRACT_UNAVAILABLE");
     const isVerifFailed = Boolean(
@@ -2282,7 +2283,7 @@ export class PdfBuilder {
       }
     }
     if (!validateOnly) await assertNarrativeExportReady(released);
-    if (!validateOnly) this.doc.save(filename);
+    if (!validateOnly) savePdfDownload(this.doc.output("arraybuffer"), filename, onPrepared);
     return released;
   }
 }
@@ -5208,7 +5209,52 @@ function deriveMatterId(data: CaseExportData): string {
   return id || "NYRAVA";
 }
 
-export async function downloadPdf(data: CaseExportData, name: string, opts?: { citationMode?: CitationMode; validateOnly?: boolean }) {
+/** Subscriber download: approved reports use the strict final exporter.
+ * A blocked report gets a separate source-review document, never final prose. */
+export async function downloadReportPdf(data: CaseExportData, name: string, opts?: { citationMode?: CitationMode; validateOnly?: boolean; onPrepared?: (file: PreparedPdfDownload) => void }) {
+  const report = asObj(data.report);
+  const review = report.quality_blocked === true || report.verification_status === 'VERIFICATION_FAILED' ||
+    report.release_decision === 'BLOCK' || report.status === 'needs_revision';
+  if (!review) return downloadPdf(data, name, opts);
+  const { auditSourceLocations } = await import('./reporting/source-location-audit');
+  const pages = asArr(asObj(report.full_report).pre_release_source_pages);
+  const index = data.documents.map((doc, i) => ({document_id:String(doc.id ?? doc.document_id ?? ''),doc_n:Number(doc.doc_n ?? i+1)}));
+  setReportTemplateLocale(resolveReportLocale(data.report, data.case));
+  const english=getReportTemplateLocale()==='en';
+  const b = new PdfBuilder(name, deriveMatterId(data), true);
+  await b.loadLogo();
+  const identity=resolveReportIdentity(asObj(data.case));
+  b.premiumCover({reportTitle:'BORRADOR PARA REVISIÓN',caseName:name,matterType:translateLegalTerm(identity.matterType),
+    court:translateLegalTerm(identity.court),proceeding:translateLegalTerm(identity.proceedingType),
+    matterId:asStr(data.case?.id),date:reportRenderTimestamp(data).slice(0,10)});
+  b.pageBreak();
+  b.h1(english?'Review status':'Estado de revisión');
+  b.text(english?'This draft supports review of the report sources. Final publication remains pending; unapproved conclusions are withheld. Do not file in court.':'Este borrador permite revisar las fuentes del informe. La publicación del informe final sigue pendiente; las conclusiones no aprobadas se retienen. No presentar en juicio.');
+  const reasons=asArr(report.quality_block_reasons).map(String);
+  for (const reason of reasons) b.text(reason);
+  b.h1(english?'Document sources for review':'Fuentes documentales para revisión');
+  b.text(english?'These excerpts were located verbatim on the indicated pages. A quotation alone does not establish a legal conclusion or judicial adoption of a party allegation.':'Los siguientes extractos fueron localizados literalmente en las páginas indicadas. Una transcripción no acredita por sí sola una conclusión jurídica ni la adopción judicial de una alegación de parte.');
+  const seen=new Set<string>();let count=0;
+  for (const f of data.findings ?? []) {
+    const ref={document_id:f.source_document_id,page:f.source_page,quote:f.source_quote};
+    const audit=auditSourceLocations([ref],pages,index);
+    if (!audit.ok || audit.verified.length!==1) continue;
+    const located=audit.verified[0],key=JSON.stringify([located.document_id,located.page,located.quote]);
+    if (seen.has(key)) continue;
+    seen.add(key);count++;
+    const doc=data.documents.find(d=>String(d.id ?? d.document_id)===located.document_id);
+    b.h2(asStr(doc?.filename ?? doc?.title,english?'Document':'Documento')+(english?' - page ':' - página ')+located.page);
+    b.text(located.quote);
+  }
+  if (!count) b.text(english?'No excerpts with verified document locations are available in this draft.':'No hay extractos con ubicación documental verificada disponibles en este borrador.');
+  b.closingPage({generatedAt:reportRenderTimestamp(data)});
+  b.finalizeLayout();
+  const bytes=b.doc.output('arraybuffer');
+  if (!opts?.validateOnly) savePdfDownload(bytes, slug(name)+'-borrador-revision.pdf', opts?.onPrepared);
+  return bytes;
+}
+
+export async function downloadPdf(data: CaseExportData, name: string, opts?: { citationMode?: CitationMode; validateOnly?: boolean; onPrepared?: (file: PreparedPdfDownload) => void }) {
   // HARD RELEASE BOUNDARY:
   // A report explicitly blocked by verification may not enter the public
   // PDF export path. Internal preflight/rendering has its own path below,
@@ -5238,7 +5284,7 @@ export async function downloadPdf(data: CaseExportData, name: string, opts?: { c
 async function renderPdf(
   data: CaseExportData,
   name: string,
-  opts?: { citationMode?: CitationMode; validateOnly?: boolean },
+  opts?: { citationMode?: CitationMode; validateOnly?: boolean; onPrepared?: (file: PreparedPdfDownload) => void },
   internalPreflight = false,
 ) {
   const sourceIdentity = asObj(asObj(asObj(data.case).matter_metadata).source_identity_audit);
@@ -5414,7 +5460,7 @@ async function renderPdf(
     parity: parityTag,
     ess: footerEss,
     generatedAt,
-  }, opts?.validateOnly, internalPreflight);
+  }, opts?.validateOnly, internalPreflight, opts?.onPrepared);
 }
 
 /** Same real section renderers used by downloads; in-memory only, no publication.

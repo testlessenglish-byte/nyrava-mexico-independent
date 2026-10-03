@@ -36,7 +36,8 @@ describe('publication producer boundaries', () => {
     expect(withReviewedSections(input).theories[0].citations[0].verification_status).toBe('verified');
   });
   it('materializes the appendix from verified nested source identities', () => {
-    const input = payload(); input.theories = [{ id: 't', narrative: quote + ' [DOC 1 p.27]', citations: [canonical()] }];
+    const input = payload(); input.report.report_mode='FULL';input.case.case_analysis_mode='ongoing';
+    input.theories = [{ id: 't', narrative: quote + ' [DOC 1 p.27]', citations: [canonical()] }];
     input.perspectives = [{ key_evidence: [{ item: 'Resolución', citation: canonical() }] }];
     const composed = composeFinalReportPayload(input);
     expect(composed.report!.citations).toEqual(expect.arrayContaining([expect.objectContaining({ canonical_source_id: 'source-a', page: 27 })]));

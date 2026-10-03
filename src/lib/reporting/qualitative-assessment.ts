@@ -120,7 +120,7 @@ export function withoutLegalScoreText(text: string): string {
 }
 
 const legalMetrics = new Set(['case_strength_score', 'strength_score', 'risk_score', 'case_score', 'case_strength', 'case_quality', 'conviction_risk', 'appeal_risk', 'litigation_risk', 'settlement_pressure', 'score_breakdown', 'score_delta', 'deterministic_scorecard', 'dimension_breakdowns', 'positive_contributors', 'negative_contributors', 'risk_consistency', 'score_consistency', 'Scores']);
-const preserved = new Set(['qa_v2', 'release_gate', 'release_decision', 'validation', 'integrity_audit', 'hallucination_report', 'legal_qa_report', 'documents', 'pre_release_source_pages', 'source_refs', 'evidence_refs', 'citations', 'quote', 'source_quote']);
+const preserved = new Set(['qa_v2', 'release_gate', 'release_decision', 'validation', 'integrity_audit', 'hallucination_report', 'legal_qa_report', 'documents', 'pre_release_source_pages', 'source_refs', 'evidence_refs', 'citations', 'quote', 'source_quote', 'proposition_verification', 'citation_review_registry']);
 for (const key of ['penal_perspective_scores', 'penal_metrics', 'civil_metrics', 'jury_conviction_pct', 'jury_acquittal_pct', 'jury_appeal_pct', 'jury_settlement_pct']) legalMetrics.add(key);
 /** Immutable presentation projection; never rewrites stored historical records
  * or the QA inputs used to decide whether a report can be released. */

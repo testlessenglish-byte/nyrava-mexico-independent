@@ -110,3 +110,50 @@ describe("PDF Content Rules — BLOCKED/needs_revision vs PASS", () => {
     expect(rendered).not.toContain("REQUIERE REVISIÓN");
   });
 });
+
+describe('actual review download boundary', () => {
+  const source = 'La parte recurrente cuenta con legitimación para presentar el recurso de revisión.';
+  const data = () => ({case:{id:'case',name:'Caso revisión'},documents:[{id:'doc',doc_n:1,filename:'sentencia.pdf'}],
+    findings:[{id:'f',title:'UNSUPPORTED TITLE',description:'UNSUPPORTED CONCLUSION',source_document_id:'doc',source_page:2,source_quote:source}],
+    agents:[],report:{quality_blocked:true,quality_block_reasons:['publication_citation_missing'],
+      executive_summary:'UNSUPPORTED SUMMARY',full_report:{pre_release_source_pages:[{document_id:'doc',page:2,text:source}]}}}) as any;
+  it('downloads an explicitly branded review PDF without releasing blocked conclusions',async()=>{
+    const {downloadReportPdf}=await import('../export');
+    const {extractText}=await import('unpdf');
+    const input=data(),before=structuredClone(input);
+    const bytes=await downloadReportPdf(input,'Caso revisión',{validateOnly:true});
+    expect(new TextDecoder().decode(new Uint8Array(bytes).slice(0,5))).toBe('%PDF-');
+    const result=await extractText(new Uint8Array(bytes),{mergePages:true});
+    expect(result.text).toContain('BORRADOR');
+    expect(result.text).toContain('publication_citation_missing');
+    expect(result.text).toContain(source);
+    expect(result.text).toMatch(/sentencia\.pdf/i);
+    expect(result.text).not.toMatch(/UNSUPPORTED|DOCUMENTO AUDITADO|INFORME FINAL/);
+    expect(input).toEqual(before);
+  });
+  it('withholds a review excerpt when its physical source page does not contain it',async()=>{
+    const {downloadReportPdf}=await import('../export');
+    const {extractText}=await import('unpdf');
+    const input=data();input.report.full_report.pre_release_source_pages[0].text='Texto diferente.';
+    const bytes=await downloadReportPdf(input,'Caso revisión',{validateOnly:true});
+    const result=await extractText(new Uint8Array(bytes),{mergePages:true});
+    expect(result.text).not.toContain(source);
+  });
+  it('uses the report language for review instructions while preserving source quotations',async()=>{
+    const {downloadReportPdf}=await import('../export');
+    const {extractText}=await import('unpdf');
+    const input=data();input.case.report_language='en';input.report.generated_language='en';
+    const bytes=await downloadReportPdf(input,'Review case',{validateOnly:true});
+    const result=await extractText(new Uint8Array(bytes),{mergePages:true});
+    expect(result.text).toContain('Review status');
+    expect(result.text).toContain('Do not file');
+    expect(result.text).toContain('DRAFT');
+    expect(result.text).toMatch(/page 2/i);
+    expect(result.text).toContain(source);
+    expect(result.text).not.toContain('Este borrador permite revisar');
+  });
+  it('continues to reject final PDF publication of a blocked report',async()=>{
+    const {downloadPdf}=await import('../export');
+    await expect(downloadPdf(data(),'Caso revisión',{validateOnly:true})).rejects.toThrow('REPORT_BLOCKED');
+  });
+});

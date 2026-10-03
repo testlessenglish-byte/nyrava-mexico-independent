@@ -7,6 +7,9 @@ import {resolveFinalReleaseDecision,refreshProceduralQa} from "../final-release-
 import {auditPenalProceduralSemantics} from "../../intelligence/penal-qa-status";
 import type {CaseExportData} from "../../export";
 const captured = vi.hoisted(()=>({pdf:null as ArrayBuffer|null,saves:0}));
+vi.mock('../../pdf/pdf-download', () => ({
+  savePdfDownload: (bytes: ArrayBuffer) => { captured.pdf = bytes; captured.saves++; },
+}));
 vi.mock("jspdf",async original=>{
   const actual=await original<typeof import("jspdf")>();
   function Pdf(options:any) {
