@@ -2510,5 +2510,7 @@
   "motion.workspace.emptyDetail": "Use la Biblioteca de Escritos Jurídicos de México para crear un escrito para este expediente. Los borradores guardados permanecerán vinculados al caso.",
   "motion.workspace.untitled": "Escrito Jurídico sin Título",
   "motion.workspace.updated": "Actualizado",
-  "motion.workspace.verificationWarning": "Este borrador contiene material que no ha superado la verificación completa. Revise la información de verificación antes de utilizarlo o presentarlo."
+  "motion.workspace.verificationWarning": "Este borrador contiene material que no ha superado la verificación completa. Revise la información de verificación antes de utilizarlo o presentarlo.",
+  "motion.library.creatingTemplate": "Creando plantilla editable...",
+  "motion.library.templateReady": "Plantilla editable lista"
 }

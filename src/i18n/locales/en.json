@@ -2510,5 +2510,7 @@
   "motion.workspace.emptyDetail": "Use the Mexico Legal Filings Library above to create a filing for this case. Saved drafts will remain attached to this case.",
   "motion.workspace.untitled": "Untitled Legal Filing",
   "motion.workspace.updated": "Updated",
-  "motion.workspace.verificationWarning": "This draft contains material that has not passed full verification. Review the highlighted verification information before relying on or filing it."
+  "motion.workspace.verificationWarning": "This draft contains material that has not passed full verification. Review the highlighted verification information before relying on or filing it.",
+  "motion.library.creatingTemplate": "Creating editable template...",
+  "motion.library.templateReady": "Editable template ready"
 }

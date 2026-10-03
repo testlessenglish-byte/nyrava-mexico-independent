@@ -310,7 +310,26 @@ export function composeFinalReportPayload(input: CaseExportData, sourceReviewFin
       audit_classification,
       proposition_type,
       adoption_status,
-      evidence_refs: resolveReportSourceRefs(arr(checked.evidence_refs), sources),
+      // Prefer execution-scoped, publication-certified report citations.
+      // Stored case finding refs may contain the older extraction-only shape.
+      evidence_refs: (() => {
+        const executionId = String(report.execution_id ?? c.execution_id ?? "");
+
+        const certified = arr(report.citations).filter(ref =>
+          String(ref.finding_id ?? "") === String(checked.id ?? "") &&
+          (!executionId || String(ref.execution_id ?? "") === executionId) &&
+          String(ref.verification_status ?? "").toLowerCase() === "verified" &&
+          ref.publication_status !== "QUARANTINED" &&
+          String(ref.proposition_supported ?? "").trim().length > 0 &&
+          String(ref.quote ?? ref.excerpt ?? ref.source_quote ?? "").trim().length > 0 &&
+          String(ref.canonical_source_id ?? "").trim().length > 0
+        );
+
+        return resolveReportSourceRefs(
+          certified.length ? certified : arr(checked.evidence_refs),
+          sources,
+        );
+      })(),
       metadata: {
         ...(checked.metadata || {}),
         raw_unreconciled_title: checked.title,

@@ -208,6 +208,7 @@ function SocialCarePage(){
   const [caseDraft,setCaseDraft]=useState({
     programId:"",personId:"",newClientName:"",familyId:"",assignedUserId:"",
     caseType:"individual" as "individual"|"minor_child"|"family",
+    serviceAreas:[] as string[],
     priority:"normal" as "low"|"normal"|"high"|"urgent",
   });
   const duplicates=useMutation({
@@ -216,7 +217,14 @@ function SocialCarePage(){
   });
   const createPersonMutation=useMutation({
     mutationFn:()=>createPersonFn({data:{orgId:resolvedOrg,legalName:person.legalName,preferredName:person.preferredName||undefined,telephone:person.telephone||undefined,email:person.email||undefined,nationality:person.nationality||undefined,aliases:[],languages:[],currentLocation:{},immigrationIdentifiers:{},unaccompaniedMinor:false,separatedMinor:false}}),
-    onSuccess:(row:any)=>{toast.success(es?`Persona ${row.person_number} registrada`:`Person ${row.person_number} registered`);setPerson({legalName:"",preferredName:"",telephone:"",email:"",nationality:""});qc.invalidateQueries({queryKey:["social-workspace"]});},
+    onSuccess:(row:any)=>{
+      toast.success(es?`Persona ${row.person_number} registrada`:`Person ${row.person_number} registered`);
+      if(caseModalOpen){
+        setCaseDraft((current:any)=>({...current,personId:row.id,newClientName:""}));
+      }
+      setPerson({legalName:"",preferredName:"",telephone:"",email:"",nationality:""});
+      void qc.invalidateQueries({queryKey:["social-workspace"]});
+    },
     onError:(e:unknown)=>toast.error(errorMessage(e)),
   });
   const createCaseMutation=useMutation({
@@ -227,11 +235,13 @@ function SocialCarePage(){
       assignedUserId:canManageOrganization
         ? (caseDraft.assignedUserId||currentUserId)
         : currentUserId,
-      caseType:caseDraft.caseType,priority:caseDraft.priority,
+      caseType:caseDraft.caseType,
+      serviceAreas:caseDraft.serviceAreas,
+      priority:caseDraft.priority,
     }}),
     onSuccess:(row:any)=>{
       toast.success(es?`Caso ${row.case_number} abierto y asignado`:`Case ${row.case_number} opened and assigned`);
-      setCaseModalOpen(false);setCaseDraft({...caseDraft,personId:"",newClientName:"",familyId:"",assignedUserId:"",priority:"normal"});
+      setCaseModalOpen(false);setCaseDraft({...caseDraft,personId:"",newClientName:"",familyId:"",assignedUserId:"",serviceAreas:[],priority:"normal"});
       void qc.invalidateQueries({queryKey:["social-workspace"]});setSelectedCaseId(row.id);
     },
     onError:(e:unknown)=>toast.error(errorMessage(e)),
@@ -330,7 +340,11 @@ function SocialCarePage(){
 
     {canCreateCases&&<OpenAndAssignCaseModal open={caseModalOpen} es={es} draft={caseDraft} setDraft={setCaseDraft}
       programs={programs} people={visiblePeople} families={visibleFamilies} members={organizationMembers}
-      currentUserId={workspace.data?.userId??""} canAssignTeam={canManageOrganization} pending={createCaseMutation.isPending}
+      currentUserId={workspace.data?.userId??""} canAssignTeam={canManageOrganization}
+      person={person} setPerson={setPerson}
+      registeringPerson={createPersonMutation.isPending}
+      onRegisterPerson={()=>createPersonMutation.mutate()}
+      pending={createCaseMutation.isPending}
       onClose={()=>setCaseModalOpen(false)} onSubmit={()=>createCaseMutation.mutate()}/>} 
     <div className="mt-5 grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">
       <aside className="h-fit rounded-xl border border-border bg-card p-2 lg:sticky lg:top-4">
@@ -411,9 +425,11 @@ function SocialCarePage(){
   </div>;
 }
 
-function OpenAndAssignCaseModal({open,es,draft,setDraft,programs,people,families,members,currentUserId,canAssignTeam,pending,onClose,onSubmit}:{
+function OpenAndAssignCaseModal({open,es,draft,setDraft,programs,people,families,members,currentUserId,canAssignTeam,person,setPerson,registeringPerson,onRegisterPerson,pending,onClose,onSubmit}:{
   open:boolean;es:boolean;draft:any;setDraft:(value:any)=>void;programs:any[];people:any[];families:any[];members:any[];
-  currentUserId:string;canAssignTeam:boolean;pending:boolean;onClose:()=>void;onSubmit:()=>void;
+  currentUserId:string;canAssignTeam:boolean;
+  person:any;setPerson:(value:any)=>void;registeringPerson:boolean;onRegisterPerson:()=>void;
+  pending:boolean;onClose:()=>void;onSubmit:()=>void;
 }){
   if(!open)return null;
   const selected=people.find((p:any)=>p.id===draft.personId);
@@ -429,9 +445,93 @@ function OpenAndAssignCaseModal({open,es,draft,setDraft,programs,people,families
       <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[.16em] text-primary">{es?"Nuevo expediente":"New case"}</p><h2 className="text-xl font-semibold">{es?"Abrir y asignar caso":"Open and Assign Case"}</h2><p className="mt-1 text-sm text-muted-foreground">{es?"El cliente, el caso, la asignación, el historial y las alertas se guardan juntos.":"Client, case, assignment, history, and alerts are saved together."}</p></div><button type="button" onClick={onClose} className="rounded-lg border border-border px-3 py-1.5 text-sm">{es?"Cerrar":"Close"}</button></div>
       <div className="mt-5 grid gap-4 md:grid-cols-2">
         <label className="text-xs font-medium text-muted-foreground">{es?"Cliente existente":"Existing client"}<select value={draft.personId} onChange={e=>setDraft({...draft,personId:e.target.value,newClientName:""})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="">{es?"Registrar cliente nuevo":"Register new client"}</option>{people.map((p:any)=><option key={p.id} value={p.id}>{p.person_number} · {p.legal_name}</option>)}</select></label>
-        {!draft.personId&&<Field label={es?"Nombre legal del cliente nuevo":"New client legal name"} value={draft.newClientName} onChange={v=>setDraft({...draft,newClientName:v})}/>}
+        {!draft.personId&&(
+          <div className="md:col-span-2 rounded-xl border border-primary/20 bg-primary/5 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold">
+                  {es?"Registrar cliente nuevo":"Register New Client"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {es
+                    ?"Cree primero el registro de la persona. Al guardarlo quedará seleccionado automáticamente para este caso."
+                    :"Create the person's record first. After saving, the new client will automatically be selected for this case."}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <Field
+                label={es?"Nombre legal":"Legal name"}
+                value={person.legalName}
+                onChange={v=>setPerson({...person,legalName:v})}
+              />
+              <Field
+                label={es?"Nombre preferido":"Preferred name"}
+                value={person.preferredName}
+                onChange={v=>setPerson({...person,preferredName:v})}
+              />
+              <Field
+                label={es?"Teléfono":"Telephone"}
+                value={person.telephone}
+                onChange={v=>setPerson({...person,telephone:v})}
+              />
+              <Field
+                label={es?"Correo electrónico":"Email"}
+                value={person.email}
+                onChange={v=>setPerson({...person,email:v})}
+              />
+              <Field
+                label={es?"Nacionalidad":"Nationality"}
+                value={person.nationality}
+                onChange={v=>setPerson({...person,nationality:v})}
+              />
+            </div>
+
+            <button
+              type="button"
+              disabled={registeringPerson||person.legalName.trim().length<2}
+              onClick={onRegisterPerson}
+              className="mt-3 rounded-lg border border-primary bg-primary/10 px-4 py-2 text-sm font-semibold text-primary disabled:opacity-50"
+            >
+              {registeringPerson&&<Loader2 className="mr-2 inline h-4 w-4 animate-spin"/>}
+              {es?"Guardar y seleccionar cliente":"Save & Select Client"}
+            </button>
+          </div>
+        )}
         {selected&&<div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm md:col-span-2"><span className="font-semibold">{selected.legal_name}</span><span className="ml-2 text-muted-foreground">{selected.person_number}</span></div>}
         <label className="text-xs font-medium text-muted-foreground">{es?"Programa":"Program"}<select value={draft.programId||programs[0]?.id||""} onChange={e=>setDraft({...draft,programId:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">{programs.map((p:any)=><option key={p.id} value={p.id}>{es?p.name_es:p.name_en} · {p.case_prefix}</option>)}</select></label>
+        <div className="md:col-span-2">
+          <p className="text-xs font-medium text-muted-foreground">
+            {es?"Tipo de asistencia requerida":"Type of Assistance Needed"}
+          </p>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {es
+              ?"Seleccione todos los tipos de apoyo que necesita la persona."
+              :"Select all types of support the person needs."}
+          </p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            {ASSISTANCE_TYPES.map((item)=> {
+              const checked=draft.serviceAreas.includes(item.value);
+              return (
+                <label key={item.value} className="flex cursor-pointer items-start gap-2 rounded-lg border border-border p-2.5 text-sm hover:bg-muted/30">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={()=>{
+                      const next=checked
+                        ? draft.serviceAreas.filter((x:string)=>x!==item.value)
+                        : [...draft.serviceAreas,item.value];
+                      setDraft({...draft,serviceAreas:next});
+                    }}
+                    className="mt-0.5"
+                  />
+                  <span>{es?item.es:item.en}</span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
         {canAssignTeam ? (
           <label className="text-xs font-medium text-muted-foreground">
             {es?"Asignado a":"Assigned to"}
@@ -467,10 +567,33 @@ function OpenAndAssignCaseModal({open,es,draft,setDraft,programs,people,families
         <label className="text-xs font-medium text-muted-foreground">{es?"Prioridad":"Priority"}<select value={draft.priority} onChange={e=>setDraft({...draft,priority:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">{socialCasePriorityOptions(es).map(({value,label})=><option key={value} value={value}>{label}</option>)}</select></label>
       </div>
       {draft.priority==="urgent"&&<div className="mt-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{es?"La prioridad urgente requiere atención inmediata. Nyrava no sustituye a los servicios de emergencia.":"Urgent priority requires immediate attention. Nyrava does not replace emergency services."}</div>}
-      <div className="mt-5 flex justify-end gap-3"><button type="button" onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm">{es?"Cancelar":"Cancel"}</button><button type="button" disabled={pending||!programs.length||!validClient||!validAssignee} onClick={onSubmit} className="rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">{pending&&<Loader2 className="mr-2 inline h-4 w-4 animate-spin"/>}{es?"Abrir y asignar":"Open and assign"}</button></div>
+      <div className="mt-5 flex justify-end gap-3"><button type="button" onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm">{es?"Cancelar":"Cancel"}</button><button type="button" disabled={pending||!programs.length||!validClient||!validAssignee||!draft.serviceAreas.length} onClick={onSubmit} className="rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">{pending&&<Loader2 className="mr-2 inline h-4 w-4 animate-spin"/>}{es?"Abrir y asignar":"Open and assign"}</button></div>
     </section>
   </div>;
 }
+
+const ASSISTANCE_TYPES=[
+  {value:"social_work",es:"Trabajo social / Gestión de caso",en:"Social Work / Case Management"},
+  {value:"mental_health",es:"Salud mental / Apoyo psicológico",en:"Mental Health / Psychological Support"},
+  {value:"domestic_violence",es:"Violencia doméstica o familiar",en:"Domestic or Family Violence"},
+  {value:"physical_abuse",es:"Abuso físico / Seguridad y protección",en:"Physical Abuse / Safety & Protection"},
+  {value:"sexual_violence",es:"Violencia o abuso sexual",en:"Sexual Violence / Abuse"},
+  {value:"child_protection",es:"Protección de niñas, niños y adolescentes",en:"Child & Youth Protection"},
+  {value:"legal_assistance",es:"Asistencia jurídica",en:"Legal Assistance"},
+  {value:"immigration_assistance",es:"Asistencia migratoria",en:"Immigration Assistance"},
+  {value:"refugee_asylum",es:"Refugio / Asilo",en:"Refugee / Asylum Assistance"},
+  {value:"documentation_identity",es:"Documentación / Registro civil / Identidad",en:"Documentation / Civil Registry / Identity"},
+  {value:"family_reunification",es:"Reunificación familiar",en:"Family Reunification"},
+  {value:"housing_shelter",es:"Vivienda / Albergue",en:"Housing / Shelter"},
+  {value:"food_basic_needs",es:"Alimentación / Necesidades básicas",en:"Food / Basic Needs"},
+  {value:"medical_health",es:"Atención médica / Salud",en:"Medical / Health Care"},
+  {value:"employment_training",es:"Empleo / Capacitación laboral",en:"Employment / Job Training"},
+  {value:"education_support",es:"Educación / Apoyo escolar",en:"Education / School Support"},
+  {value:"human_trafficking",es:"Trata de personas / Explotación",en:"Human Trafficking / Exploitation"},
+  {value:"disability_accessibility",es:"Discapacidad / Apoyo de accesibilidad",en:"Disability / Accessibility Support"},
+  {value:"emergency_assistance",es:"Asistencia de emergencia",en:"Emergency Assistance"},
+  {value:"other",es:"Otro",en:"Other"},
+] as const;
 
 const MEMBER_ROLES=["firm_manager","supervisor","case_worker","legal_provider","psychosocial_provider","read_only"] as const;
 const memberRoleLabel=(role:string,es:boolean)=>({

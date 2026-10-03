@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { Gavel, Copy, FileText, FileDown, Printer, Pencil, Loader2, RotateCw, Library, X, Search, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
-import { getCase, draftMotion, getMotionDrafts } from "@/lib/cases.functions";
+import { getCase, draftMotion, getMotionDrafts, createMotionTemplateDraft } from "@/lib/cases.functions";
 import { CasePicker, useActiveCase } from "@/components/modules/CasePicker";
 import { ModuleHeader, SuppressedNotice } from "@/components/modules/SuppressedNotice";
 import { ModuleStateNotice } from "@/components/modules/ModuleStatus";
@@ -62,6 +62,11 @@ function MotionPage() {
 
   const report = data?.report as any;
   const jurisdiction = data?.case?.jurisdiction ?? null;
+  const materia =
+    (data?.case as { case_type?: string | null; underlying_materia?: string | null } | undefined)
+      ?.case_type ??
+    (data?.case as { underlying_materia?: string | null } | undefined)?.underlying_materia ??
+    null;
   const [caseDetail, setCaseDetail] = useState<CaseDetailContext | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const motionsSuppressed = report?.motions_suppressed === true;
@@ -178,7 +183,7 @@ function MotionPage() {
         open={libraryOpen}
         onClose={() => setLibraryOpen(false)}
         caseId={caseId}
-        materia={(data?.case as any)?.case_type ?? null}
+        materia={materia}
         jurisdiction={jurisdiction}
       />
       <CaseDetailPanel open={!!caseDetail} onOpenChange={(o) => !o && setCaseDetail(null)} context={caseDetail} />
@@ -411,7 +416,7 @@ function MexicoMotionLibrary({
 }) {
   const { t, locale } = useI18n();
   const qc = useQueryClient();
-  const draftFn = useServerFn(draftMotion);
+  const createTemplateFn = useServerFn(createMotionTemplateDraft);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
   const [selectedTemplate, setSelectedTemplate] = useState<MotionTemplate | null>(null);
@@ -420,31 +425,17 @@ function MexicoMotionLibrary({
     mutationFn: async (template: MotionTemplate) => {
       if (!caseId) throw new Error(t("motion.library.caseRequired"));
 
-      const title = locale === "es" ? template.titleEs : template.titleEn;
-      const result = await draftFn({
+      return createTemplateFn({
         data: {
           caseId,
-          motionTitle: title,
           templateId: template.id,
-          opportunityDescription:
-            locale === "es" ? template.descriptionEs : template.descriptionEn,
-          caseLawCitations: [],
+          language: locale === "es" ? "es" : "en",
         },
       });
-
-      if (!result.ok) {
-        throw new Error(
-          "message" in result && result.message
-            ? result.message
-            : t("motion.toast.failed"),
-        );
-      }
-
-      return result;
     },
-    onMutate: () => toast.info(t("motion.toast.drafting")),
+    onMutate: () => toast.info(t("motion.library.creatingTemplate")),
     onSuccess: async () => {
-      toast.success(t("motion.toast.ready"));
+      toast.success(t("motion.library.templateReady"));
       await qc.invalidateQueries({ queryKey: ["motion-drafts", caseId] });
       setSelectedTemplate(null);
       onClose();
@@ -452,6 +443,12 @@ function MexicoMotionLibrary({
     onError: (e: unknown) =>
       toast.error(e instanceof Error ? e.message : t("motion.toast.failed")),
   });
+
+  useEffect(() => {
+    setQuery("");
+    setCategory("all");
+    setSelectedTemplate(null);
+  }, [caseId, materia]);
 
   useEffect(() => {
     if (!open) {
@@ -462,7 +459,7 @@ function MexicoMotionLibrary({
   }, [open]);
 
   const templates = useMemo(() => {
-    const base = templatesForMateria(materia);
+    const base = materia ? templatesForMateria(materia) : [];
     const q = query.trim().toLowerCase();
 
     return base.filter((template) => {
@@ -478,6 +475,15 @@ function MexicoMotionLibrary({
       ].some((value) => value.toLowerCase().includes(q));
     });
   }, [materia, query, category]);
+
+  useEffect(() => {
+    if (
+      selectedTemplate &&
+      !templates.some((template) => template.id === selectedTemplate.id)
+    ) {
+      setSelectedTemplate(null);
+    }
+  }, [selectedTemplate, templates]);
 
   if (!open) return null;
 

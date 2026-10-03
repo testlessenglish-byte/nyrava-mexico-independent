@@ -228,20 +228,6 @@ function BillingPage() {
           </div>
         )}
 
-        {data?.plan && (data.status === "active" || data.status === "trialing") && (
-          <button
-            onClick={() => portal.mutate()}
-            disabled={portal.isPending}
-            className="mt-4 inline-flex items-center gap-2 rounded border border-border/60 px-4 py-2 text-sm font-semibold text-foreground hover:bg-muted/40 disabled:opacity-50"
-          >
-            {portal.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <ExternalLink className="h-4 w-4" />
-            )}
-            {t("billing.manage")}
-          </button>
-        )}
         <Link
           to="/usage"
           className="mt-4 ml-3 inline-flex items-center gap-2 rounded border border-border/60 px-4 py-2 text-sm font-semibold text-foreground hover:bg-muted/40"
@@ -270,19 +256,12 @@ function BillingPage() {
                 className={`nyrava-plan-card relative flex flex-col rounded-lg border bg-card/60 p-5 ${
                   isCurrent
                     ? "border-primary/70 shadow-sm"
-                    : popular
-                      ? "border-primary/70 shadow-sm"
-                      : "border-border/60"
+                    : "border-border/60"
                 }`}
               >
                 {popular && !isCurrent && (
                   <span className="absolute -top-2 right-4 rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-primary-foreground">
                     {es ? "Más popular" : "Most popular"}
-                  </span>
-                )}
-                {isCurrent && (
-                  <span className="absolute -top-2 right-4 rounded-full bg-primary/20 border border-primary/40 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">
-                    {t("billing.currentPlan")}
                   </span>
                 )}
                 <div className="text-lg font-semibold uppercase tracking-[0.16em] text-primary">{plan.label}</div>
@@ -308,9 +287,7 @@ function BillingPage() {
                   ))}
                 </ul>
                 {isCurrent ? (
-                  <div className="mt-5 flex w-full items-center justify-center gap-2 rounded-md border border-primary/40 bg-primary/10 py-3 text-[12px] font-semibold uppercase tracking-[0.18em] text-primary">
-                    <ShieldCheck className="h-4 w-4" /> {t("billing.currentPlan")}
-                  </div>
+                  <div className="mt-5 h-[44px]" aria-hidden="true" />
                 ) : custom ? (
                   <a
                     href="/contact#sales"
@@ -322,11 +299,15 @@ function BillingPage() {
                   <button
                     type="button"
                     onClick={() => checkout.mutate(plan.key)}
-                    disabled={checkout.isPending}
+                    disabled={checkout.isPending && checkout.variables === plan.key}
                     className="mt-5 flex w-full items-center justify-center gap-2 rounded-md bg-primary py-3 text-[12px] font-semibold uppercase tracking-[0.18em] text-primary-foreground transition hover:brightness-110 disabled:opacity-50"
                   >
-                    {checkout.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                    {t("trial.cta")}
+                    {checkout.isPending && checkout.variables === plan.key && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                    {data?.plan
+                      ? es
+                        ? `Mejorar a ${plan.label}`
+                        : `Upgrade to ${plan.label}`
+                      : t("trial.cta")}
                   </button>
                 )}
               </div>

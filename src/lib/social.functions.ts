@@ -30,6 +30,36 @@ export const getSocialWorkspace=createServerFn({method:"GET"})
     const {data:organizations,error:orgError}=await supabase.from("organizations").select("id,name").order("name");
     fail(orgError);
     const orgIds=(organizations??[]).map((o:any)=>o.id);
+
+    // Every subscriber organization must be immediately usable for
+    // Comprehensive Care. Ensure the standard base program exists so
+    // first-time users are never blocked by organization setup.
+    for (const orgId of orgIds) {
+      const {data:existingProgram,error:programCheckError}=await supabase
+        .from("social_programs")
+        .select("id")
+        .eq("org_id",orgId)
+        .eq("active",true)
+        .limit(1)
+        .maybeSingle();
+
+      if(programCheckError){
+        console.error("[getSocialWorkspace] program check failed",programCheckError);
+      }else if(!existingProgram){
+        const {error:ensureProgramError}=await supabase.rpc(
+          "ensure_social_program_for_org",
+          {
+            p_org:orgId,
+            p_name_es:"Atención Integral",
+            p_name_en:"Comprehensive Care",
+            p_prefix:"NYR-SOC",
+          },
+        );
+        if(ensureProgramError){
+          console.error("[getSocialWorkspace] default program bootstrap failed",ensureProgramError);
+        }
+      }
+    }
     const empty={organizations:[],organizationAccounts:[],programs:[],offices:[],cases:[],people:[],families:[],alerts:[],institutions:[],templates:[],roleAssignments:[],recentActivity:[],stats:{active:0,critical:0,overdue:0,unverifiedReferrals:0},userId};
     if(!orgIds.length)return empty;
     const [programs,offices,cases,people,families,alerts,referrals,tasks,institutions,templates,roleAssignments,recentActivity]=await Promise.all([
@@ -145,7 +175,20 @@ export const createAndAssignCareCase=createServerFn({method:"POST"})
       p_client_name:data.newClientName??null,p_family:data.familyId??null,p_case_type:data.caseType,
       p_priority:data.priority,p_assigned_user:normalizedAssignee??userId,
     });
-    fail(error);return row;
+    fail(error);
+
+    if (row?.id && data.serviceAreas.length) {
+      const {error:serviceAreaError}=await supabase
+        .from("social_cases")
+        .update({service_areas:data.serviceAreas})
+        .eq("id",row.id)
+        .eq("org_id",data.orgId);
+
+      fail(serviceAreaError);
+      row.service_areas=data.serviceAreas;
+    }
+
+    return row;
   });
 
 export const deleteSocialCase=createServerFn({method:"POST"})

@@ -197,7 +197,7 @@ function ChoosePlanPage() {
               <div
                 key={plan.key}
                 className={`nyrava-plan-card relative flex flex-col rounded-lg border bg-card/60 p-5 ${
-                  popular ? "border-primary/70 shadow-sm" : "border-border/60"
+                  "border-border/60"
                 }`}
               >
                 {popular && (
@@ -238,10 +238,10 @@ function ChoosePlanPage() {
                   <button
                     type="button"
                     onClick={() => checkout.mutate(plan.key)}
-                    disabled={checkout.isPending}
+                    disabled={checkout.isPending && checkout.variables === plan.key}
                     className="mt-5 flex w-full items-center justify-center gap-2 rounded-md bg-primary py-3 text-[12px] font-semibold uppercase tracking-[0.18em] text-primary-foreground transition hover:brightness-110 disabled:opacity-50"
                   >
-                    {checkout.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                    {checkout.isPending && checkout.variables === plan.key && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                     {t("trial.cta")}
                   </button>
                 )}

@@ -1922,7 +1922,25 @@ export const listGroqKeys = createServerFn({ method: "GET" })
       last_error_at: string | null;
       created_at: string;
     }>;
-    const platformConfigured = Boolean(process.env.GROQ_API_KEY);
+    // Platform AI availability comes from Admin -> AI Providers.
+    // Subscriber package usage is funded by enabled platform providers
+    // (Groq, Gemini, OpenRouter) with either a stored encrypted credential
+    // or a configured server secret. BYOK remains separate.
+    const { data: platformProviderRows, error: platformProviderError } =
+      await getAdminClient()
+        .from("ai_providers")
+        .select("provider_type,enabled,api_key_encrypted,secret_name")
+        .eq("enabled", true)
+        .in("provider_type", ["groq", "gemini", "openrouter"]);
+
+    if (platformProviderError) {
+      console.error("[listGroqKeys] platform provider check failed", platformProviderError);
+    }
+
+    const platformConfigured = (platformProviderRows ?? []).some((row:any) => {
+      if (row.api_key_encrypted) return true;
+      return Boolean(row.secret_name && process.env[row.secret_name]);
+    });
 
     // Per-key usage rollup (last 30 days) — now attributed via groq_key_id.
     // Falls back to the created-at slicing heuristic for historical rows
@@ -3477,6 +3495,257 @@ export const duplicateCase = createServerFn({ method: "POST" })
 // -------- Motion Center: single-motion drafting --------
 // See src/lib/intelligence/motion-draft.server.ts for why this is separate
 // from the batch runWorkProductEngine / case_work_product table.
+
+export const createMotionTemplateDraft = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        caseId: z.string().uuid(),
+        templateId: z.string().trim().min(1).max(120),
+        language: z.enum(["es", "en"]).default("es"),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = await getAuthedContext(
+      context,
+      "CreateMotionTemplateDraft",
+    );
+
+    // Deliberately NON-AI and therefore NOT metered as an ai_request.
+    // This creates an attorney-editable shell only. Case-specific legal prose,
+    // factual synthesis, jurisprudence injection, and AI redrafting continue
+    // through draftMotion and remain subject to the subscriber AI allowance.
+    const { MEXICO_MOTION_TEMPLATES } = await import(
+      "@/lib/motion-template-library"
+    );
+
+    const template = MEXICO_MOTION_TEMPLATES.find(
+      (item) => item.id === data.templateId,
+    );
+    if (!template) {
+      throw new Error(
+        "[CreateMotionTemplateDraft] Unknown Mexico legal filing template",
+      );
+    }
+
+    const { data: caseRow, error: caseError } = await supabase
+      .from("cases")
+      .select(
+        "id,name,case_type,jurisdiction,procedural_vehicle,underlying_materia,report_language",
+      )
+      .eq("id", data.caseId)
+      .maybeSingle();
+
+    if (caseError) {
+      throw new Error(`[CreateMotionTemplateDraft] ${caseError.message}`);
+    }
+    if (!caseRow) {
+      throw new Error("[CreateMotionTemplateDraft] Case not found");
+    }
+
+    const materia = String(
+      caseRow.case_type ??
+        caseRow.underlying_materia ??
+        "",
+    ).toLowerCase();
+
+    const eligibleMateria = template.materia.some((item) =>
+      materia.includes(item.toLowerCase()),
+    );
+
+    if (!eligibleMateria) {
+      throw new Error(
+        "[CreateMotionTemplateDraft] This filing template is not enabled for the selected materia.",
+      );
+    }
+
+    const es = data.language === "es";
+    const title = es ? template.titleEs : template.titleEn;
+
+    const missing = es ? "[REQUIERE INFORMACIÓN]" : "[INFORMATION REQUIRED]";
+    const verify = es
+      ? "[REQUIERE VERIFICACIÓN JURÍDICA]"
+      : "[LEGAL VERIFICATION REQUIRED]";
+
+    const authority = template.authorityFamily.length
+      ? template.authorityFamily.map((item) => `- ${item}: ${verify}`).join("\n")
+      : `- ${verify}`;
+
+    const body = es
+      ? `# ${title}
+
+> **BORRADOR EDITABLE POR EL ABOGADO**
+>
+> Esta plantilla no contiene hechos, autoridades, fechas, plazos ni jurisprudencia inventados. Complete y verifique el escrito antes de presentarlo.
+
+## ÓRGANO / AUTORIDAD
+
+${missing}
+
+## EXPEDIENTE / REFERENCIA
+
+${missing}
+
+## PROMOVENTE / PARTE
+
+${missing}
+
+## CONTRAPARTE / AUTORIDAD RESPONSABLE
+
+${missing}
+
+## OBJETO DEL ESCRITO
+
+${template.descriptionEs}
+
+${missing}
+
+## ANTECEDENTES Y HECHOS
+
+${missing}
+
+> Incorporar únicamente hechos sustentados por el expediente.
+
+## PROCEDENCIA Y ETAPA PROCESAL
+
+- Jurisdicción del expediente: ${caseRow.jurisdiction ?? missing}
+- Vehículo procesal: ${caseRow.procedural_vehicle ?? missing}
+- Etapas compatibles de la plantilla: ${template.stages.join(", ") || missing}
+
+${verify}
+
+## FUNDAMENTO JURÍDICO
+
+Familias normativas asociadas a esta plantilla:
+
+${authority}
+
+> No citar artículos, tesis, registros digitales ni jurisprudencia sin verificación.
+
+## PRUEBAS / DOCUMENTOS DE APOYO
+
+${missing}
+
+## PETICIONES
+
+${missing}
+
+## PUNTOS PETITORIOS
+
+1. ${missing}
+2. ${missing}
+
+## LUGAR, FECHA Y FIRMA
+
+${missing}
+`
+      : `# ${title}
+
+> **ATTORNEY-EDITABLE DRAFT**
+>
+> This template contains no invented facts, authorities, dates, deadlines, or case law. Complete and verify the filing before submission.
+
+## COURT / AUTHORITY
+
+${missing}
+
+## CASE / REFERENCE NUMBER
+
+${missing}
+
+## FILING PARTY
+
+${missing}
+
+## OPPOSING PARTY / RESPONSIBLE AUTHORITY
+
+${missing}
+
+## PURPOSE OF FILING
+
+${template.descriptionEn}
+
+${missing}
+
+## BACKGROUND AND FACTS
+
+${missing}
+
+> Include only facts supported by the case record.
+
+## PROCEDURAL BASIS AND STAGE
+
+- Case jurisdiction: ${caseRow.jurisdiction ?? missing}
+- Procedural vehicle: ${caseRow.procedural_vehicle ?? missing}
+- Template-compatible stages: ${template.stages.join(", ") || missing}
+
+${verify}
+
+## LEGAL AUTHORITY
+
+Authority families associated with this template:
+
+${authority}
+
+> Do not cite statutes, precedents, digital registry numbers, or case law without verification.
+
+## EVIDENCE / SUPPORTING DOCUMENTS
+
+${missing}
+
+## REQUESTED RELIEF
+
+${missing}
+
+## PRAYER FOR RELIEF
+
+1. ${missing}
+2. ${missing}
+
+## PLACE, DATE, AND SIGNATURE
+
+${missing}
+`;
+
+    const { data: draft, error: draftError } = await supabase
+      .from("case_motion_drafts")
+      .upsert(
+        {
+          case_id: data.caseId,
+          user_id: userId,
+          motion_title: title,
+          title,
+          body_markdown: body,
+          status: "unverified",
+          error_message: es
+            ? "Plantilla manual: requiere revisión y verificación profesional antes de presentarse."
+            : "Manual template: professional review and verification required before filing.",
+        },
+        { onConflict: "case_id,motion_title" },
+      )
+      .select()
+      .maybeSingle();
+
+    if (draftError) {
+      throw new Error(
+        `case_motion_drafts template upsert failed: ${draftError.message}`,
+      );
+    }
+    if (!draft) {
+      throw new Error(
+        "[CreateMotionTemplateDraft] Template draft was not persisted",
+      );
+    }
+
+    return {
+      ok: true as const,
+      draft,
+      aiUsed: false as const,
+    };
+  });
+
 export const draftMotion = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
