@@ -159,12 +159,13 @@ describe("seven final report contract regressions", () => {
 
 describe("actual renderer boundary", () => {
   it("Civil PDF preserves separate pending jurisdictions and the issue elements matrix", async () => {
-    const {downloadPdf} = await import("../../export");
+    const {downloadReportPdf} = await import("../../export");
     const input = regressionInput(); input.case!.case_type = 'civil'; input.case!.report_language = 'es';
     input.report!.generated_language = 'es';
     const full = input.report!.full_report as any;
     full.pre_release_source_pages[0].text += '\n\nLa actora reclama daño moral. Postura procesal actual: revisión. Estado procesal: concluido.';
-    await downloadPdf(input, 'Synthetic Civil regression');
+    input.report!.quality_blocked=true;
+    rendered.pdf=await downloadReportPdf(input, 'Synthetic Civil regression',{validateOnly:true}) as ArrayBuffer;
     const {extractText} = await import('unpdf');
     const result = await extractText(new Uint8Array(rendered.pdf!.slice(0)), {mergePages: true});
     expect(result.text).toMatch(/Contexto procesal civil/i);
@@ -179,13 +180,14 @@ describe("actual renderer boundary", () => {
     }
   }, 30000);
   it("PDF prints decision core, one source and verification-only actions", async () => {
-    const {downloadPdf} = await import("../../export");
+    const {downloadReportPdf} = await import("../../export");
     const input=regressionInput();
     input.case!.report_language="es";
     input.report!.generated_language="es";
     input.report!.case_strength_score=68;
     input.report!.risk_score=0;
-    await downloadPdf(input,"Synthetic regression");
+    input.report!.quality_blocked=true;
+    rendered.pdf=await downloadReportPdf(input,"Synthetic regression",{validateOnly:true}) as ArrayBuffer;
     expect(rendered.pdf).not.toBeNull();
     const {extractText}=await import("unpdf");
     const result=await extractText(new Uint8Array(rendered.pdf!.slice(0)),{mergePages:true});

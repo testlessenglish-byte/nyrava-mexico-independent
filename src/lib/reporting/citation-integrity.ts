@@ -85,7 +85,7 @@ function inlineAssertion(before: string): string {
     if (!prefix.trim() || /\n\s*\n$/.test(prefix) || /[.!?\]]\s*$/.test(prefix)) return quoted[1].trim();
     return trimmed;
   }
-  const sentences = trimmed.split(/(?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÑ“"])/);
+  const sentences = trimmed.split(/(?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÑ¿¡“"])/);
   const last = sentences.at(-1) ?? '';
   const previous = sentences.at(-2) ?? '';
   return /^(?:PRIMERO|SEGUNDO|TERCERO|CUARTO|QUINTO)\.$/.test(previous)
@@ -236,11 +236,16 @@ export function auditReportCitationIntegrity(payload: CaseExportData) {
       if (!pairs.length) errors.push(`citation_integrity:${path}:inline_reference_unresolved`);
       const before = value.slice(0, match.index).trim();
       const sentence = inlineAssertion(before);
+      // A completed review may certify a compound paragraph as one claim.
+      // Accept that exact complete assertion as well as a single sentence;
+      // all referenced propositions still undergo source/proof auditing.
+      const paragraph = before.split(/\n\s*\n/).at(-1)?.trim() ?? '';
       for (const pair of pairs) {
         const matches = annex.filter(ref => Number(ref.doc_n) === Number(pair[1]) && pair[2] &&
           Number(ref.page ?? ref.page_number) === Number(pair[2]));
         if (!matches.length) errors.push(`citation_integrity:${path}:inline_reference_unresolved`);
-        else if (!matches.some(ref => normalized(text(ref.proposition_supported)) === normalized(sentence)))
+        else if (!matches.some(ref => [sentence, paragraph].some(candidate =>
+          normalized(text(ref.proposition_supported)) === normalized(candidate))))
           errors.push(`citation_integrity:${path}:inline_proposition_not_supported`);
       }
     }

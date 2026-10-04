@@ -1,7 +1,7 @@
 import { assessCase, subscriberAssessment } from './qualitative-assessment';
 import { prepareCivilReport, auditCivilReport } from '../civil/report-contract';
 import { auditReportCitationIntegrity, canonicalizeReportCitations, bindAttributedFindingCitations } from './citation-integrity';
-import { findingCitationReviews, completedTheoriesCitations, completedPerspectivesCitations, safeResolveWriterCitationReferences } from './citation-production';
+import { createCanonicalCitation, findingCitationReviews, completedTheoriesCitations, completedPerspectivesCitations, safeResolveWriterCitationReferences } from './citation-production';
 import { withReviewedSections } from "./reviewed-sections";
 import type { CaseExportData } from "../export";
 import { validateMigratorioPreRelease } from './migratorio-pre-release';
@@ -23,7 +23,7 @@ import {receivingProceedings,relocateReportReferences} from './report-source-con
 import {auditText} from '../intelligence/mx-terminology';
 import {mxProfileOrNull} from '../execution/mx-pipeline';
 import {alignDecisionCoreFindings} from '../intelligence/mandatory-decision-core';
-import {classifyValidatePublishClaim} from '../intelligence/final-claim-publication';
+import {classifyValidatePublishClaim, sanitizeReportObjectiveAndProse, scrubUnsupportedPropositionsFromSections} from '../intelligence/final-claim-publication';
 
 type Row = Record<string, any>;
 const obj = (x: any): Row => x && typeof x === "object" && !Array.isArray(x) ? x : {};
@@ -52,6 +52,9 @@ export type FinalReportPayload = CaseExportData & { report_presentation: ReportP
 
 export function resolveReportSpeaker(finding: Row, core: Row[]): string {
   const metadata = obj(finding.metadata);
+  if (metadata.semantic_support_review?.verdict === 'supported' &&
+      (finding.speaker_role == null || finding.speaker_role === 'unresolved') &&
+      finding.proposition_type == null && finding.adoption_status == null) return 'unresolved';
   const isPartyAllegation =
     finding.audit_classification === "PARTY_ALLEGATION" ||
     finding.claim_type === "PARTY_ALLEGATION" ||
@@ -172,7 +175,12 @@ export function composeFinalReportPayload(input: CaseExportData, sourceReviewFin
     disposition.items.every(i=>i.speaker_role==='scjn') && dispositionRefs.length>0 &&
     auditSourceLocations(dispositionRefs,arr(full.pre_release_source_pages) as any,
       data.documents.map((d,i)=>({document_id:String(d.id),doc_n:Number(d.doc_n??i+1)}))).ok
-    ? 'Suprema Corte de Justicia de la Nación' : undefined;
+    ? 'Suprema Corte de Justicia de la Nación'
+    : governance.decision_core_priority && core.some(item =>
+      ['COURT_HOLDING','DISPOSITION','RESOLUTIVOS'].includes(item.kind) && item.speaker_role === 'scjn' &&
+      item.adoption_status === 'adopted' && arr(item.source_refs).length > 0 &&
+      auditSourceLocations(arr(item.source_refs),pages,docIndex).ok)
+      ? 'Suprema Corte de Justicia de la Nación' : undefined;
   const historicalFindings = migratorio ? arr(data.findings).filter(f => isMigratorioHistoricalDecision(f, disposition)) : [];
   const historicalFindingIds = new Set(historicalFindings.map(f => f.id));
   if (disposition && historicalFindings.length) {
@@ -266,7 +274,12 @@ export function composeFinalReportPayload(input: CaseExportData, sourceReviewFin
       checked.metadata?.deterministic_attribution?.isPartyAllegation === true ||
       checked.metadata?.claim_classification === 'PARTY_ALLEGATION';
 
-    const speaker_role = isParty
+    // A display label must not change the attribution of a reviewed claim.
+    // The literal description already identifies the party's position; keep
+    // unspecified structured fields unchanged until they receive a new review.
+    const reviewedUnspecifiedAttribution = checked.metadata?.semantic_support_review?.verdict === 'supported' &&
+      checked.speaker_role == null && checked.proposition_type == null && checked.adoption_status == null;
+    const speaker_role = reviewedUnspecifiedAttribution ? 'unresolved' : isParty
       ? (checked.speaker_role || pubClaim?.canonical_speaker_role || checked.metadata?.deterministic_attribution?.roleLabel || 'quejoso')
       : resolveReportSpeaker(checked, core);
 
@@ -292,11 +305,11 @@ export function composeFinalReportPayload(input: CaseExportData, sourceReviewFin
         ? null
         : checked.audit_classification;
 
-    const proposition_type = isParty
+    const proposition_type = reviewedUnspecifiedAttribution ? checked.proposition_type : isParty
       ? 'party_argument'
       : checked.proposition_type;
 
-    const adoption_status = isParty
+    const adoption_status = reviewedUnspecifiedAttribution ? checked.adoption_status : isParty
       ? 'party_position'
       : checked.adoption_status;
 
@@ -350,10 +363,89 @@ export function composeFinalReportPayload(input: CaseExportData, sourceReviewFin
   bindAttributedFindingCitations(data);
   findings = arr(data.findings);
   for (const finding of findings) {
-    finding.speaker_role = resolveReportSpeaker(finding, core);
+    const reviewedUnspecifiedAttribution = finding.metadata?.semantic_support_review?.verdict === 'supported' &&
+      finding.speaker_role === 'unresolved' && finding.proposition_type == null && finding.adoption_status == null;
+    if (!reviewedUnspecifiedAttribution) finding.speaker_role = resolveReportSpeaker(finding, core);
     finding.speaker_role_label = formatSpeakerRoleBadge(finding);
   }
-  if (full.intelligence) full.intelligence.consolidated_findings = findings;
+  // Prose and finding projections have separate responsibilities. Sanitize
+  // cloned prose without reclassifying the already reviewed finding objects.
+  const storedFindings = arr(obj(originalFull.intelligence).consolidated_findings);
+  const previousFindings = storedFindings.length ? storedFindings : arr(input.findings);
+  const signature = (rows: Row[]) => rows.map(f => [String(f.id), norm(f.title), norm(f.description)].join('|')).sort().join('\n');
+  const proseIsStale = signature(previousFindings) !== signature(findings);
+  const survivingIds = new Set(findings.map(f => String(f.id)));
+  const unsupported: string[] = [];
+  for (const f of [...previousFindings, ...arr(sourceReviewFindings)]) {
+    if (!survivingIds.has(String(f.id))) unsupported.push(String(f.title ?? ''), String(f.description ?? ''));
+    const diagnostic = obj(f.metadata?.claim_entailment_diagnostic);
+    unsupported.push(...(diagnostic.stripped_propositions ?? []), ...(diagnostic.atomic_evaluation?.failed_texts ?? []));
+  }
+  const sanitized = sanitizeReportObjectiveAndProse(report, findings.map(f => f.metadata?.published_claim).filter(Boolean), {
+    isConcludedAudit: governance.is_concluded,
+    hasIdentifiedClient: Boolean(c.client_id || obj(c.matter_metadata).client_name),
+    proceduralAvailabilityVerified: false,
+  });
+  report.executive_summary = sanitized.executiveSummary;
+  full.objective = sanitized.objective;
+  scrubUnsupportedPropositionsFromSections(report, undefined, unsupported);
+  for (const key of ['attorney_summary', 'case_overview', 'facts']) {
+    const prose = {executive_summary: String(report[key] ?? obj(full.prose)[key] ?? '')};
+    scrubUnsupportedPropositionsFromSections(prose, undefined, unsupported);
+    if (report[key] != null || obj(full.prose)[key] != null) report[key] = prose.executive_summary;
+  }
+  if (proseIsStale) {
+    const english = c.report_language === 'en';
+    const verifiedCore = core.flatMap(item => {
+      const audit = auditSourceLocations(arr(item.source_refs), pages, docIndex);
+      return audit.ok && audit.verified.length ? [{...item, source_refs:audit.verified}] : [];
+    });
+    if (!findings.length && !verifiedCore.length)
+      throw new Error('REPORT_SUBSTANTIVE_CONTENT_MISSING: No certified finding or verified decision passage is available for this report.');
+    const literalRefs: Row[] = [];
+    const sourcePassages = (items: Row[]) => {
+      const passages = new Set<string>();
+      for (const item of items) for (const ref of arr(item.source_refs)) {
+        const quote = String(ref.quote ?? '').trim();
+        const literal = createCanonicalCitation({document_id:ref.document_id,page:ref.page,quote},quote,pages,docIndex);
+        if (!literal) continue;
+        literalRefs.push(literal);
+        passages.add(`“${quote}” [DOC ${literal.doc_n} p.${literal.page}]`);
+      }
+      return [...passages].join('\n\n');
+    };
+    // Quote the actual source, never a supported paraphrase dressed as a
+    // verbatim quotation. Literal excerpts have their own source bindings.
+    const sourceSummary = sourcePassages([...verifiedCore].sort((a,b) => CORE_ORDER.indexOf(a.kind)-CORE_ORDER.indexOf(b.kind)));
+    const findingLines = findings.map(f => {
+      const refs = arr(f.evidence_refs).map(ref => {
+        const doc = docIndex.find(d => d.document_id === ref.document_id);
+        return doc && ref.page ? `[DOC ${doc.doc_n} p.${ref.page}]` : '';
+      }).filter(Boolean);
+      // Civil's safe attribution notice is a display wrapper, not the
+      // certified source proposition. Cite the literal passage separately.
+      if (f.canonical_attribution) return `${f.speaker_role_label}.\n\n${f.description}\n\n${sourcePassages([{source_refs:arr(f.evidence_refs)}])}`.trim();
+      return `${f.speaker_role_label}.\n\n${f.description} ${[...new Set(refs)].join(' ')}`.trim();
+    }).join('\n\n');
+    const scope = english
+      ? `This review contains ${findings.length} source-linked propositions from ${uniqueSources.length} document(s). Party arguments and unresolved questions retain their individual attribution.`
+      : `Esta revisión contiene ${findings.length} proposiciones vinculadas a fuentes de ${uniqueSources.length} documento(s). Los argumentos de parte y las cuestiones no resueltas conservan su atribución individual.`;
+    report.executive_summary = [scope, sourceSummary, findingLines].filter(Boolean).join('\n\n');
+    report.attorney_summary = report.executive_summary;
+    report.case_overview = [scope, ...uniqueSources.map(source => String(source.display_name || source.original_filename))].join('\n');
+    report.facts = findingLines;
+    const dispositions = verifiedCore.filter(item => ['DISPOSITION','RESOLUTIVOS'].includes(item.kind));
+    full.objective = {
+      question: english ? 'What did the court order in the judgment reviewed?' : '¿Qué resolvió el tribunal en la sentencia analizada?',
+      answer: sourcePassages(dispositions), decision_points:[],
+    };
+    report.citations = [...arr(report.citations), ...literalRefs];
+    full.prose_projection_source = 'current_reviewed_findings_and_source_passages';
+  }
+  full.prose = {...obj(full.prose), ...Object.fromEntries(['executive_summary','attorney_summary','case_overview','facts']
+    .filter(key => report[key] != null).map(key => [key, report[key]]))};
+  full.intelligence = {...obj(full.intelligence), consolidated_findings:findings};
+  report.findings_count = findings.length;
   // Canonical recommendation candidates own all action lanes. Retired raw
   // prose/agent next_actions are never resurrected for an older report.
   const recommendations = arr(full.canonical_recommendations);

@@ -247,7 +247,9 @@ function initCitationContext(data: CaseExportData, mode: CitationMode): void {
   _docTitleByUuid = buildDocTitleByUuid(data);
   _footnotes = [];
   _footnoteByKey = new Map();
-  _annexCitations = asArr(asObj(data.report).citations);
+  _annexCitations = [...asArr(asObj(data.report).citations),
+    ...(data.findings ?? []).flatMap(f => asArr(f.evidence_refs)),
+    ...asArr(asObj(asObj(asObj(data.report).full_report).mandatory_decision_core).items).flatMap(item => asArr(item.source_refs))];
 }
 
 function resolveDocTitle(docN: unknown): string | null {
@@ -362,6 +364,13 @@ function primeCitationFootnotes(data: CaseExportData): void {
     "recommendations",
   ];
   for (const k of keys) processProseCitations(asStr(r[k]));
+  // Structured finding citations are sources even when prose has no inline
+  // brackets. Register them before section availability is computed.
+  if (_citationMode === 'attorney') for (const ref of _annexCitations) {
+    const docN = Number(ref.doc_n), page = Number(ref.page ?? ref.page_number);
+    if (Number.isInteger(docN) && docN > 0 && Number.isInteger(page) && page > 0 && ref.quote)
+      footnoteFor([{docN:String(docN),page:String(page)}]);
+  }
 }
 
 export interface CaseExportData {
@@ -1021,14 +1030,12 @@ export class PdfBuilder {
     items: Array<{ label: string; value: string; color?: [number, number, number] }>,
     cols = 3,
   ) {
-    // Hard cap at four columns: past that, a Letter-width card is narrower
-    // than the Spanish labels it has to carry ("Documentos Analizados",
-    // "Recomendaciones") and both label and value start truncating.
-    const nCols = Math.max(1, Math.min(4, cols));
+    // Five compact counters fit a single row; wrap their labels in full.
+    const nCols = Math.max(1, Math.min(5, cols));
     const gap = 14;
     const w = (this.pageW - this.margin * 2 - gap * (nCols - 1)) / nCols;
-    const h = 66;
-    const padX = 18; // clears the accent bar on the left edge
+    const h = nCols === 5 ? 76 : 66;
+    const padX = nCols === 5 ? 10 : 18; // clears the accent bar on the left edge
     const rows = Math.ceil(items.length / nCols);
     const fullGridHeight = rows * (h + gap);
     if (fullGridHeight <= this.printableBottom - this.printableTop) this.ensureSpace(fullGridHeight);
@@ -1059,7 +1066,7 @@ export class PdfBuilder {
         const labelMaxW = w - padX - 12;
         const labelLines = (
           this.doc.splitTextToSize(cardLabel.toUpperCase(), labelMaxW) as string[]
-        ).slice(0, 2);
+        ).slice(0, nCols === 5 ? 4 : 2);
         let ly = yy + 16;
         for (const line of labelLines) {
           this.doc.text(line, x + padX, ly);
@@ -2268,21 +2275,13 @@ export class PdfBuilder {
   async save(filename: string, meta: { parity: string; ess: string; generatedAt: string } | null = null, validateOnly = false, internalPreflight = false, onPrepared?: (file: PreparedPdfDownload) => void) {
     this.finalizeLayout(meta);
     if (!this.finalPayload) throw new Error("REPORT_CONTRACT_UNAVAILABLE");
-    const isVerifFailed = Boolean(
-      (this.finalPayload as any)?.report_presentation?.verification_status === "VERIFICATION_FAILED" ||
-      asObj(this.finalPayload.report).quality_blocked === true
-    );
     let released: CaseExportData;
-    if (internalPreflight || isVerifFailed) {
+    if (internalPreflight || this.isDraftReview) {
       released = preflightRenderedReportOutput(this.finalPayload, "pdf", this.renderedText.join("\n"));
     } else {
-      try {
-        released = releaseRenderedReportOutput(this.finalPayload, "pdf", this.renderedText.join("\n"));
-      } catch {
-        released = preflightRenderedReportOutput(this.finalPayload, "pdf", this.renderedText.join("\n"));
-      }
+      released = releaseRenderedReportOutput(this.finalPayload, "pdf", this.renderedText.join("\n"));
     }
-    if (!validateOnly) await assertNarrativeExportReady(released);
+    if (!validateOnly) await assertNarrativeExportReady(released, {throwOnUnverified:!this.isDraftReview});
     if (!validateOnly) savePdfDownload(this.doc.output("arraybuffer"), filename, onPrepared);
     return released;
   }
@@ -2415,9 +2414,9 @@ function renderCover(
   );
   const findingTypeCounts = computeFindingTypeCounts(activeFindingsForCover);
   if (findingTypeCounts.direct + findingTypeCounts.inference + findingTypeCounts.theory > 0) {
-    cards.push({ label: "Direct Evidence", value: String(findingTypeCounts.direct), color: SUCCESS });
-    cards.push({ label: "Evidence-Based Inference", value: String(findingTypeCounts.inference) });
-    cards.push({ label: "AI Theory (Unverified)", value: String(findingTypeCounts.theory), color: MUTED });
+    cards.push({ label: getReportTemplateLocale()==="en" ? "Direct Evidence" : "Evidencia directa", value: String(findingTypeCounts.direct), color: SUCCESS });
+    cards.push({ label: getReportTemplateLocale()==="en" ? "Evidence-Based Inference" : "Inferencia probatoria", value: String(findingTypeCounts.inference) });
+    cards.push({ label: getReportTemplateLocale()==="en" ? "AI Theory (Unverified)" : "Teoría sin verificar", value: String(findingTypeCounts.theory), color: MUTED });
   }
   const constitutionalCount = asArr(r.constitutional_issues_struct).length;
   if (constitutionalCount > 0)
@@ -2430,7 +2429,7 @@ function renderCover(
   if (missingCount > 0)
     cards.push({ label: "Missing Evidence", value: String(missingCount), color: ACCENT });
 
-  b.statCards(cards, 4);
+  b.statCards(cards, cards.length <= 5 ? cards.length : 4);
 
   // Cover metadata now lives on page 1; caller pageBreaks into the TOC.
   return false;
@@ -2639,12 +2638,13 @@ function renderExecutive(b: PdfBuilder, data: CaseExportData, mode: ReportMode) 
   // before it summarises anything. Deterministic, evidence-only.
   const objective = asObj(asObj(r.full_report).objective) as Record<string, unknown>;
   if (asStr(objective.answer)) {
+    b.ensureSpace(120);
     b.h2(execLocale === "en" ? "Direct Answer" : "Respuesta Directa");
     const rawQ = asStr(objective.question);
     if (rawQ && !isUserInstructionOrPrompt(rawQ)) {
       b.text(rawQ, { size: 10, color: MUTED, gap: 4 });
     }
-    b.text(asStr(objective.answer), { size: 12, gap: 6 });
+    b.text(processProseCitations(asStr(objective.answer)), { size: 12, gap: 6 });
     const conf = asStr(objective.confidence);
     if (conf) {
       b.text(
@@ -3156,11 +3156,11 @@ function exportHasNoPersonalNoticeDuty(data: CaseExportData): boolean {
 
 function scrubExportPostureInversion(data: CaseExportData, text: string): string {
   if (!text || !exportHasNoPersonalNoticeDuty(data)) return text;
-  return text.split(/(?<=[.!?])\s+|\n+/g).filter((part) => {
+  return text.split(/\n\s*\n/).map(paragraph => paragraph.split(/(?<=[.!?])\s+|\n+/g).filter((part) => {
     const value = part.trim();
     if (!/notific[^.!?]{0,100}personal/i.test(value)) return true;
     return !/(defectu|irregular|error|nulidad|invalid|afect|procedencia|desestim|debilidad|riesgo|perjuicio|necesaria|necesario)/i.test(value);
-  }).join(" ").replace(/\s{2,}/g, " ").trim();
+  }).join(" ").replace(/\s{2,}/g, " ").trim()).filter(Boolean).join('\n\n');
 }
 
 function canonicalTimelineText(data: CaseExportData): string {
@@ -3483,6 +3483,7 @@ function renderScorecard(b: PdfBuilder, data: CaseExportData) {
 function renderKeyFindings(b: PdfBuilder, data: CaseExportData) {
   const cards = presentation(data).finding_cards;
   if (!cards.length) return;
+  if (cards.length <= 6) b.ensureSpace(380);
   b.h1(rt("Key Findings"), "Hallazgos Clave");
   b.text(
     `${cards.length} proposiciones jurídicamente relevantes verificadas y vinculadas a fuentes primarias del expediente.`,
@@ -3498,9 +3499,9 @@ function renderKeyFindings(b: PdfBuilder, data: CaseExportData) {
   ]), {
     columnStyles: {
       0: { cellWidth: 28, fontStyle: "bold" },
-      1: { cellWidth: 260 },
-      2: { cellWidth: 140 },
-      3: { cellWidth: 50, halign: "center" },
+      1: { cellWidth: b.printableWidth - 212 },
+      2: { cellWidth: 128 },
+      3: { cellWidth: 56, halign: "center" },
     },
   });
 
@@ -3575,9 +3576,12 @@ function renderKeyFindings(b: PdfBuilder, data: CaseExportData) {
       b.h3("IMPORTANCIA ESTRATÉGICA");
       wp.importance.forEach((text) => b.text(text, { size: 9.5, gap: 4 }));
     }
-    if (wp.actions?.length) {
+    const matter = resolveReportIdentity(asObj(data.case)).matterType?.toLowerCase();
+    const actions = (wp.actions ?? []).filter(action =>
+      !(presentation(data).governance.is_concluded && matter === 'familiar' && /expediente administrativo/i.test(action)));
+    if (actions.length) {
       b.h3(wp.actions_title || "ACCIONES RECOMENDADAS");
-      b.bullets(wp.actions);
+      b.bullets(actions);
     }
 
     // 7. Thin separator between findings
@@ -5209,49 +5213,17 @@ function deriveMatterId(data: CaseExportData): string {
   return id || "NYRAVA";
 }
 
-/** Subscriber download: approved reports use the strict final exporter.
- * A blocked report gets a separate source-review document, never final prose. */
+/** Review and final downloads share the complete attorney report renderer.
+ * A review download retains its draft status and passes the current content
+ * contract; it never changes the persisted release decision. */
 export async function downloadReportPdf(data: CaseExportData, name: string, opts?: { citationMode?: CitationMode; validateOnly?: boolean; onPrepared?: (file: PreparedPdfDownload) => void }) {
   const report = asObj(data.report);
   const review = report.quality_blocked === true || report.verification_status === 'VERIFICATION_FAILED' ||
     report.release_decision === 'BLOCK' || report.status === 'needs_revision';
   if (!review) return downloadPdf(data, name, opts);
-  const { auditSourceLocations } = await import('./reporting/source-location-audit');
-  const pages = asArr(asObj(report.full_report).pre_release_source_pages);
-  const index = data.documents.map((doc, i) => ({document_id:String(doc.id ?? doc.document_id ?? ''),doc_n:Number(doc.doc_n ?? i+1)}));
-  setReportTemplateLocale(resolveReportLocale(data.report, data.case));
-  const english=getReportTemplateLocale()==='en';
-  const b = new PdfBuilder(name, deriveMatterId(data), true);
-  await b.loadLogo();
-  const identity=resolveReportIdentity(asObj(data.case));
-  b.premiumCover({reportTitle:'BORRADOR PARA REVISIÓN',caseName:name,matterType:translateLegalTerm(identity.matterType),
-    court:translateLegalTerm(identity.court),proceeding:translateLegalTerm(identity.proceedingType),
-    matterId:asStr(data.case?.id),date:reportRenderTimestamp(data).slice(0,10)});
-  b.pageBreak();
-  b.h1(english?'Review status':'Estado de revisión');
-  b.text(english?'This draft supports review of the report sources. Final publication remains pending; unapproved conclusions are withheld. Do not file in court.':'Este borrador permite revisar las fuentes del informe. La publicación del informe final sigue pendiente; las conclusiones no aprobadas se retienen. No presentar en juicio.');
-  const reasons=asArr(report.quality_block_reasons).map(String);
-  for (const reason of reasons) b.text(reason);
-  b.h1(english?'Document sources for review':'Fuentes documentales para revisión');
-  b.text(english?'These excerpts were located verbatim on the indicated pages. A quotation alone does not establish a legal conclusion or judicial adoption of a party allegation.':'Los siguientes extractos fueron localizados literalmente en las páginas indicadas. Una transcripción no acredita por sí sola una conclusión jurídica ni la adopción judicial de una alegación de parte.');
-  const seen=new Set<string>();let count=0;
-  for (const f of data.findings ?? []) {
-    const ref={document_id:f.source_document_id,page:f.source_page,quote:f.source_quote};
-    const audit=auditSourceLocations([ref],pages,index);
-    if (!audit.ok || audit.verified.length!==1) continue;
-    const located=audit.verified[0],key=JSON.stringify([located.document_id,located.page,located.quote]);
-    if (seen.has(key)) continue;
-    seen.add(key);count++;
-    const doc=data.documents.find(d=>String(d.id ?? d.document_id)===located.document_id);
-    b.h2(asStr(doc?.filename ?? doc?.title,english?'Document':'Documento')+(english?' - page ':' - página ')+located.page);
-    b.text(located.quote);
-  }
-  if (!count) b.text(english?'No excerpts with verified document locations are available in this draft.':'No hay extractos con ubicación documental verificada disponibles en este borrador.');
-  b.closingPage({generatedAt:reportRenderTimestamp(data)});
-  b.finalizeLayout();
-  const bytes=b.doc.output('arraybuffer');
-  if (!opts?.validateOnly) savePdfDownload(bytes, slug(name)+'-borrador-revision.pdf', opts?.onPrepared);
-  return bytes;
+  const rendered = await renderPdf(data, name, {...opts, validateOnly:true}, true);
+  if (!opts?.validateOnly) savePdfDownload(rendered.bytes, slug(name)+'-borrador-revision.pdf', opts?.onPrepared);
+  return rendered.bytes;
 }
 
 export async function downloadPdf(data: CaseExportData, name: string, opts?: { citationMode?: CitationMode; validateOnly?: boolean; onPrepared?: (file: PreparedPdfDownload) => void }) {
@@ -5279,7 +5251,7 @@ export async function downloadPdf(data: CaseExportData, name: string, opts?: { c
     const caseId = String(data.case?.id ?? ''), executionId = String(data.case?.execution_id ?? '');
     data = generateVerifiedReport(verifiedReportPackage(asObj(data.report), caseId, executionId), caseId, executionId);
   }
-  return renderPdf(data,name,opts,false);
+  return (await renderPdf(data,name,opts,false)).payload;
 }
 async function renderPdf(
   data: CaseExportData,
@@ -5341,9 +5313,9 @@ async function renderPdf(
   // back to cases.report_language for rows written before that column).
   setReportTemplateLocale(resolveReportLocale(data.report, data.case));
   initCitationContext(data, opts?.citationMode ?? "attorney");
-  // Step 13: Final Pre-PDF Sweep
-  const { sweepReportForPdfPublication } = await import("./intelligence/final-claim-publication");
-  data = sweepReportForPdfPublication(data);
+  // Composition has already applied publication and attribution policy.
+  // Reclassifying here would change hash-bound claims after their review.
+  // The current payload and rendered text still pass the release contract.
   primeCitationFootnotes(data);
 
   const b = new PdfBuilder(name, deriveMatterId(data), isDraftReview);
@@ -5374,7 +5346,9 @@ async function renderPdf(
     !f.metadata?.quarantined
   );
   const renderedCount = activeFindingsForPdf.length;
-  const verifiedCount = activeFindingsForPdf.filter((f: any) => f.finding_status === 'verified').length;
+  const verifiedCount = activeFindingsForPdf.filter((f: any) => f.finding_status === 'verified' ||
+    f.verification_status === 'verified' || (asArr(f.evidence_refs).length > 0 &&
+      asArr(f.evidence_refs).every(ref => ref.verification_status === 'verified' && ref.source_location_verified === true))).length;
   const counters = {
     ...rawCounters,
     rendered: renderedCount,
@@ -5400,6 +5374,7 @@ async function renderPdf(
   try {
     data = validatePayload(data);
   } catch (err) {
+    if (!internalPreflight && !isDraftReview) throw err;
     data = structuredClone(preflightFinalReportPayload(data));
     (data as FinalReportPayload).report_presentation = {
       ...(data as FinalReportPayload).report_presentation,
@@ -5455,12 +5430,12 @@ async function renderPdf(
   const footerEss =
     mode === "LIMITED" ? `${ess.level} · ${mode} · scores suppressed` : `${ess.level} · ${mode}`;
   b.finalPayload = data as FinalReportPayload;
-  if(!opts?.validateOnly)await assertNarrativeExportReady(data);
-  return b.save(`${slug(name)}.pdf`, {
+  const payload = await b.save(`${slug(name)}.pdf`, {
     parity: parityTag,
     ess: footerEss,
     generatedAt,
   }, opts?.validateOnly, internalPreflight, opts?.onPrepared);
+  return {payload, bytes:b.doc.output("arraybuffer")};
 }
 
 /** Same real section renderers used by downloads; in-memory only, no publication.
@@ -5476,7 +5451,7 @@ export async function prepareFinalReportForRelease(data: CaseExportData): Promis
   try {
     const name = asStr(data.case?.name, "Report");
     const pdf = await renderPdf(composeFinalReportPayload(data), name, {validateOnly:true}, true);
-    return pdf;
+    return pdf.payload;
   } finally { done(); }
 }
 

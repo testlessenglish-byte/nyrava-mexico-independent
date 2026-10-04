@@ -113,47 +113,66 @@ describe("PDF Content Rules — BLOCKED/needs_revision vs PASS", () => {
 
 describe('actual review download boundary', () => {
   const source = 'La parte recurrente cuenta con legitimación para presentar el recurso de revisión.';
-  const data = () => ({case:{id:'case',name:'Caso revisión'},documents:[{id:'doc',doc_n:1,filename:'sentencia.pdf'}],
+  const data = () => ({case:{id:'case',name:'Caso revisión',case_type:'familiar'},documents:[{id:'doc',doc_n:1,filename:'sentencia.pdf'}],
     findings:[{id:'f',title:'UNSUPPORTED TITLE',description:'UNSUPPORTED CONCLUSION',source_document_id:'doc',source_page:2,source_quote:source}],
     agents:[],report:{quality_blocked:true,quality_block_reasons:['publication_citation_missing'],
       executive_summary:'UNSUPPORTED SUMMARY',full_report:{pre_release_source_pages:[{document_id:'doc',page:2,text:source}]}}}) as any;
-  it('downloads an explicitly branded review PDF without releasing blocked conclusions',async()=>{
+  it('rejects an unsupported review report instead of substituting an excerpt-only PDF',async()=>{
     const {downloadReportPdf}=await import('../export');
-    const {extractText}=await import('unpdf');
     const input=data(),before=structuredClone(input);
-    const bytes=await downloadReportPdf(input,'Caso revisión',{validateOnly:true});
-    expect(new TextDecoder().decode(new Uint8Array(bytes).slice(0,5))).toBe('%PDF-');
-    const result=await extractText(new Uint8Array(bytes),{mergePages:true});
-    expect(result.text).toContain('BORRADOR');
-    expect(result.text).toContain('publication_citation_missing');
-    expect(result.text).toContain(source);
-    expect(result.text).toMatch(/sentencia\.pdf/i);
-    expect(result.text).not.toMatch(/UNSUPPORTED|DOCUMENTO AUDITADO|INFORME FINAL/);
+    await expect(downloadReportPdf(input,'Caso revisión',{validateOnly:true})).rejects.toThrow(/REPORT_CONTRACT_BLOCKED|REPORT_SUBSTANTIVE_CONTENT_MISSING/);
     expect(input).toEqual(before);
   });
-  it('withholds a review excerpt when its physical source page does not contain it',async()=>{
+  it('rejects a review report whose quotation is absent from its physical source page',async()=>{
     const {downloadReportPdf}=await import('../export');
-    const {extractText}=await import('unpdf');
     const input=data();input.report.full_report.pre_release_source_pages[0].text='Texto diferente.';
-    const bytes=await downloadReportPdf(input,'Caso revisión',{validateOnly:true});
-    const result=await extractText(new Uint8Array(bytes),{mergePages:true});
-    expect(result.text).not.toContain(source);
+    await expect(downloadReportPdf(input,'Caso revisión',{validateOnly:true})).rejects.toThrow(/REPORT_CONTRACT_BLOCKED|REPORT_SUBSTANTIVE_CONTENT_MISSING/);
   });
-  it('uses the report language for review instructions while preserving source quotations',async()=>{
+  it('enforces the same review content contract for English reports',async()=>{
     const {downloadReportPdf}=await import('../export');
-    const {extractText}=await import('unpdf');
     const input=data();input.case.report_language='en';input.report.generated_language='en';
-    const bytes=await downloadReportPdf(input,'Review case',{validateOnly:true});
-    const result=await extractText(new Uint8Array(bytes),{mergePages:true});
-    expect(result.text).toContain('Review status');
-    expect(result.text).toContain('Do not file');
-    expect(result.text).toContain('DRAFT');
-    expect(result.text).toMatch(/page 2/i);
-    expect(result.text).toContain(source);
-    expect(result.text).not.toContain('Este borrador permite revisar');
+    await expect(downloadReportPdf(input,'Review case',{validateOnly:true})).rejects.toThrow(/REPORT_CONTRACT_BLOCKED|REPORT_SUBSTANTIVE_CONTENT_MISSING/);
   });
   it('continues to reject final PDF publication of a blocked report',async()=>{
     const {downloadPdf}=await import('../export');
     await expect(downloadPdf(data(),'Caso revisión',{validateOnly:true})).rejects.toThrow('REPORT_BLOCKED');
+  });
+});
+
+
+describe('complete attorney review report',()=>{
+  it.each([false,true])('retains substantive findings and full report structure (unspecified party attribution: %s)',async(unspecifiedParty)=>{
+    const {downloadReportPdf}=await import('../export');
+    const {extractText}=await import('unpdf');
+    const quote='La Sala determina que se desecha el recurso de revisión y queda firme la sentencia recurrida.';
+    const data:any={case:{id:'case',execution_id:'run',name:'Sentencia revisada',case_type:'amparo',case_analysis_mode:'concluded_audit',report_language:'es'},
+      documents:[{id:'doc',filename:'sentencia.pdf',doc_n:1,canonical_source_id:'doc'}],agents:[],analysis:null,score:null,
+      findings:[{id:'f',case_id:'case',execution_id:'run',title:'Desestimación del recurso',finding_type:'DIRECT_EVIDENCE',description:quote,source_document_id:'doc',source_page:2,source_quote:quote,speaker_role:'scjn',proposition_type:'holding',adoption_status:'adopted',severity:'high',finding_status:'verified',verification_status:'verified',evidence_refs:[{document_id:'doc',page:2,quote}]}],
+      report:{quality_blocked:true,status:'needs_revision',release_decision:'BLOCK',quality_block_reasons:['final_report_contract:citation_integrity:report_presentation.finding_cards[0]:publication_citation_missing'],report_mode:'LIMITED',created_at:'2026-10-03T12:00:00Z',executive_summary:'La sentencia documenta la desestimación del recurso de revisión y la firmeza de la sentencia recurrida. El alcance de esta revisión se limita al documento aportado.',full_report:{pre_release_source_pages:[{document_id:'doc',page:2,text:quote}],assessment_limitations:{underlying_record_absent:true},mandatory_decision_core:{items:[{id:'disposition',kind:'DISPOSITION',text:quote,speaker_role:'scjn',adoption_status:'adopted',source_refs:[{document_id:'doc',page:2,quote}]}]}}}};
+    if(unspecifiedParty){
+      const {supportInput}=await import('../intelligence/claim-support-review');
+      const f=data.findings[0],partyQuote='El recurrente estima que la suplencia sí opera en términos del artículo 79 de la Ley de Amparo.';
+      f.title='Suplencia de la queja';f.description='El recurrente sostiene que no se aplicó correctamente la suplencia de la queja.';
+      f.source_quote=partyQuote;f.speaker_role=null;f.proposition_type=null;f.adoption_status=null;
+      f.evidence_refs=[{document_id:'doc',page:2,quote:partyQuote}];
+      data.report.full_report.pre_release_source_pages[0].text+=' '+partyQuote;
+      f.metadata={semantic_support_review:{version:1,verdict:'supported',hash:supportInput(f,data.report.full_report.pre_release_source_pages).hash,supporting_quote:partyQuote,reason:'Independent review of the complete party statement.'}};
+    }
+    data.report.executive_summary+=' El expediente respalda la pretensión del cliente.';
+    data.report.full_report.objective={question:'¿Qué resolvió el tribunal?',answer:quote+' [DOC 1 p.2]'};
+    const before=structuredClone(data),bytes=await downloadReportPdf(data,'Sentencia revisada',{validateOnly:true});
+    const result=await extractText(new Uint8Array(bytes),{mergePages:true});
+    expect(result.text).toContain(unspecifiedParty?'Suplencia de la queja':'Desestimación del recurso');
+    expect(result.text).toContain('Índice');
+    expect(result.text).toContain('Fuentes de Evidencia');
+    expect(result.text).toContain('Suprema Corte de Justicia de la Nación');
+    expect(result.text).not.toContain('respalda la pretensión');
+    expect(result.text).not.toMatch(/\[DOC\s+\d/);
+    expect(result.text).toMatch(/EVIDENCIA\s+DIRECTA/);
+    expect(result.text).toContain('La sentencia documenta la desestimación');
+    expect(result.text).toMatch(/sentencia\.pdf/i);
+    expect(result.text).toMatch(/BORRADOR/);
+    expect(result.text).not.toMatch(/final_report_contract|publication_citation_missing|finding_cards\[/);
+    expect(data).toEqual(before);
   });
 });

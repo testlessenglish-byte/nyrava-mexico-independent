@@ -27,7 +27,7 @@ describe('publication finding projection',()=>{
     const d=fixture();d.theories=[{summary:'Una teoría estratégica sin apoyo.',citations:[{document_id:'doc',page:3,quote:'Una cita inventada.',publication_status:'QUARANTINED'}]}];
     const out=composeFinalReportPayload(d);
     expect(out.theories ?? []).toEqual([]);
-    expect(validateFinalReportContract(out).blocking_errors).toEqual([]);
+    expect(validateFinalReportContract(out).blocking_errors,validateFinalReportContract(out).blocking_errors.join('; ')).toEqual([]);
     // The citation audit still rejects such content if a caller supplies it for publication.
     out.theories=d.theories;
     expect(auditReportCitationIntegrity(out).ok).toBe(false);
@@ -85,7 +85,7 @@ describe('publication finding projection',()=>{
       expect(card.finding.evidence_refs[0]).toMatchObject({verification_status:'verified',source_location_verified:true,canonical_source_id:'source',finding_id:card.finding.id});
       expect(card.finding.evidence_refs[0].citation_id).toMatch(/^citation_/);
     }
-    expect(validateFinalReportContract(out).blocking_errors).toEqual([]);
+    expect(validateFinalReportContract(out).blocking_errors,validateFinalReportContract(out).blocking_errors.join('; ')).toEqual([]);
   });
   it.each(['title','description','document','page','case','execution','attribution','review'])('blocks a stale or changed %s with otherwise valid cards',change=>{
     const input=fixture(),f=input.findings[4];
@@ -142,7 +142,7 @@ describe('reviewed party finding publication',()=>{
   }
   it('preserves a completed review of the repaired party claim through report taxonomy and restricted presentation',()=>{
     const out=composeFinalReportPayload(partyFixture());
-    expect(validateFinalReportContract(out).blocking_errors).toEqual([]);
+    expect(validateFinalReportContract(out).blocking_errors,validateFinalReportContract(out).blocking_errors.join('; ')).toEqual([]);
     expect(out.report_presentation.finding_cards[0].finding.proposition_type).toBe('party_argument');
     expect(out.report_presentation.finding_cards[0].finding.evidence_refs[0].citation_id).toMatch(/^citation_/);
   });
@@ -151,7 +151,7 @@ describe('reviewed party finding publication',()=>{
     f.evidence_refs[0].proposition_supported=f.source_quote;
     f.evidence_refs[0].verification_status='verified';
     const out=composeFinalReportPayload(d);
-    expect(validateFinalReportContract(out).blocking_errors).toEqual([]);
+    expect(validateFinalReportContract(out).blocking_errors,validateFinalReportContract(out).blocking_errors.join('; ')).toEqual([]);
     expect(out.report_presentation.finding_cards[0].finding.evidence_refs[0].proposition_supported).toBe(f.description);
   });
   it.each(['review','description','speaker','adoption','repair'])('rejects a repaired party claim with changed %s',change=>{
@@ -162,5 +162,102 @@ describe('reviewed party finding publication',()=>{
     if(change==='adoption')f.adoption_status='adopted';
     if(change==='repair')f.metadata.claim_entailment_diagnostic.repaired_description='Otra afirmación.';
     expect(validateFinalReportContract(composeFinalReportPayload(d)).ok).toBe(false);
+  });
+});
+
+
+describe('reviewed findings with unspecified structured attribution',()=>{
+  it('retains the reviewed attribution when a party label is derived for display',()=>{
+    const d=fixture();d.findings=d.findings.slice(0,1);const f=d.findings[0];
+    f.title='Suplencia de la queja';
+    f.description='El recurrente sostiene que no se aplicó la suplencia de la queja.';
+    f.source_quote='El recurrente sostiene que no se aplicó la suplencia de la queja.';
+    d.report.full_report.pre_release_source_pages[0].text=f.source_quote;
+    f.evidence_refs=[{document_id:'doc',page:2,quote:f.source_quote}];
+    f.metadata.semantic_support_review={version:1,verdict:'supported',hash:supportInput(f,d.report.full_report.pre_release_source_pages).hash,supporting_quote:f.source_quote,reason:'Reviewed complete party statement.'};
+    const out=composeFinalReportPayload(d),published=out.findings![0];
+    expect(published.description).toBe('El recurrente sostiene que no se aplicó la suplencia de la queja.');
+    expect(published.speaker_role).toBe('unresolved');
+    expect(published.proposition_type).toBeNull();
+    expect(published.adoption_status).toBeNull();
+    expect(published.evidence_refs[0].verification_status).toBe('verified');
+    expect(validateFinalReportContract(out).blocking_errors,validateFinalReportContract(out).blocking_errors.join('; ')).toEqual([]);
+    published.speaker_role='scjn';published.adoption_status='adopted';
+    expect(validateFinalReportContract(out).ok).toBe(false);
+  });
+});
+
+describe('current report prose projection',()=>{
+  it('does not restore client prejudgment while preserving reviewed attribution',()=>{
+    const data=fixture();data.case.case_analysis_mode='concluded_audit';
+    const quote='La Sala determina que se desecha el recurso de revisión.';
+    data.report.full_report.pre_release_source_pages.push({document_id:'doc',page:3,text:quote});
+    data.report.full_report.mandatory_decision_core={items:[{id:'decision',kind:'DISPOSITION',text:quote,speaker_role:'scjn',adoption_status:'adopted',source_refs:[{document_id:'doc',page:3,quote}]}]};
+    for(const f of data.findings)f.metadata.semantic_support_review.hash=supportInput(f,data.report.full_report.pre_release_source_pages).hash;
+    data.report.executive_summary='El expediente respalda la pretensión del cliente. El análisis se limita a los documentos proporcionados y sus pasajes revisados.';
+    const out=composeFinalReportPayload(data);
+    expect(out.report.executive_summary).not.toContain('respalda la pretensión');
+    expect(out.findings[0].speaker_role).toBe('unresolved');
+    expect(validateFinalReportContract(out).blocking_errors,validateFinalReportContract(out).blocking_errors.join('; ')).toEqual([]);
+  });
+  it('rebuilds stale material summaries from the current reviewed findings',()=>{
+    const data=fixture(),rejected={id:'rejected',title:'Falta de ponderación de pruebas',description:'Se omitió ponderar las pruebas.'};
+    data.report.full_report.intelligence={consolidated_findings:[...structuredClone(data.findings),rejected]};
+    for(const key of ['executive_summary','attorney_summary','case_overview','facts'])data.report[key]='Este informe identifica 6 hallazgos verificados. Falta de ponderación de pruebas.';
+    data.report.full_report.prose={...data.report};delete data.report.full_report.prose.full_report;
+    data.report.full_report.objective={answer:'Se omitió ponderar las pruebas.',decision_points:[{issue:rejected.title}]};
+    const before=structuredClone(data),out=composeFinalReportPayload(data);
+    expect(out.report.executive_summary).toContain('5');
+    for(const key of ['executive_summary','attorney_summary','case_overview','facts']){
+      expect(out.report[key]).not.toContain(rejected.title);
+      expect(out.report[key]).not.toContain('6 hallazgos');
+    }
+    expect(out.report.full_report.objective.decision_points).toEqual([]);
+    expect(out.report.full_report.intelligence.consolidated_findings).toHaveLength(5);
+    expect(data).toEqual(before);
+    expect(validateFinalReportContract(out).blocking_errors,validateFinalReportContract(out).blocking_errors.join('; ')).toEqual([]);
+  });
+  it('scrubs explicitly stripped assertions from the remaining summary',()=>{
+    const data=fixture();data.findings[0].metadata.claim_entailment_diagnostic={final_reportable:true,entailment_status:'ENTAILED',claim_action:'KEEP',stripped_propositions:['Se condena al recurrente a pagar diez millones de pesos.']};
+    data.report.executive_summary='El análisis recoge la legitimación documentada para presentar el recurso. Se condena al recurrente a pagar diez millones de pesos. Su alcance se limita a las fuentes aportadas para revisión jurídica.';
+    const out=composeFinalReportPayload(data);
+    expect(out.report.executive_summary).not.toContain('diez millones');
+    expect(out.report.executive_summary).toContain('legitimación');
+    expect(validateFinalReportContract(out).blocking_errors,validateFinalReportContract(out).blocking_errors.join('; ')).toEqual([]);
+  });
+});
+
+describe('Spanish question citation boundaries',()=>{
+  it('keeps a sourced question separate from the preceding attribution heading',()=>{
+    const data=fixture(),question='¿La parte recurrente cuenta con legitimación para presentar el recurso de revisión?';
+    data.report.full_report.pre_release_source_pages[0].text+=' '+question;
+    for(const f of data.findings)f.metadata.semantic_support_review.hash=supportInput(f,data.report.full_report.pre_release_source_pages).hash;
+    data.report.executive_summary+='\n\nCUESTIÓN DOCUMENTADA.\n\n'+question+' [DOC 1 p.2]';
+    data.report.citations=[{document_id:'doc',doc_n:1,page:2,quote:question,proposition_supported:question,verification_status:'verified',canonical_source_id:'source'}];
+    const out=composeFinalReportPayload(data),validation=validateFinalReportContract(out);
+    expect(validation.blocking_errors,validation.blocking_errors.join('; ')).toEqual([]);
+    out.report.executive_summary=out.report.executive_summary.replace(question,'¿Se condena al recurrente a pagar diez millones de pesos?');
+    expect(validateFinalReportContract(out).ok).toBe(false);
+  });
+});
+
+describe('substantive stale report repair',()=>{
+  it('preserves the complete certified assertion of a compound finding',()=>{
+    const data=fixture();data.findings=data.findings.slice(0,1);
+    const quote='La parte recurrente cuenta con legitimación para presentar el recurso de revisión. La solicitud cumple el plazo aplicable.';
+    const f=data.findings[0];f.description=quote;f.source_quote=quote;f.evidence_refs[0].quote=quote;
+    data.report.full_report.pre_release_source_pages[0].text=quote;
+    f.metadata.semantic_support_review={...f.metadata.semantic_support_review,hash:supportInput(f,data.report.full_report.pre_release_source_pages).hash,supporting_quote:quote};
+    data.report.full_report.intelligence={consolidated_findings:[...structuredClone(data.findings),{id:'old',title:'Historical unsupported claim'}]};
+    const out=composeFinalReportPayload(data),validation=validateFinalReportContract(out);
+    expect(validation.blocking_errors,validation.blocking_errors.join('; ')).toEqual([]);
+    expect(out.findings[0].description).toBe(quote);
+    expect(out.report.facts).toContain(quote);
+    out.report.facts=out.report.facts.replace('cuenta con legitimación','carece de legitimación');
+    expect(validateFinalReportContract(out).ok).toBe(false);
+  });
+  it('refuses to generate a substitute report when no certified substantive content survives',()=>{
+    const data=fixture();data.findings=data.findings.slice(0,1);data.findings[0].lifecycle_status='suppressed';
+    expect(()=>composeFinalReportPayload(data)).toThrow(/REPORT_SUBSTANTIVE_CONTENT_MISSING/);
   });
 });
