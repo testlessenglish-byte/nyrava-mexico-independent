@@ -400,6 +400,30 @@ export interface CaseExportData {
   outcome_assessment?: Record<string, unknown> | null;
 }
 
+export function reportNeedsReview(data: CaseExportData): boolean {
+  const report = asObj(data.report);
+  const full = asObj(report.full_report);
+  const releaseGate = asObj(full.release_gate);
+  const finalReview = asObj(full.final_review);
+  const caseRow = asObj(data.case);
+
+  const blockedDecision = (value: unknown) => {
+    const decision = asStr(value).trim().toUpperCase();
+    return decision === "BLOCK" || decision === "BLOCKED";
+  };
+
+  return (
+    report.quality_blocked === true ||
+    report.verification_status === "VERIFICATION_FAILED" ||
+    blockedDecision(report.release_decision) ||
+    blockedDecision(full.release_decision) ||
+    blockedDecision(releaseGate.decision) ||
+    asStr(caseRow.status).toLowerCase() === "needs_revision" ||
+    asStr(report.status).toLowerCase() === "needs_revision" ||
+    finalReview.released === false
+  );
+}
+
 function saveBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -5217,12 +5241,30 @@ function deriveMatterId(data: CaseExportData): string {
  * A review download retains its draft status and passes the current content
  * contract; it never changes the persisted release decision. */
 export async function downloadReportPdf(data: CaseExportData, name: string, opts?: { citationMode?: CitationMode; validateOnly?: boolean; onPrepared?: (file: PreparedPdfDownload) => void }) {
-  const report = asObj(data.report);
-  const review = report.quality_blocked === true || report.verification_status === 'VERIFICATION_FAILED' ||
-    report.release_decision === 'BLOCK' || report.status === 'needs_revision';
-  if (!review) return downloadPdf(data, name, opts);
-  const rendered = await renderPdf(data, name, {...opts, validateOnly:true}, true);
-  if (!opts?.validateOnly) savePdfDownload(rendered.bytes, slug(name)+'-borrador-revision.pdf', opts?.onPrepared);
+  const review = reportNeedsReview(data);
+
+  if (!review) {
+    return downloadPdf(data, name, opts);
+  }
+
+  // A blocked / needs-revision report is allowed to render only through the
+  // review-draft path. It remains visibly marked BORRADOR and never enters
+  // the final-release PDF path.
+  const rendered = await renderPdf(
+    data,
+    name,
+    { ...opts, validateOnly: true },
+    true,
+  );
+
+  if (!opts?.validateOnly) {
+    savePdfDownload(
+      rendered.bytes,
+      slug(name) + "-borrador-revision.pdf",
+      opts?.onPrepared,
+    );
+  }
+
   return rendered.bytes;
 }
 
@@ -5232,11 +5274,7 @@ export async function downloadPdf(data: CaseExportData, name: string, opts?: { c
   // PDF export path. Internal preflight/rendering has its own path below,
   // but attorney-facing download must fail closed before normalization,
   // composition, citation processing, or rendering can occur.
-  if (
-    asObj(data.report).quality_blocked === true ||
-    asObj(data.report).verification_status === "VERIFICATION_FAILED" ||
-    asStr(asObj(data.report).release_decision) === "BLOCK"
-  ) {
+  if (reportNeedsReview(data)) {
     const reasons = Array.isArray(asObj(data.report).quality_block_reasons)
       ? asObj(data.report).quality_block_reasons.map(String).filter(Boolean)
       : [];
@@ -5263,9 +5301,16 @@ async function renderPdf(
   if (sourceIdentity.status === "IDENTITY_CONFLICT") {
     throw new Error("IDENTITY_CONFLICT: Los expedientes no coinciden. Revise las páginas fuente antes de generar el informe.");
   }
+  const initialNeedsReview = reportNeedsReview(data);
   const isQualityBlocked = asObj(data.report).quality_blocked === true;
-  const isVerificationFailedInitial = isQualityBlocked || asObj(data.report).verification_status === "VERIFICATION_FAILED";
-  const validatePayload = (internalPreflight || isVerificationFailedInitial) ? preflightFinalReportPayload : releaseFinalReportPayload;
+  const isVerificationFailedInitial =
+    isQualityBlocked ||
+    asObj(data.report).verification_status === "VERIFICATION_FAILED";
+
+  const validatePayload =
+    internalPreflight || initialNeedsReview
+      ? preflightFinalReportPayload
+      : releaseFinalReportPayload;
   if ((data as FinalReportPayload).report_presentation) {
     try {
       data = structuredClone(validatePayload(data));
@@ -5292,9 +5337,10 @@ async function renderPdf(
   // the check belongs at the point of action, not just upstream.
   // When report failed release verification, proceed in VERIFICATION_FAILED mode instead of aborting export.
   const isVerificationFailed = isVerificationFailedInitial;
-  const releaseDecision = asStr(asObj(data.report).release_decision || (data as any)?.full_report?.release_decision);
-  const reportStatus = asStr(asObj(data.report).status);
-  const isDraftReview = isQualityBlocked || isVerificationFailedInitial || releaseDecision === "BLOCK" || reportStatus === "needs_revision";
+
+  // Re-evaluate after composition because release state can live on the case,
+  // the report, or full_report. All review states use the same draft path.
+  const isDraftReview = reportNeedsReview(data);
 
   if (isVerificationFailed || isDraftReview) {
     const rObj = asObj(data.report);
