@@ -22,7 +22,9 @@ function payload(): any {
 describe('publication producer boundaries', () => {
   it('marks failed core certification explicitly and keeps the contract blocking', () => {
     const core = completedCoreCitations([{ id: 'core', text: 'Una conclusión sin revisión semántica.', source_refs: [ref] }], [], pages, index);
-    expect(core[0].source_refs[0]).toMatchObject({ verification_status: 'unverified', publication_status: 'QUARANTINED' });
+    expect(core[0].source_refs).toEqual([]);
+    expect(core[0].metadata.citation_diagnostics[0]).toMatchObject({ verification_status: 'unverified', publication_status: 'QUARANTINED' });
+    expect(core[0].certification_error).toBe('CORE_PROPOSITION_NOT_CERTIFIED');
     const input = payload(); input.report.full_report.mandatory_decision_core = { items: core };
     expect(auditReportCitationIntegrity(composeFinalReportPayload(input)).ok).toBe(false);
   });

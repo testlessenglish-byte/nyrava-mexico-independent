@@ -1,5 +1,6 @@
+import { composeReviewedFixture as composeFinalReportPayload, registerCurrentCoreReviews, releaseReviewedFixture as releaseFinalReportPayload } from './fixtures/current-core-review';
 import { describe, expect, it } from "vitest";
-import { composeFinalReportPayload, releaseFinalReportPayload, releaseRenderedReportOutput, validateFinalReportContract } from "../final-report-contract";
+import { releaseRenderedReportOutput, validateFinalReportContract } from "../final-report-contract";
 import { resolveFinalReleaseDecision } from "../final-release-decision";
 import { normalizeCanonicalSources } from "../../intelligence/canonical-source-identity";
 import { applyMigratorioDisposition, resolveMigratorioDisposition } from "../../intelligence/migratorio-disposition";
@@ -14,10 +15,14 @@ function fixture(caseType = "migratorio"): CaseExportData {
     speaker_role: null, adoption_status: "adopted", proposition_type: "procedural_fact", source_refs: [{ document_id: doc.id, quote: "Se confirmó el sobreseimiento." }] },
     { id: "old-holding", kind: "COURT_HOLDING", text: "El juzgado sobreseyó el juicio.", speaker_role: "tribunal_local", adoption_status: "adopted", proposition_type: "holding", source_refs: [] }];
   const resolved = resolveMigratorioDisposition([{...doc,pages}], previous);
-  return { case: { case_type: caseType, case_analysis_mode: "concluded_audit" }, documents: [doc], analysis: null, agents: [], score: null, findings: [],
+  return registerCurrentCoreReviews({ case: { case_type: caseType, case_analysis_mode: "concluded_audit" }, documents: [{...doc,canonical_source_id:sources[0].canonical_source_id}], analysis: null, agents: [], score: null, findings: [],
     report: { report_mode: "LIMITED", full_report: { source_audit: { canonical_sources: sources },
       pre_release_source_pages: pages,
-      mandatory_decision_core: { items: applyMigratorioDisposition(previous, resolved) }, migratorio_disposition: resolved } } };
+      mandatory_decision_core: { items: applyMigratorioDisposition(previous, resolved) }, migratorio_disposition: resolved } } }, [
+    {id:'review-first',core_id:resolved.items[0].id,title:'PRIMERO. Se revoca la sentencia recurrida.',description:'PRIMERO. Se revoca la sentencia recurrida.',source_document_id:doc.id,source_page:1,source_quote:'PRIMERO. Se revoca la sentencia recurrida.',speaker_role:'scjn',adoption_status:resolved.items[0].adoption_status,proposition_type:resolved.items[0].proposition_type},
+    {id:'review-second',core_id:resolved.items[1].id,title:'SEGUNDO. Se sobresee únicamente respecto de la autoridad A.',description:'SEGUNDO. Se sobresee únicamente respecto de la autoridad A.',source_document_id:doc.id,source_page:1,source_quote:'SEGUNDO. Se sobresee únicamente respecto de la autoridad A.',speaker_role:'scjn',adoption_status:resolved.items[1].adoption_status,proposition_type:resolved.items[1].proposition_type},
+    {id:'review-third',core_id:resolved.items[2].id,title:'TERCERO. La Justicia de la Unión ampara y protege a la parte quejosa.',description:'TERCERO. La Justicia de la Unión ampara y protege a la parte quejosa.',source_document_id:doc.id,source_page:1,source_quote:'TERCERO. La Justicia de la Unión ampara y protege a la parte quejosa.',speaker_role:'scjn',adoption_status:resolved.items[2].adoption_status,proposition_type:resolved.items[2].proposition_type},
+  ]);
 }
 
 describe("Migratorio disposition release contract", () => {
@@ -75,10 +80,10 @@ describe("Migratorio disposition release contract", () => {
 
   it("passes the actual PDF preflight with final orders and historical decisions", async () => {
     const { prepareFinalReportForRelease } = await import("../../export");
-    const payload = await prepareFinalReportForRelease(fixture());
+    const payload = await prepareFinalReportForRelease(composeFinalReportPayload(fixture()));
     expect(payload.report_presentation.render_output?.text).toContain("ampara y protege");
     expect(payload.report_presentation.render_output?.text).toContain("ANTECEDENTES PROCESALES");
-  });
+  },15000);
 
   it("blocks a conflicting derived executive dashboard priority", () => {
     const payload = composeFinalReportPayload(fixture());

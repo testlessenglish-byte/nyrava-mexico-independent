@@ -5496,7 +5496,12 @@ export async function prepareFinalReportForRelease(data: CaseExportData): Promis
   await previous;
   try {
     const name = asStr(data.case?.name, "Report");
-    const pdf = await renderPdf(composeFinalReportPayload(data), name, {validateOnly:true}, true);
+    // A composed payload owns the immutable authoritative review registry.
+    // Recomposition from its display findings would discard that source proof.
+    // renderPdf still validates the full payload and the actual rendered output.
+    const prepared = (data as FinalReportPayload).report_presentation
+      ? data : composeFinalReportPayload(data);
+    const pdf = await renderPdf(prepared, name, {validateOnly:true}, true);
     return pdf.payload;
   } finally { done(); }
 }

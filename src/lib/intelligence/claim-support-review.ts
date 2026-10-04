@@ -26,7 +26,7 @@ export function restoreFindingSourceContext<T extends SupportClaim>(claim:T, pag
     ref.page == null && ref.page_number == null && ref.page_located == null
       ? { ...ref, document_id: claim.source_document_id, page, page_number: page, page_located: page,
         label: 'p.' + page, page_extraction_ref: claim.source_document_id + ':' + page } : ref);
-  return { ...claim, source_page: page, ...(evidence_refs ? { evidence_refs } : {}) };
+  return invalidateChangedFindingReview(claim, { ...claim, source_page: page, ...(evidence_refs ? { evidence_refs } : {}) });
 }
 
 /** Keep surrounding source text: a short quote can stop immediately before a negation. */
@@ -83,4 +83,32 @@ export function supportSnapshotValid(claims:readonly (SupportClaim & {metadata?:
     const review=(claim.metadata as Record<string,unknown>|undefined)?.semantic_support_review as SupportVerdict|undefined;
     return review?.version===1 && review.verdict==='supported' && review.hash===supportInput(claim,pages).hash;
   });
+}
+
+/** A changed proposition, attribution or source starts a new review lifecycle.
+ * Compare inputs without page context only to detect field changes; this never
+ * creates or refreshes a stored review hash. The reviewer still binds real pages.
+ */
+export function invalidateChangedFindingReview<T extends SupportClaim & Record<string, any>>(before:T, after:T):T {
+  if (supportInput(before, []).hash === supportInput(after, []).hash) {
+    // A deterministic metadata merge cannot introduce an approval. Only the
+    // semantic reviewer can replace these fields after evaluating current input.
+    const metadata = {...after.metadata};
+    for (const key of ['semantic_support_review','published_claim','publication_status']) {
+      if (before.metadata?.[key] === undefined) delete metadata[key];
+      else metadata[key] = before.metadata[key];
+    }
+    return {...after, metadata};
+  }
+  const metadata = {...after.metadata};
+  delete metadata.semantic_support_review;
+  delete metadata.published_claim;
+  delete metadata.publication_status;
+  const evidence_refs = Array.isArray(after.evidence_refs) ? after.evidence_refs.map((ref:Record<string,any>) => {
+    const clean = {...ref};
+    for (const key of ['proposition_verification','proposition_supported','citation_id','writer_ref_id']) delete clean[key];
+    return {...clean, verification_status:'unverified'};
+  }) : after.evidence_refs;
+  return {...after, metadata, verification_status:after.verification_status === 'quarantined' ? 'quarantined' : 'pending',
+    verified_at:null, ...(evidence_refs ? {evidence_refs} : {})};
 }

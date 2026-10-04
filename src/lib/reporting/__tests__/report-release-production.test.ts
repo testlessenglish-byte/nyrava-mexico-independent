@@ -92,7 +92,8 @@ describe('production-shaped report release', () => {
     core[0].source_refs = [{ document_id: documentId, page: 1, quote: pages[0].text }];
     expect(completedCoreCitations(core, findings, pages, index)[0].source_refs[0].verification_status).toBe('verified');
     findings[0].legal_significance = 'A different unreviewed claim';
-    expect(completedCoreCitations(core, findings, pages, index)[0].source_refs[0].publication_status).toBe('QUARANTINED');
+    expect(completedCoreCitations(core, findings, pages, index)[0].source_refs).toEqual([]);
+    expect(completedCoreCitations(core, findings, pages, index)[0].certification_error).toBe('CORE_PROPOSITION_NOT_CERTIFIED');
   });
   it('promotes A and B separately before verification', () => {
     const { core } = productionFixture();

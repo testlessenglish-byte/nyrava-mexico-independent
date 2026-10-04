@@ -1,3 +1,4 @@
+import {currentCoreReview} from './fixtures/current-core-review';
 import { describe, it, expect } from 'vitest';
 import { auditReportCitationIntegrity } from '../citation-integrity';
 import { composeFinalReportPayload } from '../final-report-contract';
@@ -9,7 +10,7 @@ describe('SHARED MATERIALIZER', () => {
     { document_id: 'doc-1', page: 1, text: 'This is the verified text for the executive summary.' },
     { document_id: 'doc-1', page: 2, text: 'This is the verified text for a contradiction.' },
     { document_id: 'doc-2', page: 1, text: 'This is the verified text for the other contradiction.' },
-    { document_id: 'doc-2', page: 2, text: 'This is the verified text for the decision core.' },
+    { document_id: 'doc-2', page: 2, text: 'The court orders return of the file to the original tribunal so that it may enter the final judgment required by law.' },
     { document_id: 'doc-2', page: 3, text: 'This is the verified text for Theory verified string.' },
     { document_id: 'doc-3', page: 1, text: 'This is the verified text for Perspective verified string.' }
   ];
@@ -47,9 +48,10 @@ describe('SHARED MATERIALIZER', () => {
         mandatory_decision_core: {
           items: [
             {
-              text: 'This is the verified text for the decision core.',
+              id:'core',
+              text: 'The court orders return of the file to the original tribunal so that it may enter the final judgment required by law.',
               source_refs: [
-                { document_id: 'doc-2', page: 2, quote: 'This is the verified text for the decision core.' }
+                { document_id: 'doc-2', page: 2, quote: 'The court orders return of the file to the original tribunal so that it may enter the final judgment required by law.' }
               ]
             }
           ]
@@ -85,15 +87,18 @@ describe('SHARED MATERIALIZER', () => {
     }
   } as unknown as FinalReportPayload);
 
+  const reviews = [currentCoreReview({id:'review-core',core_id:'core',title:pages[3].text,description:pages[3].text,
+    source_document_id:'doc-2',source_page:2,source_quote:pages[3].text},pages)];
+
   it('passes positive full-payload fixture with zero errors', () => {
     const p = makePayload();
     const index2 = p.documents.map(d=>({document_id:d.id, doc_n:d.doc_n, canonical_source_id:d.canonical_source_id}));
     p.theories = completedTheoriesCitations(p.theories as any, [], pages, index2) as any;
     p.perspectives = completedPerspectivesCitations(p.perspectives as any, [], pages, index2) as any;
-    p.report.full_report.mandatory_decision_core.items = completedCoreCitations(p.report.full_report.mandatory_decision_core.items as any, [], pages, index2) as any;
-    const payload = composeFinalReportPayload(p);
+    p.report.full_report.mandatory_decision_core.items = completedCoreCitations(p.report.full_report.mandatory_decision_core.items as any, reviews, pages, index2) as any;
+    const payload = composeFinalReportPayload(p, reviews);
     const audit = auditReportCitationIntegrity(payload);
-    if (!audit.ok) { console.log(audit.errors); console.log(JSON.stringify(payload.report.full_report.mandatory_decision_core.items[0].source_refs[0])); } expect(audit.ok).toBe(true);
+    expect(audit.ok, JSON.stringify(audit.errors)).toBe(true);
     expect(audit.errors).toEqual([]);
     expect(audit.unverified.length).toBe(0);
     expect(payload.report?.executive_summary?.length).toBeGreaterThan(80);
@@ -107,19 +112,20 @@ describe('SHARED MATERIALIZER', () => {
       mandatory_decision_core: {
         items: [
           {
-            text: 'This is the verified text for the decision core.',
+            id:'core',
+            text: 'The court orders return of the file to the original tribunal so that it may enter the final judgment required by law.',
             source_refs: [
-              { document_id: 'doc-2', page: 99, quote: 'This is the verified text for the decision core.' }
+              { document_id: 'doc-2', page: 99, quote: 'The court orders return of the file to the original tribunal so that it may enter the final judgment required by law.' }
             ]
           }
         ]
       }
     });
     const index2 = p.documents.map(d=>({document_id:d.id, doc_n:d.doc_n, canonical_source_id:d.canonical_source_id}));
-    p.report.full_report.mandatory_decision_core.items = completedCoreCitations(p.report.full_report.mandatory_decision_core.items as any, [], pages, index2) as any;
-    const payload = composeFinalReportPayload(p);
-    // In final report contract, if decision core fails verification, it drops the item. 
-    // This will cause executiveSummaryMissing if the summary is too short.
+    p.report.full_report.mandatory_decision_core.items = completedCoreCitations(p.report.full_report.mandatory_decision_core.items as any, reviews, pages, index2) as any;
+    const payload = composeFinalReportPayload(p, reviews);
+    expect(payload.report.full_report.mandatory_decision_core.items[0].source_refs).toEqual([]);
+    expect(payload.report.full_report.mandatory_decision_core.items[0].certification_error).toBe('CORE_PROPOSITION_NOT_CERTIFIED');
     expect(payload.report?.executive_summary?.length ?? 0).toBeLessThan(80);
   });
 });

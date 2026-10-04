@@ -1,10 +1,11 @@
+import { composeReviewedFixture as composeFinalReportPayload, registerCurrentCoreReviews, releaseReviewedFixture as releaseFinalReportPayload } from './fixtures/current-core-review';
 import { describe, it, expect, vi } from "vitest";
 import { resolveReportGovernance } from "../../intelligence/concluded-case-governance";
 import { resolveReportCapability } from "../../intelligence/report-capability";
 import { loadResolvedReportGovernance } from "../../intelligence/concluded-case-governance.server";
 import { normalizeCanonicalSources } from "../../intelligence/canonical-source-identity";
 import { validateReincidenciaEvidence } from "../../intelligence/reincidencia-evidence";
-import { composeFinalReportPayload, releaseFinalReportPayload, validateFinalReportContract } from "../final-report-contract";
+import { validateFinalReportContract } from "../final-report-contract";
 import { constitutionalAnalysisNotApplicable } from "../report-language-fallback";
 import type { CaseExportData } from "../../export";
 import { writeFileSync, mkdirSync } from "node:fs";
@@ -35,9 +36,9 @@ export function regressionInput(): CaseExportData {
     {...ref,quote:"Este tribunal resuelve: Se desecha el recurso de revisión.",proposition_supported:"Este tribunal resuelve: Se desecha el recurso de revisión."},
     {...ref,quote:"Queda firme la sentencia recurrida",proposition_supported:"Queda firme la sentencia recurrida"},
   ]};
-  return {
+  return registerCurrentCoreReviews({
     case:{case_analysis_mode:"concluded_audit",case_type:"penal", name:"Synthetic concluded judgment"},
-    documents:[{id:"doc-1",filename:source.original_filename}],analysis:null,agents:[],score:null,
+    documents:[{id:"doc-1",filename:source.original_filename,canonical_source_id:source.canonical_source_id}],analysis:null,agents:[],score:null,
     report:{report_mode:"LIMITED",scores_suppressed:true,motions_suppressed:true,
       executive_summary:'El tribunal desecha el recurso de revisión. Queda firme la sentencia recurrida, según el documento aportado para esta revisión.', full_report:{
       source_audit:{canonical_sources:[source]},
@@ -59,7 +60,12 @@ export function regressionInput(): CaseExportData {
           {...ref,filename:"314174 7540 firmado"}, {...ref,filename:"2_314174_7540_firmado.pdf"},
         ]},
     ],
-  };
+  }, [
+    {id:'review-disposition',core_id:'disposition',title:'Se desecha el recurso de revisión',description:'Se desecha el recurso de revisión',source_document_id:'doc-1',source_page:1,source_quote:'Se desecha el recurso de revisión',speaker_role:'scjn',adoption_status:'adopted'},
+    {id:'review-holding-first',core_id:'holding',title:'Este tribunal resuelve: Se desecha el recurso de revisión.',description:'Este tribunal resuelve: Se desecha el recurso de revisión.',source_document_id:'doc-1',source_page:1,source_quote:'Este tribunal resuelve: Se desecha el recurso de revisión.',speaker_role:'scjn',adoption_status:'adopted'},
+    {id:'review-holding-second',core_id:'holding',title:'Queda firme la sentencia recurrida',description:'Queda firme la sentencia recurrida',source_document_id:'doc-1',source_page:1,source_quote:'Queda firme la sentencia recurrida',speaker_role:'scjn',adoption_status:'adopted'},
+    {id:'review-effect',core_id:'effect',title:'Queda firme la sentencia recurrida',description:'Queda firme la sentencia recurrida',source_document_id:'doc-1',source_page:1,source_quote:'Queda firme la sentencia recurrida',speaker_role:'scjn',adoption_status:'adopted'},
+  ]);
 }
 
 describe("seven final report contract regressions", () => {
@@ -163,9 +169,9 @@ describe("actual renderer boundary", () => {
     const input = regressionInput(); input.case!.case_type = 'civil'; input.case!.report_language = 'es';
     input.report!.generated_language = 'es';
     const full = input.report!.full_report as any;
-    full.pre_release_source_pages[0].text += '\n\nLa actora reclama daño moral. Postura procesal actual: revisión. Estado procesal: concluido.';
+    full.pre_release_source_pages.push({document_id:'doc-1',page:2,text:'La actora reclama daño moral. Postura procesal actual: revisión. Estado procesal: concluido.'});
     input.report!.quality_blocked=true;
-    rendered.pdf=await downloadReportPdf(input, 'Synthetic Civil regression',{validateOnly:true}) as ArrayBuffer;
+    rendered.pdf=await downloadReportPdf(composeFinalReportPayload(input), 'Synthetic Civil regression',{validateOnly:true}) as ArrayBuffer;
     const {extractText} = await import('unpdf');
     const result = await extractText(new Uint8Array(rendered.pdf!.slice(0)), {mergePages: true});
     expect(result.text).toMatch(/Contexto procesal civil/i);
@@ -187,7 +193,7 @@ describe("actual renderer boundary", () => {
     input.report!.case_strength_score=68;
     input.report!.risk_score=0;
     input.report!.quality_blocked=true;
-    rendered.pdf=await downloadReportPdf(input,"Synthetic regression",{validateOnly:true}) as ArrayBuffer;
+    rendered.pdf=await downloadReportPdf(composeFinalReportPayload(input),"Synthetic regression",{validateOnly:true}) as ArrayBuffer;
     expect(rendered.pdf).not.toBeNull();
     const {extractText}=await import("unpdf");
     const result=await extractText(new Uint8Array(rendered.pdf!.slice(0)),{mergePages:true});

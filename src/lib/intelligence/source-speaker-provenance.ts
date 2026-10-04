@@ -1,3 +1,4 @@
+import {invalidateChangedFindingReview} from './claim-support-review';
 /** Speaker provenance from the passage's position in the extracted decision.
  * A court named in a party's grievance is the subject, not the speaker. */
 export type SpeakerSourcePage = {
@@ -100,7 +101,7 @@ export function attributeFindingsFromSource<T extends Record<string, any>>(
       claim_entailment_diagnostic: _oldEntailment,
       ...safeMetadata
     } = (finding.metadata ?? {}) as Record<string, unknown>;
-    return {
+    return invalidateChangedFindingReview(finding as any, {
       ...finding,
       description: qualified,
       speaker_role: 'quejoso',
@@ -113,6 +114,6 @@ export function attributeFindingsFromSource<T extends Record<string, any>>(
         source_speaker_provenance: { speaker_role: 'recurrente', document_id: documentId, page },
         original_unqualified_description: description,
       },
-    } as T;
+    } as any) as T;
   });
 }

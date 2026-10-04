@@ -5,6 +5,7 @@ import {
   type ClaimEntailmentDiagnostic,
 } from "./claim-evidence-entailment";
 import { filterFindingsForExecution } from './finding-selection';
+import {invalidateChangedFindingReview} from './claim-support-review';
 
 type Db = SupabaseClient<Database>;
 
@@ -406,6 +407,9 @@ export async function reconcileCaseFindingsClaims(
     "NOT_FOUND",
   ]);
 
+  // Apply updates in order to the authoritative rows. A later merge must not
+  // reintroduce an approval from the original snapshot after an earlier repair.
+  const persistedFindings = new Map(rawRows.map((f:any) => [f.id, f]));
   for (const { id, patch } of updates) {
     // Display labels are derived fields, not case_findings columns.
     // The badge remains available in metadata.speaker_role_badge.
@@ -422,16 +426,26 @@ export async function reconcileCaseFindingsClaims(
       // leaves the authoritative stored value unchanged.
       delete databasePatch.audit_classification;
     }
-    const patchWithExec = executionId
-      ? { ...databasePatch, execution_id: executionId }
-      : databasePatch;
+    const before:any = persistedFindings.get(id);
+    const current:any = invalidateChangedFindingReview(before, {...before, ...databasePatch,
+      // Deterministic entailment is not semantic approval. Preserve a prior
+      // status unless suppression requires quarantine; changed inputs go pending.
+      verification_status:databasePatch.verification_status === 'quarantined' ? 'quarantined' : before.verification_status ?? 'pending',
+      ...(executionId ? {execution_id:executionId} : {})});
+    const patchWithExec = {...databasePatch, ...(executionId ? {execution_id:executionId} : {}),
+      metadata:current.metadata, verification_status:current.verification_status,
+      ...(current.verified_at !== undefined ? {verified_at:current.verified_at} : {}),
+      ...(current.evidence_refs !== undefined ? {evidence_refs:current.evidence_refs} : {})};
     const { error: updErr } = await (db as any)
       .from("case_findings")
       .update(patchWithExec)
       .eq("id", id);
     if (updErr) {
-      console.warn(`[claim-reconciliation] failed to update finding ${id}:`, updErr);
+      throw new Error(`Finding reconciliation could not be saved: ${updErr.message ?? String(updErr)}`);
     }
+    persistedFindings.set(id,current);
+    const index = allFindings.findIndex((f:any) => f.id === id);
+    if (index >= 0) allFindings[index] = {...allFindings[index], ...current};
   }
 
   const activeFindings = allFindings.filter(
@@ -454,7 +468,8 @@ export async function reconcileCaseFindingsClaims(
 
   if (syncReport && reportRow) {
     const full = reportRow.full_report ?? {};
-    const activeVerifiedCount = activeFindings.filter((f) => f.finding_status === "verified").length;
+    const activeVerifiedCount = activeFindings.filter((f) => f.verification_status === "verified" && f.metadata?.semantic_support_review?.verdict === 'supported').length;
+    const reviewPending = activeVerifiedCount !== activeFindings.length;
     const { sanitizeReportObjectiveAndProse } = await import("./final-claim-publication.server");
     const sanitizedProse = sanitizeReportObjectiveAndProse(reportRow, activeFindings as any, { isConcludedAudit: true });
 
@@ -481,7 +496,7 @@ export async function reconcileCaseFindingsClaims(
         ran_at: new Date().toISOString(),
       },
       claim_entailment_audit: diagnostics,
-      verification_status: "RELEASED",
+      verification_status: reviewPending ? "PENDING_REVIEW" : full.verification_status,
       validation: {
         ...(full.validation ?? {}),
         finding_counters: {
@@ -498,20 +513,9 @@ export async function reconcileCaseFindingsClaims(
       },
     };
 
-    // Filter out claim-level blocking reasons from report.quality_block_reasons
-    const nonClaimReasons = (
-      Array.isArray(reportRow.quality_block_reasons)
-        ? reportRow.quality_block_reasons
-        : []
-    ).filter(
-      (r: string) =>
-        !r.includes("Semantic claim verification incomplete") &&
-        !r.includes("Current findings or source pages differ") &&
-        !r.includes("Final narrative has unsupported") &&
-        !r.includes("citation_not_verified") &&
-        !r.includes("REPORT_CITATION_UNRESOLVED") &&
-        !r.includes("CITATION_UNRESOLVED"),
-    );
+    // Only final semantic/narrative review may clear a persisted release block.
+    const nonClaimReasons = Array.isArray(reportRow.quality_block_reasons)
+      ? reportRow.quality_block_reasons : [];
 
     const { error: repErr } = await (db as any)
       .from("reports")
@@ -519,7 +523,7 @@ export async function reconcileCaseFindingsClaims(
         full_report: sanitizedFull,
         executive_summary: sanitizedProse.executiveSummary,
         findings_count: activeFindings.length,
-        quality_blocked: nonClaimReasons.length > 0,
+        quality_blocked: reportRow.quality_blocked === true || reviewPending || nonClaimReasons.length > 0,
         quality_block_reasons: nonClaimReasons,
         updated_at: new Date().toISOString(),
       })
@@ -529,15 +533,8 @@ export async function reconcileCaseFindingsClaims(
       console.warn(`[claim-reconciliation] failed to update report:`, repErr);
     }
 
-    // Update case status to released
-    await (db as any)
-      .from("cases")
-      .update({
-        status: "released",
-        status_message: "Report complete — released with verified claims.",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", caseId);
+    // Reconciliation cannot release a case. Final review owns the atomic
+    // case/report release transition after current semantic and content gates.
   }
 
   return {

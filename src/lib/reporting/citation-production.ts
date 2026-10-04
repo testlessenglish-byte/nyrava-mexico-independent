@@ -33,7 +33,7 @@ function isReviewedFindingReportable(f: Row): boolean {
   if (isClaimReportable(f)) return true;
   const diagnostic = f.metadata?.claim_entailment_diagnostic;
   const review = f.metadata?.semantic_support_review;
-  return f.verification_status !== 'quarantined' && diagnostic?.claim_action === 'RECLASSIFY' &&
+  return f.verification_status !== 'quarantined' && ['REPAIR','RECLASSIFY'].includes(diagnostic?.claim_action) &&
     diagnostic.final_reportable === true && diagnostic.entailment_status === 'ENTAILED' &&
     diagnostic.repaired_description === f.description && diagnostic.repaired_claim === f.title &&
     review?.version === 1 && review.verdict === 'supported';
@@ -45,6 +45,19 @@ function isClaimReportable(value: Row): boolean {
   if (diagnostic == null) return true;
   return diagnostic.final_reportable === true && diagnostic.claim_action === 'KEEP' &&
     diagnostic.entailment_status === 'ENTAILED';
+}
+
+function citationOwnershipMatches(ref:Row, claim:SupportClaim):boolean {
+  return ['finding_id','claim_id','proposition_id'].every(key => ref[key] == null || ref[key] === claim.id) &&
+    (ref.case_id == null || ref.case_id === claim.case_id) &&
+    (ref.execution_id == null || ref.execution_id === claim.execution_id);
+}
+
+function mergeCitationDiagnostics(prior: Row[] | undefined, rejected: Row[], certified: Row[]): Row[] {
+  const key = (ref:Row) => JSON.stringify([ref.document_id,ref.page,citationText(ref.quote)]);
+  const accepted = new Set(certified.map(key));
+  return [...new Map([...(Array.isArray(prior)?prior:[]),...rejected]
+    .filter(ref => !accepted.has(key(ref))).map(ref => [key(ref),ref])).values()];
 }
 
 /** Retain evidence for diagnosis without letting an uncertified reference look published. */
@@ -60,7 +73,7 @@ export function citationPropositionVerified(ref: Row, proposition: string, pages
   if (repairedFinding && !isReviewedFindingReportable(ref)) return false;
   const quote = String(ref.quote ?? '');
   if (!proposition || !quote) return false;
-  if (!repairedFinding && (citationText(proposition) === citationText(quote) || citationText(quote).includes(citationText(proposition)))) {
+  if (!ref.proposition_verification && !repairedFinding && (citationText(proposition) === citationText(quote) || citationText(quote).includes(citationText(proposition)))) {
     const party = /^(?:quejoso|quejosa|actor|actora|defensa|party|parte_actora)$/i.test(String(ref.speaker_role ?? ''));
     const court = /court|tribunal|scjn|sala/i.test(String(ref.speaker_role ?? ''));
     if (party && /^(?:el tribunal|la sala|la scjn|la suprema corte)\s/i.test(quote)) return false;
@@ -127,46 +140,57 @@ export function completedCoreCitations<T extends { id: string; text: string; sou
   const reviews = findingCitationReviews(findings);
   return core.map(item => {
     const atoms = decisionCoreAtoms(item.text);
-    const source_refs = item.source_refs.flatMap(ref => {
+    const source_refs = (Array.isArray(item.source_refs) ? item.source_refs : []).flatMap(ref => {
       const document = ref.document_id ?? ref.doc_id ?? ref.source_document_id;
       const page = ref.page ?? ref.page_number ?? ref.source_page;
       const quote = citationText(ref.quote ?? ref.source_quote);
       const bound = atoms.flatMap(atom => {
+        const proof = reviews.find(p => citationText(p.claim.description) === citationText(atom) &&
+          p.claim.source_document_id === document && p.claim.source_page === page &&
+          citationText(p.claim.source_quote) === quote && findings.some(f => f.id === p.claim.id &&
+            f.metadata?.mandatory_decision_core_id === item.id) &&
+          reviewedAttributionMatches(item,p.claim) && citationOwnershipMatches(ref,p.claim) &&
+          p.review.version === 1 && p.review.verdict === 'supported' && supportInput(p.claim,pages).hash === p.review.hash);
+        if (!proof) return [];
+        // A registry is a cache, not a substitute for current semantic review.
         const canonical = registry.find(c => c.document_id === document && c.page === page &&
           citationText(c.quote) === quote && citationText(c.proposition_supported) === citationText(atom) &&
           (!ref.canonical_source_id || ref.canonical_source_id === c.canonical_source_id) &&
           (!ref.execution_id || ref.execution_id === c.execution_id) &&
+          citationOwnershipMatches(c,proof.claim) &&
           c.verification_status === 'verified' && c.publication_status !== 'QUARANTINED' &&
-          c.source_location_verified === true && auditSourceLocations([c], pages, index).ok &&
-          citationPropositionVerified(c, atom, pages, reviews));
-        // Reuse the authoritative object, including its identity and full proof.
+          c.source_location_verified === true && c.proposition_verification?.review?.hash === proof.review.hash &&
+          c.proposition_verification?.claim?.id === proof.claim.id && auditSourceLocations([c], pages, index).ok &&
+          citationPropositionVerified(c, atom, pages, [proof]));
         if (canonical) return [canonical];
-        const proof = reviews.find(p => citationText(p.claim.description) === citationText(atom) &&
-          p.claim.source_document_id === document && p.claim.source_page === page &&
-          citationText(p.claim.source_quote) === quote && findings.some(f => f.id === p.claim.id &&
-            f.metadata?.mandatory_decision_core_id === item.id));
-        const certified = createCanonicalCitation(ref, atom, pages, index, proof, { allowTrustedRecertification: Boolean(proof) });
+        const certified = createCanonicalCitation(ref, atom, pages, index, proof, { allowTrustedRecertification: true });
         if (!certified) return [];
         registry.push(certified);
         return [certified];
       });
-      return bound.length ? bound : [unresolvedCitation(ref, 'CORE_PROPOSITION_NOT_CERTIFIED')];
+      return bound;
     });
     // A valid A cannot hide a missing or unsupported B.
     const missing = atoms.filter(atom => !source_refs.some(ref =>
       ref.verification_status === 'verified' && citationText(ref.proposition_supported) === citationText(atom)));
-    return { ...item, source_refs, ...(missing.length ? { certification_error: 'CORE_PROPOSITION_NOT_CERTIFIED' } : {}) };
+    const result: Row = {...item, source_refs, metadata:{...(item as Row).metadata,
+      citation_diagnostics:mergeCitationDiagnostics((item as Row).metadata?.citation_diagnostics, (item.source_refs ?? []).filter(ref => !source_refs.some(c =>
+        c.document_id === ref.document_id && c.page === ref.page && citationText(c.quote) === citationText(ref.quote)))
+        .map(ref => unresolvedCitation(ref, 'CORE_PROPOSITION_NOT_CERTIFIED')), source_refs)}};
+    delete result.certification_error;
+    if (missing.length) result.certification_error = 'CORE_PROPOSITION_NOT_CERTIFIED';
+    return result as T;
   });
 }
 
 export function completedFindingsCitations<T extends Row>(
-  findings: T[], pages: MatterSourcePage[], index: Index,
+  findings: T[], pages: MatterSourcePage[], index: Index, reviewFindings: Row[] = findings,
+  projection?: {reviewMatches:(finding:Row,proof:PropositionReview)=>boolean; assertion:(finding:Row,ref:Row)=>string},
 ): T[] {
-  return findings.map(finding => {
+  const reviews = findingCitationReviews(reviewFindings);
+  return findings.flatMap(finding => {
     const refs = Array.isArray(finding.evidence_refs) ? finding.evidence_refs : [];
-    return {
-      ...finding,
-      evidence_refs: refs.map(ref => {
+    const completed = refs.map(ref => {
         const refDocument = ref.document_id ?? ref.source_document_id;
         const refPage = ref.page ?? ref.page_number ?? ref.source_page;
         const refQuote = ref.quote ?? ref.excerpt ?? ref.source_quote ?? "";
@@ -177,8 +201,10 @@ export function completedFindingsCitations<T extends Row>(
 
         // Reuse the complete authoritative claim: every field participates in
         // supportInput().hash, including scope, attribution and legal rationale.
-        const atomicProof = matchesReviewedFinding
-          ? findingCitationReviews([finding])[0] : undefined;
+        const authoritative = reviews.find(p => p.claim.id === finding.id &&
+          (projection ? projection.reviewMatches(finding,p) : p.review.version === 1 && p.review.verdict === 'supported' &&
+            supportInput(finding as SupportClaim,pages).hash === p.review.hash && supportInput(p.claim,pages).hash === p.review.hash));
+        const atomicProof = matchesReviewedFinding && authoritative?.claim.description === finding.description ? authoritative : undefined;
         const linkedId = ref.finding_id ?? ref.claim_id ?? ref.proposition_id;
         if (linkedId != null && linkedId !== finding.id ||
             ref.case_id != null && ref.case_id !== finding.case_id ||
@@ -187,16 +213,25 @@ export function completedFindingsCitations<T extends Row>(
             finding.publication_status === 'QUARANTINED')
           return unresolvedCitation(ref, 'FINDING_OWNERSHIP_NOT_CERTIFIED');
 
-        const proposition = String(
-          ref.proposition_supported ??
-          (matchesReviewedFinding && atomicProof ? finding.description : "")
-        );
+        const currentReviewed = atomicProof?.review.verdict === 'supported' &&
+          supportInput(atomicProof.claim, pages).hash === atomicProof.review.hash;
+        if ((finding.metadata?.semantic_support_review || reviews.some(p => p.claim.id === finding.id)) && !authoritative)
+          return unresolvedCitation(ref, 'FINDING_REVIEW_STALE');
+        // Secondary sources are checked independently for the SAME current
+        // proposition. They never inherit the primary source's semantic proof.
+        const proposition = String(projection ? projection.assertion(finding,ref) : finding.description ?? "");
         return proposition
-          ? createCanonicalCitation(ref, proposition, pages, index, atomicProof) ??
+          ? createCanonicalCitation(ref, proposition, pages, index, atomicProof,
+              {allowTrustedRecertification:Boolean(currentReviewed)}) ??
               unresolvedCitation(ref, "FINDING_PROPOSITION_NOT_CERTIFIED")
           : unresolvedCitation(ref, "FINDING_PROPOSITION_MISSING");
-      })
-    };
+      });
+    const certified = completed.filter(ref => ref.verification_status === 'verified' &&
+      ref.publication_status !== 'QUARANTINED' && ref.source_location_verified === true && ref.proposition_supported);
+    if (!certified.length) return [];
+    return [{...finding,evidence_refs:certified,metadata:{...finding.metadata,
+      citation_diagnostics:mergeCitationDiagnostics(finding.metadata?.citation_diagnostics,
+        completed.filter(ref => !certified.includes(ref)),certified)}}];
   });
 }
 

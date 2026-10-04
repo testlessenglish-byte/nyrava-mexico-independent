@@ -1,28 +1,34 @@
+import { composeReviewedFixture as composeFinalReportPayload, registerCurrentCoreReviews, currentCoreReview } from './fixtures/current-core-review';
 import { supportInput } from '../../intelligence/claim-support-review';
 import { describe, it, expect } from 'vitest';
-import { composeFinalReportPayload, validateFinalReportContract } from '../final-report-contract';
+import { validateFinalReportContract } from '../final-report-contract';
 import { MX_CASE_TYPES } from '../../jurisdiction/mexico-types';
 import { buildGroundingCorpus, verifyEvidenceRefs } from '../../intelligence/grounding.server';
 import { effectiveMxProfile, mxPipelineStageKeys } from '../../execution/mx-pipeline';
 import { isCanonicalFinding, selectFindings } from '../../intelligence/finding-selection';
 
-const quote = 'ÚNICO. Se devuelve el expediente al tribunal de origen para que dicte la sentencia que corresponda conforme a derecho.';
+const quote = 'Se devuelve el expediente al tribunal de origen para que dicte la sentencia que corresponda conforme a derecho.';
 function input(materia: string): any {
   const ref = {document_id:'doc',doc_n:1,page:31,quote};
-  return {case:{case_type:materia,case_analysis_mode:'concluded_audit',report_language:'es'},
-    documents:[{id:'doc',filename:'source.pdf'}],findings:[],agents:[],analysis:null,score:null,
+  return registerCurrentCoreReviews({case:{case_type:materia,case_analysis_mode:'concluded_audit',report_language:'es'},
+    documents:[{id:'doc',filename:'source.pdf',canonical_source_id:'doc'}],findings:[],agents:[],analysis:null,score:null,
     report:{report_mode:'LIMITED',scores_suppressed:true,motions_suppressed:true,
       executive_summary:'Se recomienda interponer un recurso. ' + quote,
       full_report:{source_audit:{canonical_sources:[{document_id:'doc',canonical_source_id:'doc',original_filename:'source.pdf',source_aliases:[]}]},
         pre_release_source_pages:[{document_id:'doc',filename:'source.pdf',page:31,text:quote}],
         mandatory_decision_core:{items:[{id:'order',kind:'DISPOSITION',text:quote,source_refs:[ref],speaker_role:'scjn'}]},
         deterministic_algorithms:{risk:{score:34,factors:[{label:'2 x unresolved contradictions',delta:16},{label:'3 x missing evidence',delta:18}]}}},
-      citations:[ref],contradictions_struct:[]}};
+      citations:[ref],contradictions_struct:[]}}, [
+    {id:'review-order',core_id:'order',title:quote,description:quote,source_document_id:'doc',source_page:31,source_quote:quote,speaker_role:'scjn'},
+  ]);
 }
 describe('shared report contracts across every configured materia',()=>{
   it('renders one finding when two legacy IDs resolve to the same verified decision core',()=>{
     const data=input('civil');
-    data.findings=[1,2].map(id=>({id:String(id),source_module:'decision_core',metadata:{mandatory_decision_core_id:'order'},evidence_refs:[{document_id:'doc',page:31,quote}]}));
+    const claims = [1,2].map(id=>({id:String(id),core_id:'order',title:quote,description:quote,
+      source_document_id:'doc',source_page:31,source_quote:quote,speaker_role:'scjn'}));
+    data.findings=claims.map(claim=>currentCoreReview(claim,data.report.full_report.pre_release_source_pages));
+    registerCurrentCoreReviews(data,claims);
     const out=composeFinalReportPayload(data);
     expect(out.findings).toHaveLength(1);
     expect(out.findings![0].title).toContain(quote);

@@ -34,7 +34,7 @@ function projectCivilFinding(f: Row, pages: MatterSourcePage[]): Row {
  * cannot alter the reviewed claim. Validate the original proof first, then
  * compare the current view to ONLY those deterministic display changes. Never
  * replace a stored review hash or borrow verification for changed content. */
-function publicationReviewMatches(finding: Row, proof: PropositionReview, pages: MatterSourcePage[], payload: CaseExportData): boolean {
+export function publicationReviewMatches(finding: Row, proof: PropositionReview, pages: MatterSourcePage[], payload: CaseExportData): boolean {
   if (proof.review.version !== 1 || proof.review.verdict !== 'supported' ||
       supportInput(proof.claim, pages).hash !== proof.review.hash) return false;
   if (supportInput(finding as SupportClaim, pages).hash === proof.review.hash) return true;
@@ -103,20 +103,20 @@ const fullContentKeys = new Set(['prose', 'final_published_claims', 'mandatory_d
 /** Only an exactly reconstructed Civil attribution label may wrap the literal
  * assertion. Recompute the speaker/type from the source instead of trusting a
  * caller-supplied safe_proposition, prefix, or source_verified flag. */
-function publishedAssertion(parent: Row, ref: Row, pages: MatterSourcePage[], index: Array<{document_id: string; doc_n: number}>): string {
+export function publishedAssertion(parent: Row, ref: Row, pages: MatterSourcePage[], index: Array<{document_id: string; doc_n: number}>): string {
   const stated = assertion(parent.claim_text ?? parent.description ?? parent.text);
   const canonical = obj(parent.canonical_attribution);
   const quote = text(ref.quote ?? ref.excerpt ?? ref.source_quote);
   const pending = canonical.attribution_type === 'UNRESOLVED' &&
     parent.description === 'Atribución pendiente de verificar en la fuente; no se presenta como hecho establecido.';
   if ((!pending && parent.description !== canonical.safe_proposition) || canonical.source_verified !== true ||
-      canonical.supporting_excerpt !== quote || !quote ||
+      normalized(text(canonical.supporting_excerpt)) !== normalized(quote) || !quote ||
       !['COURT_HOLDING', 'LOWER_COURT_HOLDING', 'PARTY_ALLEGATION', 'DOCUMENTED_FACT', 'PROCEDURAL_HISTORY', 'EXPERT_OPINION', 'UNRESOLVED'].includes(canonical.attribution_type)) return stated;
   const actual = attributeCivilProposition(parent, pages);
   if (!actual.source_verified || (!pending && actual.safe_proposition !== parent.description) ||
       actual.speaker !== canonical.speaker || actual.attribution_type !== canonical.attribution_type ||
       actual.source_document !== canonical.source_document || actual.source_page !== canonical.source_page ||
-      actual.supporting_excerpt !== quote) return stated;
+      normalized(text(actual.supporting_excerpt)) !== normalized(quote)) return stated;
   const location = auditSourceLocations([{...ref, document_id:ref.document_id ?? ref.source_document_id,
     page:ref.page ?? ref.source_page, quote}], pages, index);
   if (!location.ok || location.verified[0]?.document_id !== canonical.source_document ||
@@ -138,7 +138,10 @@ export function bindAttributedFindingCitations(payload: CaseExportData): void {
     finding.evidence_refs = rows(finding.evidence_refs).map(ref => {
       const proposition = publishedAssertion(finding, ref, pages, index);
       if (normalized(proposition) !== normalized(text(ref.quote))) return ref;
-      return createCanonicalCitation(ref, proposition, pages, index) ?? ref;
+      // This assertion is the literal source passage of an independently
+      // reconstructed attribution wrapper, not the prior reviewed paraphrase.
+      const literal = {...ref}; delete literal.proposition_verification;
+      return createCanonicalCitation(literal, proposition, pages, index) ?? ref;
     });
     const primary = rows(finding.evidence_refs).find(r => normalized(text(r.quote)) === normalized(text(finding.source_quote)));
     if (primary && normalized(text(primary.proposition_supported)) === normalized(text(finding.source_quote))) {
@@ -218,7 +221,7 @@ export function auditReportCitationIntegrity(payload: CaseExportData) {
     const location = auditSourceLocations([ref], pages, index);
     if (!location.ok) reasons.push('source_location_unverified');
     if (proposition && ref.quote && !supported(proposition, ref.quote, ref, pages, reviews)) reasons.push('proposition_not_supported');
-    if (ref.proposition_verification && normalized(proposition) !== normalized(ref.quote) &&
+    if (ref.proposition_verification && (isCore(parent) || normalized(proposition) !== normalized(ref.quote)) &&
       !reviewedAttributionMatches(parent, ref.proposition_verification.claim ?? {})) reasons.push('reviewed_attribution_mismatch');
     const asserted = publishedAssertion(parent, ref, pages, index);
     const assertions = isCore(parent) ? decisionCoreAtoms(asserted) : [asserted];
@@ -364,16 +367,21 @@ export function canonicalizeReportCitations<T extends CaseExportData>(input: T):
     // Rejected references require a new trusted producer run, not automatic
     // rehabilitation by a presentation canonicalizer.
     if (recovering || owner && parent.verification_status != null && parent.verification_status !== 'verified') return;
+    const literalProjection = owner?.canonical_attribution != null && proof != null &&
+      normalized(statements[0]) === normalized(quote) && publicationReviewMatches(parent,proof,pages,payload);
+    const candidate = {...ref};
+    if (literalProjection) delete candidate.proposition_verification;
     const certified = createCanonicalCitation(
-      ref,
+      candidate,
       statements[0],
       pages,
       index,
-      proof,
+      literalProjection ? undefined : proof,
       { allowTrustedRecertification: false },
     );
     if (!certified || statements.some(s => normalized(s) !== normalized(statements[0]))) return;
-    Object.assign(ref, certified, owner && proof ? { finding_id: owner.id } : {});
+    Object.assign(ref, certified, literalProjection ? {proposition_verification:undefined} : {},
+      owner && proof ? { finding_id: owner.id } : {});
   };
   for (const root of roots) visit(root, (row, key, parent) => {
     if (['citation', 'citations', 'source_ref', 'source_refs', 'evidence_ref', 'evidence_refs'].includes(key)) {

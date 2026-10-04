@@ -1,21 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import { composeFinalReportPayload } from '../final-report-contract';
+import { composeReviewedFixture as composeFinalReportPayload, registerCurrentCoreReviews } from './fixtures/current-core-review';
 import { computeCaseStrengthDisagreement } from '../../intelligence/case-state.server';
 import { classifyContradiction } from '../../intelligence/dispute-classifier.server';
 import { conflictsWithCurrentDisposition, verifyContradictionPairs } from '../report-evidence-integrity';
 
-const order = 'ÚNICO. Devuélvanse los autos al Tribunal Colegiado para que dicte la sentencia que corresponda.';
+const order = 'Devuélvanse los autos al Tribunal Colegiado para que dicte la sentencia que corresponda.';
 function input(): any {
-  return {case:{case_type:'migratorio',case_analysis_mode:'concluded_audit'},documents:[{id:'doc',filename:'sentencia.pdf'}],
+  return registerCurrentCoreReviews({case:{case_type:'migratorio',case_analysis_mode:'concluded_audit'},documents:[{id:'doc',filename:'sentencia.pdf',canonical_source_id:'doc'}],
     findings:[],agents:[],analysis:null,score:null,
     report:{report_mode:'FULL',scores_suppressed:false,case_strength_score:null,risk_score:34,
       score_breakdown:'La puntuación general del caso es 64.',full_report:{
         source_audit:{canonical_sources:[{document_id:'doc',canonical_source_id:'doc',original_filename:'sentencia.pdf',source_aliases:[]}]},
         pre_release_source_pages:[{document_id:'doc',page:1,filename:'sentencia.pdf',text:order}],
         migratorio_disposition:{version:1,status:'verified',items:[{id:'order',kind:'DISPOSITION',text:order,speaker_role:'scjn',source_refs:[{document_id:'doc',page:1,quote:order}]}],history:[]},
-        mandatory_decision_core:{items:[{id:'order',kind:'DISPOSITION',text:order,speaker_role:'scjn'}]},
+        mandatory_decision_core:{items:[{id:'order',kind:'DISPOSITION',text:order,speaker_role:'scjn',source_refs:[{document_id:'doc',page:1,quote:order}]}]},
         deterministic_scorecard:{dimensions:{a:{score:60},b:{score:60},c:{score:70},d:{score:70},e:{score:60}}}},
-      contradictions_struct:[{title:'Constitucionalidad del artículo 111',document_a:{doc_n:1,page:1,quote:order},quote_verified:true}]}};
+      contradictions_struct:[{title:'Constitucionalidad del artículo 111',document_a:{doc_n:1,page:1,quote:order},quote_verified:true}]}}, [
+    {id:'review-order',core_id:'order',title:order,description:order,source_document_id:'doc',source_page:1,source_quote:order,speaker_role:'scjn'},
+  ]);
 }
 describe('report boundary regressions',()=>{
   it('retains internal deterministic diagnostics without publishing a legal score',()=>{

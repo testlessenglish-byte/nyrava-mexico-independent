@@ -35,7 +35,7 @@ describe('Decision Core Multi-Proposition and Citation Fix', () => {
   });
 
   it('2. Short holding supported by longer verbatim source', () => {
-    const core = [{ id: 'core-2', kind: 'COURT_HOLDING', text: 'Se desecha el recurso de revisión.', source_refs: [{ document_id: 'doc-1', page: 27, quote: pages[1].text }] }] as any[];
+    const core = [{ id: 'core-short', kind: 'COURT_HOLDING', text: 'Se desecha el recurso de revisión.', source_refs: [{ document_id: 'doc-1', page: 27, quote: pages[1].text }] }] as any[];
     const result = completedCoreCitations(core, findings, pages, index);
     expect(result[0].source_refs[0].verification_status).toBe('verified');
   });
@@ -48,16 +48,20 @@ describe('Decision Core Multi-Proposition and Citation Fix', () => {
     expect(result[0].source_refs[1].verification_status).toBe('verified');
   });
 
-  it('4. Unsupported proposition QUARANTINES', () => {
+  it('4. Unsupported proposition is withheld with diagnostics', () => {
     const core = [{ id: 'core-unsup', kind: 'COURT_HOLDING', text: 'Algo inventado', source_refs: [{ document_id: 'doc-1', page: 99, quote: 'Algo irrelevante.' }] }] as any[];
     const result = completedCoreCitations(core, findings, pages, index);
-    expect(result[0].source_refs[0].publication_status).toBe('QUARANTINED');
+    expect(result[0].source_refs).toEqual([]);
+    expect(result[0].certification_error).toBe('CORE_PROPOSITION_NOT_CERTIFIED');
+    expect(result[0].metadata.citation_diagnostics[0].publication_status).toBe('QUARANTINED');
   });
 
-  it('5. Wrong page QUARANTINES', () => {
-    const core = [{ id: 'core-wrong-page', kind: 'COURT_HOLDING', text: 'Se desecha el recurso de revisión.', source_refs: [{ document_id: 'doc-1', page: 99, quote: pages[1].text }] }] as any[];
+  it('5. Wrong page is withheld with diagnostics', () => {
+    const core = [{ id: 'core-short', kind: 'COURT_HOLDING', text: 'Se desecha el recurso de revisión.', source_refs: [{ document_id: 'doc-1', page: 99, quote: pages[1].text }] }] as any[];
     const result = completedCoreCitations(core, findings, pages, index);
-    expect(result[0].source_refs[0].publication_status).toBe('QUARANTINED');
+    expect(result[0].source_refs).toEqual([]);
+    expect(result[0].certification_error).toBe('CORE_PROPOSITION_NOT_CERTIFIED');
+    expect(result[0].metadata.citation_diagnostics[0].publication_status).toBe('QUARANTINED');
   });
 
   it('6. Final Report Contract sees 3 represented, 0 missing', () => {

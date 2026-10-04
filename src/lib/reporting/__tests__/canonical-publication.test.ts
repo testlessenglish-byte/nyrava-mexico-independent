@@ -17,7 +17,7 @@ describe('Canonical Report Artifact Publication', () => {
   it('canonical finding evidence refs survive into final report', () => {
     const pages = [{ document_id: 'doc', filename: 'source.pdf', page: 27, text: 'Se desecha por improcedente el recurso de revisión a que este toca 7286/2017 se refiere.' }] as any;
     const index = [{ document_id: 'doc', doc_n: 1, canonical_source_id: 'doc' }] as any;
-    const findings = [{ evidence_refs: [{ document_id: 'doc', page: 27, quote: 'Se desecha por improcedente el recurso de revisión a que este toca 7286/2017 se refiere.', verification_status: 'verified', proposition_supported: 'Se desecha por improcedente el recurso de revisión a que este toca 7286/2017 se refiere.' }] }] as any;
+    const findings = [{ description: pages[0].text, evidence_refs: [{ document_id: 'doc', page: 27, quote: 'Se desecha por improcedente el recurso de revisión a que este toca 7286/2017 se refiere.', verification_status: 'verified', proposition_supported: 'Se desecha por improcedente el recurso de revisión a que este toca 7286/2017 se refiere.' }] }] as any;
     
     const canonical = completedFindingsCitations(findings, pages, index);
     expect(canonical[0].evidence_refs[0].doc_n).toBe(1);
@@ -31,12 +31,12 @@ describe('Canonical Report Artifact Publication', () => {
     expect(memoAnalysis[0].application).toContain('[DOC 1 p.27]');
   });
 
-  it('unresolved citations remain quarantined and still BLOCK', () => {
+  it('withholds a finding whose references cannot certify its current assertion', () => {
     const pages = [{ document_id: 'doc', filename: 'source.pdf', page: 27, text: 'Se desecha por improcedente el recurso de revisión a que este toca 7286/2017 se refiere.' }] as any;
     const index = [{ document_id: 'doc', doc_n: 1, canonical_source_id: 'doc' }] as any;
-    const findings = [{ evidence_refs: [{ document_id: 'doc', page: 27, quote: 'Not in text.', verification_status: 'verified' }] }] as any;
+    const findings = [{ description: pages[0].text, evidence_refs: [{ document_id: 'doc', page: 27, quote: 'Not in text.', verification_status: 'verified' }] }] as any;
     
     const canonical = completedFindingsCitations(findings, pages, index);
-    expect(canonical[0].evidence_refs[0].publication_status).toBe('QUARANTINED');
+    expect(canonical).toEqual([]);
   });
 });

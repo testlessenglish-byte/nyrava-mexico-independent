@@ -528,6 +528,8 @@ export async function runHallucinationReview(args: { db: Db; caseId: string; use
       const finding=findingsById.get(id)!;
       const status=!finding.source_quote || !finding.source_document_id ? 'no_citation'
         : verdict.verdict==='supported' ? 'verified' : 'unverified';
+      const metadata = {...finding.metadata, semantic_support_review:verdict};
+      delete metadata.published_claim;
       const {data:written,error}=await db.from('case_findings').update({
         source_document_id: finding.source_document_id, source_page: finding.source_page, source_quote: finding.source_quote,
         evidence_refs: finding.evidence_refs,
@@ -535,7 +537,7 @@ export async function runHallucinationReview(args: { db: Db; caseId: string; use
         proposition_type: finding.proposition_type, adoption_status: finding.adoption_status,
         audit_classification: finding.audit_classification,
         verification_status:status,verification_notes:`${verdict.verdict}: ${verdict.reason}`,
-        verified_at:new Date().toISOString(),metadata:{...finding.metadata,semantic_support_review:verdict},
+        verified_at:status === 'verified' ? new Date().toISOString() : null,metadata,
       } as any).eq('id',id).eq('updated_at',finding.updated_at).select('id,updated_at');
       if(error || written?.length!==1)throw new Error('Finding changed during semantic review; review must be repeated.');
       finding.updated_at=written[0].updated_at;

@@ -1,3 +1,4 @@
+import {invalidateChangedFindingReview} from "./claim-support-review";
 import type {
   CaseDecisionReconstruction,
   EvidenceRef as ReconstructionEvidenceRef,
@@ -35,7 +36,7 @@ export type MandatoryDecisionCoreValidation = {
 /** Structural splitting only: never infer a new legal proposition. Keep ordinal
  * labels attached to their sentence and require every resulting atom to bind. */
 export function decisionCoreAtoms(text: string): string[] {
-  return text.trim().split(/\n+|(?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÑ¿])/u)
+  return text.trim().replace(/¿[^?]*\?/gs, question => question.replace(/\s+/g, " ")).split(/\n+|(?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÑ¿])/u)
     .reduce<string[]>((atoms, part) => {
       if (!part.trim()) return atoms;
       if (/^(?:PRIMERO|SEGUNDO|TERCERO|CUARTO|QUINTO|SEXTO|SÉPTIMO|OCTAVO|NOVENO|DÉCIMO)\.$/.test(atoms.at(-1) ?? ''))
@@ -387,7 +388,7 @@ export function alignDecisionCoreFindings<T extends Record<string, any>>(finding
     if (decisionCoreAtoms(item.text).some(atom => normalized(atom) === normalized(String(f.description ?? '')))) return [f];
     const refreshed=mandatoryDecisionCoreToFindings({core:[item],caseId:f.case_id,userId:f.user_id,
       executionId:f.execution_id ?? f.metadata?.execution_id ?? null,locale})[0];
-    return [{...f,...refreshed,metadata:{...f.metadata,...refreshed.metadata}} as T];
+    return [invalidateChangedFindingReview(f, {...f,...refreshed,metadata:{...f.metadata,...refreshed.metadata}} as T)];
   });
 }
 

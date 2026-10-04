@@ -87,7 +87,7 @@ describe('publication finding projection',()=>{
     }
     expect(validateFinalReportContract(out).blocking_errors,validateFinalReportContract(out).blocking_errors.join('; ')).toEqual([]);
   });
-  it.each(['title','description','document','page','case','execution','attribution','review'])('blocks a stale or changed %s with otherwise valid cards',change=>{
+  it.each(['title','description','document','page','case','execution','attribution','review'])('withholds a stale or changed %s while preserving independently certified cards',change=>{
     const input=fixture(),f=input.findings[4];
     if(change==='title')f.title='Different claim';
     if(change==='description')f.description='Se admite el recurso.';
@@ -97,7 +97,9 @@ describe('publication finding projection',()=>{
     if(change==='execution')f.execution_id='old';
     if(change==='attribution')f.speaker_role='quejoso';
     if(change==='review')f.metadata.semantic_support_review.hash='stale';
-    expect(validateFinalReportContract(composeFinalReportPayload(input)).ok).toBe(false);
+    const out=composeFinalReportPayload(input);
+    expect(out.findings!.some(f=>f.id==='finding-4')).toBe(false);
+    expect(validateFinalReportContract(out).ok).toBe(true);
   });
   it('blocks a quote changed on a card after section transforms',()=>{
     const out=composeFinalReportPayload(fixture());
@@ -109,12 +111,14 @@ describe('publication finding projection',()=>{
     const out=composeFinalReportPayload(input);
     expect(out.report_presentation.finding_cards.some(c=>c.finding.id==='finding-4')).toBe(false);
   });
-  it.each(['unverified','QUARANTINED'])('never rehabilitates an explicitly %s reference',status=>{
+  it.each(['unverified','QUARANTINED'])('recertifies an explicitly %s reference only from the current independent review',status=>{
     const input=fixture(); const ref=input.findings[4].evidence_refs[0];
     if(status==='unverified')ref.verification_status=status;else ref.publication_status=status;
     const out=composeFinalReportPayload(input);
-    expect(validateFinalReportContract(out).ok).toBe(false);
-    expect(out.findings!.find(f=>f.id==='finding-4')!.evidence_refs[0].proposition_supported).toBeUndefined();
+    expect(validateFinalReportContract(out).ok).toBe(true);
+    expect(out.findings!.find(f=>f.id==='finding-4')!.evidence_refs[0].proposition_supported).toBe(input.findings[4].description);
+    input.findings[4].metadata.semantic_support_review.hash='stale';
+    expect(composeFinalReportPayload(input).findings!.some(f=>f.id==='finding-4')).toBe(false);
   });
   it('does not let a section id impersonate a selected finding',()=>{
     const input=fixture();
@@ -161,7 +165,7 @@ describe('reviewed party finding publication',()=>{
     if(change==='speaker')f.speaker_role='reviewing_court';
     if(change==='adoption')f.adoption_status='adopted';
     if(change==='repair')f.metadata.claim_entailment_diagnostic.repaired_description='Otra afirmación.';
-    expect(validateFinalReportContract(composeFinalReportPayload(d)).ok).toBe(false);
+    expect(()=>composeFinalReportPayload(d)).toThrow('REPORT_SUBSTANTIVE_CONTENT_MISSING');
   });
 });
 
@@ -195,7 +199,10 @@ describe('current report prose projection',()=>{
     data.report.full_report.mandatory_decision_core={items:[{id:'decision',kind:'DISPOSITION',text:quote,speaker_role:'scjn',adoption_status:'adopted',source_refs:[{document_id:'doc',page:3,quote}]}]};
     for(const f of data.findings)f.metadata.semantic_support_review.hash=supportInput(f,data.report.full_report.pre_release_source_pages).hash;
     data.report.executive_summary='El expediente respalda la pretensión del cliente. El análisis se limita a los documentos proporcionados y sus pasajes revisados.';
-    const out=composeFinalReportPayload(data);
+    const decision:any={id:'current-decision',title:quote,description:quote,source_document_id:'doc',source_page:3,source_quote:quote,
+      speaker_role:'scjn',proposition_type:'holding',adoption_status:'adopted',metadata:{mandatory_decision_core_id:'decision'}};
+    decision.metadata.semantic_support_review={version:1,verdict:'supported',hash:supportInput(decision,data.report.full_report.pre_release_source_pages).hash,supporting_quote:quote};
+    const out=composeFinalReportPayload(data,[...data.findings,decision]);
     expect(out.report.executive_summary).not.toContain('respalda la pretensión');
     expect(out.findings[0].speaker_role).toBe('unresolved');
     expect(validateFinalReportContract(out).blocking_errors,validateFinalReportContract(out).blocking_errors.join('; ')).toEqual([]);

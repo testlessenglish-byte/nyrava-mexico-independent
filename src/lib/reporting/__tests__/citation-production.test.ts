@@ -31,7 +31,7 @@ describe('upstream canonical citation production', () => {
     const review: any = { version: 1, verdict: 'supported', hash: supportInput(claim, pages).hash, supporting_quote: quote, reason: 'Fuente cotejada.' };
     const citation = createCanonicalCitation(ref, claim.description, pages, docs, { claim, review })!;
     const input: any = { case: { case_type: 'civil', case_analysis_mode: 'concluded_audit' }, documents: [{ id: 'doc' }],
-      agents: [], analysis: null, score: null, findings: [{ ...claim, verification_status: 'unverified', metadata: { semantic_support_review: review } }], report: { report_mode: 'LIMITED', citations: writerCitationCatalog([ref], pages, docs),
+      agents: [], analysis: null, score: null, findings: [{ ...claim, verification_status: 'verified', metadata: { mandatory_decision_core_id:'core', semantic_support_review: review } }], report: { report_mode: 'LIMITED', citations: writerCitationCatalog([ref], pages, docs),
         full_report: { pre_release_source_pages: pages,
           source_audit: { canonical_sources: [{ document_id: 'doc', canonical_source_id: 'doc', original_filename: 'source.pdf', source_aliases: [] }] },
           mandatory_decision_core: { items: [{ id: 'core', kind: 'COURT_HOLDING', text: claim.description, source_refs: [citation], speaker_role: 'scjn' }] } } } };
@@ -124,8 +124,7 @@ describe('upstream canonical citation production', () => {
 
     const forged = structuredClone(input);
     forged.report.citations[0].finding_id = 'nonexistent-finding';
-    const blocked = composeFinalReportPayload(forged);
-    expect(validateFinalReportContract(blocked).blocking_errors.join(' ')).toContain('inline_proposition_not_supported');
+    expect(()=>composeFinalReportPayload(forged)).toThrow('REPORT_SUBSTANTIVE_CONTENT_MISSING');
   });
 
   it('publishes the reviewed finding paraphrase, with full canonical identity, to the Writer catalog', () => {

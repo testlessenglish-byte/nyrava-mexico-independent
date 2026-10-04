@@ -1,8 +1,9 @@
+import { composeReviewedFixture as composeFinalReportPayload, registerCurrentCoreReviews, releaseReviewedFixture as releaseFinalReportPayload } from './fixtures/current-core-review';
 import {describe,it,expect,vi} from "vitest";
 import {readFileSync,writeFileSync,mkdirSync} from "node:fs";
 import {join} from "node:path";
 import {createHash} from "node:crypto";
-import {composeFinalReportPayload,validateFinalReportContract,releaseFinalReportPayload,releaseRenderedReportOutput} from "../final-report-contract";
+import {validateFinalReportContract,releaseRenderedReportOutput} from "../final-report-contract";
 import {resolveFinalReleaseDecision,refreshProceduralQa} from "../final-release-decision";
 import {auditPenalProceduralSemantics} from "../../intelligence/penal-qa-status";
 import type {CaseExportData} from "../../export";
@@ -24,14 +25,16 @@ const source={document_id:"doc-1",canonical_source_id:"source-1",original_filena
 const ref={document_id:"doc-1",canonical_source_id:"source-1",quote:"Se desecha el recurso.",page:1,
   proposition_supported:"Se desecha el recurso.",verification_status:"verified"};
 function input():CaseExportData {
-  return {case:{case_type:"amparo",case_analysis_mode:"concluded_audit",report_language:"es"},
-    documents:[{id:"doc-1",filename:"Judgment.pdf"}],analysis:null,agents:[],score:null,findings:[],
+  return registerCurrentCoreReviews({case:{case_type:"amparo",case_analysis_mode:"concluded_audit",report_language:"es"},
+    documents:[{id:"doc-1",filename:"Judgment.pdf",canonical_source_id:"source-1"}],analysis:null,agents:[],score:null,findings:[],
     report:{report_mode:"LIMITED",scores_suppressed:true,motions_suppressed:true,generated_language:"es",
       executive_summary:'El documento aportado contiene la resolución del tribunal. El recurso fue desechado según el resolutivo de la sentencia analizada.',
       full_report:{case_type:"amparo",source_audit:{canonical_sources:[source]},
         pre_release_source_pages:[{document_id:"doc-1",filename:"Judgment.pdf",page:1,
           text:"Se desecha el recurso.\nReposición del procedimiento."}],
-        mandatory_decision_core:{items:[{id:"disposition",kind:"DISPOSITION",text:ref.quote,speaker_role:"scjn",source_refs:[ref]}]}}}};
+        mandatory_decision_core:{items:[{id:"disposition",kind:"DISPOSITION",text:ref.quote,speaker_role:"scjn",source_refs:[ref]}]}}}}, [
+    {id:'review-disposition',core_id:'disposition',title:ref.quote,description:ref.quote,source_document_id:'doc-1',source_page:1,source_quote:ref.quote,speaker_role:'scjn'},
+  ]);
 }
 const forbidden=["ESTIMACIÓN DE PROBABILIDAD","PROBABILIDAD DE ÉXITO","SUCCESS PROBABILITY","WIN PROBABILITY"];
 describe("targeted hardening A–G",()=>{
@@ -107,10 +110,10 @@ describe("targeted hardening A–G",()=>{
     const before=captured.saves;
     try {
       const {downloadPdf}=await import("../../export");
-      await expect(downloadPdf(input(),"Template injection")).rejects.toThrow("REPORT_CONTRACT_BLOCKED");
+      await expect(downloadPdf(composeFinalReportPayload(input()),"Template injection")).rejects.toThrow("REPORT_CONTRACT_BLOCKED");
       expect(captured.saves).toBe(before);
     } finally { spy.mockRestore(); }
-  });
+  },15000);
   it("F blocks every blocking FAIL, including unknown future QA layers and quality flags",()=>{
     for(const layer of ["procedural_semantics","classification_fidelity","custom_future_qa"]) {
       const report={full_report:{qa_statuses:[{layer,status:"FAIL",blocking:true,reason:"corruption"}]}};
@@ -184,5 +187,5 @@ describe("ADR 3265/2023 saved-artifact replay",()=>{
         replay_scope:"Saved JSON through current composer, release resolver and real PDF renderer; no extraction/OCR/AI rerun"},null,2));
       writeFileSync(join(output,"adr-replay-text.txt"),result.text);
     }
-  },30000);
+  },15000);
 });

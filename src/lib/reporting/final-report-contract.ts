@@ -1,7 +1,8 @@
+import {supportInput} from '../intelligence/claim-support-review';
 import { assessCase, subscriberAssessment } from './qualitative-assessment';
 import { prepareCivilReport, auditCivilReport } from '../civil/report-contract';
-import { auditReportCitationIntegrity, canonicalizeReportCitations, bindAttributedFindingCitations } from './citation-integrity';
-import { createCanonicalCitation, findingCitationReviews, completedTheoriesCitations, completedPerspectivesCitations, safeResolveWriterCitationReferences } from './citation-production';
+import { auditReportCitationIntegrity, canonicalizeReportCitations, bindAttributedFindingCitations, publicationReviewMatches, publishedAssertion } from './citation-integrity';
+import { createCanonicalCitation, completedCoreCitations, completedFindingsCitations, writerCitationCatalog, citationText, findingCitationReviews, completedTheoriesCitations, completedPerspectivesCitations, safeResolveWriterCitationReferences } from './citation-production';
 import { withReviewedSections } from "./reviewed-sections";
 import type { CaseExportData } from "../export";
 import { validateMigratorioPreRelease } from './migratorio-pre-release';
@@ -117,7 +118,9 @@ export function composeFinalReportPayload(input: CaseExportData, sourceReviewFin
     input.documents.map((d,i)=>({document_id:String(d.id),doc_n:Number(d.doc_n??i+1)}))) as FinalReportPayload;
   
   const pages = arr(originalFull.pre_release_source_pages) as any;
-  const docIndex = input.documents.map((d,i)=>({document_id:String(d.id),doc_n:Number(d.doc_n??i+1),canonical_source_id:d.canonical_source_id?String(d.canonical_source_id):undefined}));
+  const docIndex = input.documents.map((d,i)=>({document_id:String(d.id),doc_n:Number(d.doc_n??i+1),canonical_source_id:String(d.canonical_source_id ??
+    arr(obj(originalFull.source_audit).canonical_sources ?? originalFull.canonical_sources)
+      .find(source => source.document_id === d.id)?.canonical_source_id ?? d.id)}));
   if (data.theories && Array.isArray(data.theories)) {
     data.theories = completedTheoriesCitations(data.theories as any, arr(sourceReviewFindings) as any, pages, docIndex) as any;
   }
@@ -155,7 +158,11 @@ export function composeFinalReportPayload(input: CaseExportData, sourceReviewFin
     s.document_id === d.id || s.canonical_source_id === d.canonical_source_id ||
     (s.source_aliases ?? []).includes(String(d.id)),
   )).map(d => String(d.id ?? d.filename ?? "unknown"));
-  const core = arr(obj(full.mandatory_decision_core).items);
+  report.citations = arr(report.citations).map(ref => writerCitationCatalog([ref],pages,docIndex,
+    arr(sourceReviewFindings),{caseId:c.id,executionId:c.execution_id})[0] ?? ref);
+  const core = completedCoreCitations(arr(obj(full.mandatory_decision_core).items) as any,
+    arr(sourceReviewFindings), pages, docIndex, arr(report.citations));
+  if (full.mandatory_decision_core) full.mandatory_decision_core.items = core;
   data.findings = alignDecisionCoreFindings(arr(data.findings),core as any,c.report_language ?? 'es');
   const seenCore = new Set<string>();
   data.findings = data.findings.filter(f=>{
@@ -196,6 +203,9 @@ export function composeFinalReportPayload(input: CaseExportData, sourceReviewFin
   const withheld: ReportPresentation["withheld_findings"] = [];
   let findings = arr(data.findings).map((f): Row | null => {
     if (historicalFindingIds.has(f.id)) return null;
+    const currentReview = f.metadata?.semantic_support_review;
+    const currentReviewed = currentReview?.version === 1 && currentReview.verdict === 'supported' &&
+      currentReview.hash === supportInput(f as any, pages).hash;
     if (
       f.lifecycle_status === 'superseded' ||
       f.lifecycle_status === 'quarantined' ||
@@ -209,8 +219,8 @@ export function composeFinalReportPayload(input: CaseExportData, sourceReviewFin
       f.metadata?.quarantined === true ||
       f.metadata?.publication_status === 'SUPPRESSED' ||
       f.metadata?.publication_status === 'QUARANTINED' ||
-      f.metadata?.published_claim?.publication_status === 'SUPPRESSED' ||
-      f.metadata?.published_claim?.publication_status === 'QUARANTINED' ||
+      (!currentReviewed && f.metadata?.published_claim?.publication_status === 'SUPPRESSED') ||
+      (!currentReviewed && f.metadata?.published_claim?.publication_status === 'QUARANTINED') ||
       f.metadata?.claim_entailment_diagnostic?.final_reportable === false ||
       f.metadata?.claim_entailment_diagnostic?.claim_action === 'REMOVE' ||
       f.metadata?.claim_entailment_diagnostic?.claim_action === 'QUARANTINE'
@@ -223,13 +233,17 @@ export function composeFinalReportPayload(input: CaseExportData, sourceReviewFin
     }
 
     // PRIORITY #3: CANONICAL REPAIRED CLAIM AND ATTRIBUTION ENFORCEMENT
-    let pubClaim = checked.metadata?.published_claim;
-    if (!pubClaim) {
-      pubClaim = classifyValidatePublishClaim(checked, {
-        executionId: c.execution_id,
-        caseType: c.case_type,
-        isConcludedAudit: governance.is_concluded,
-      });
+    // Publication is derived from the current finding, never a cached object.
+    // Semantic review approves an exact proposition; display cannot repair it again.
+    let pubClaim = classifyValidatePublishClaim(checked, {
+      executionId: c.execution_id,
+      caseType: c.case_type,
+      isConcludedAudit: governance.is_concluded,
+    });
+    if (currentReviewed) {
+      pubClaim = {...pubClaim, canonical_title:checked.title, canonical_description:checked.description,
+        repaired_title:null, repaired_description:null, repaired_claim:null,
+        metadata:{...pubClaim.metadata, semantic_review_hash:currentReview.hash}};
     }
 
     if (
@@ -262,6 +276,11 @@ export function composeFinalReportPayload(input: CaseExportData, sourceReviewFin
       canonicalDesc = pubClaim.repaired_claim.split(': ').slice(1).join(': ');
     } else if (diag?.claim_action === 'REPAIR' && diag?.repaired_description) {
       canonicalDesc = diag.repaired_description;
+    }
+
+    if (currentReviewed) {
+      canonicalTitle = checked.title;
+      canonicalDesc = checked.description;
     }
 
     const isParty =
@@ -359,9 +378,28 @@ export function composeFinalReportPayload(input: CaseExportData, sourceReviewFin
   // Publish the underlying claims before adding Civil's attribution notices.
   // Alignment/publication must not overwrite safe text, and a pending notice
   // is presentation metadata rather than a new source factual proposition.
+  // A legacy finding may carry its exact stable binding in the shared appendix.
+  // Consider only references explicitly owned by it; the producer still checks
+  // its current full review, source and published assertion.
+  for (const f of arr(data.findings)) if (!arr(f.evidence_refs).length)
+    f.evidence_refs = arr(report.citations).filter(ref => (ref.finding_id ?? ref.claim_id) === f.id &&
+      ref.document_id === f.source_document_id && Number(ref.page) === Number(f.source_page) &&
+      citationText(ref.quote) === citationText(f.source_quote));
+  for (const document of data.documents) {
+    const source = sources.find(source => source.document_id === document.id);
+    if (source) document.canonical_source_id ??= source.canonical_source_id;
+  }
   prepareCivilReport(data);
   bindAttributedFindingCitations(data);
-  findings = arr(data.findings);
+  const publishable = completedFindingsCitations(arr(data.findings),pages,docIndex,arr(sourceReviewFindings), {
+    reviewMatches:(finding,proof) => publicationReviewMatches(finding,proof,pages,
+      {...data,report_presentation:{capability:{strategic_recommendations_allowed:true}}} as any),
+    assertion:(finding,ref) => publishedAssertion(finding,ref,pages,docIndex),
+  });
+  for (const f of arr(data.findings)) if (!publishable.some(p => p.id === f.id))
+    withheld.push({id:f.id,category:'citation_not_certified',attorney_review_required:true});
+  data.findings = publishable;
+  findings = publishable;
   for (const finding of findings) {
     const reviewedUnspecifiedAttribution = finding.metadata?.semantic_support_review?.verdict === 'supported' &&
       finding.speaker_role === 'unresolved' && finding.proposition_type == null && finding.adoption_status == null;
@@ -396,26 +434,14 @@ export function composeFinalReportPayload(input: CaseExportData, sourceReviewFin
   }
   if (proseIsStale) {
     const english = c.report_language === 'en';
-    const verifiedCore = core.flatMap(item => {
-      const audit = auditSourceLocations(arr(item.source_refs), pages, docIndex);
-      return audit.ok && audit.verified.length ? [{...item, source_refs:audit.verified}] : [];
-    });
-    if (!findings.length && !verifiedCore.length)
-      throw new Error('REPORT_SUBSTANTIVE_CONTENT_MISSING: No certified finding or verified decision passage is available for this report.');
+    const verifiedCore = core.filter(item => arr(item.source_refs).length);
+    if (!findings.length && !verifiedCore.length && !core.length)
+      throw new Error('REPORT_SUBSTANTIVE_CONTENT_MISSING: No certified finding or decision proposition is available for this report.');
     const literalRefs: Row[] = [];
     const sourcePassages = (items: Row[]) => {
-      const passages = new Set<string>();
-      for (const item of items) for (const ref of arr(item.source_refs)) {
-        const quote = String(ref.quote ?? '').trim();
-        const literal = createCanonicalCitation({document_id:ref.document_id,page:ref.page,quote},quote,pages,docIndex);
-        if (!literal) continue;
-        literalRefs.push(literal);
-        passages.add(`“${quote}” [DOC ${literal.doc_n} p.${literal.page}]`);
-      }
-      return [...passages].join('\n\n');
+      for (const item of items) literalRefs.push(...arr(item.source_refs));
+      return groundedDecisionSummary(items as any, docIndex);
     };
-    // Quote the actual source, never a supported paraphrase dressed as a
-    // verbatim quotation. Literal excerpts have their own source bindings.
     const sourceSummary = sourcePassages([...verifiedCore].sort((a,b) => CORE_ORDER.indexOf(a.kind)-CORE_ORDER.indexOf(b.kind)));
     const findingLines = findings.map(f => {
       const refs = arr(f.evidence_refs).map(ref => {
@@ -532,11 +558,7 @@ export function composeFinalReportPayload(input: CaseExportData, sourceReviewFin
   if (String(finalReport.executive_summary ?? '').trim().length < 80) {
     const pages = arr(finalFull.pre_release_source_pages) as any;
     const index = final.documents.map((d,i)=>({document_id:String(d.id),doc_n:Number(d.doc_n ?? i+1)}));
-    const verifiedCore = arr(finalFull.mandatory_decision_core?.items).flatMap(item => {
-      const refs = relocateSourceRefs(arr(item.source_refs),pages,index);
-      const audit = auditSourceLocations(refs,pages,index);
-      return audit.ok && audit.verified.length ? [{...item,source_refs:audit.verified}] : [];
-    });
+    const verifiedCore = arr(finalFull.mandatory_decision_core?.items).filter(item => arr(item.source_refs).length);
     const summary = groundedDecisionSummary(verifiedCore as any, index);
       if (summary.length >= 80) {
       finalReport.executive_summary = summary;
@@ -547,7 +569,7 @@ export function composeFinalReportPayload(input: CaseExportData, sourceReviewFin
       finalReport.citations = [...arr(finalReport.citations)];
       for (const ref of verifiedCore.flatMap(item=>item.source_refs)) {
         if (!finalReport.citations.some((r:Row)=>r.document_id===ref.document_id && r.page===ref.page && r.quote===ref.quote))
-          finalReport.citations.push({...ref, proposition_supported: ref.proposition_supported ?? ref.quote, verification_status: ref.verification_status ?? "verified", id: ref.writer_ref_id ?? `source-${finalReport.citations.length+1}`});
+          finalReport.citations.push({...ref});
       }
     }
   }
@@ -817,18 +839,18 @@ function freeze<T>(value: T): T {
   return value;
 }
 
-export function releaseFinalReportPayload(input: CaseExportData): FinalReportPayload {
-  return validatePayload(input, false);
+export function releaseFinalReportPayload(input: CaseExportData, sourceReviewFindings = input.findings): FinalReportPayload {
+  return validatePayload(input, false, sourceReviewFindings);
 }
 /** Internal review only: refresh a stale verdict, while current content and QA still block. */
-export function preflightFinalReportPayload(input: CaseExportData): FinalReportPayload {
-  return validatePayload(input, true);
+export function preflightFinalReportPayload(input: CaseExportData, sourceReviewFindings = input.findings): FinalReportPayload {
+  return validatePayload(input, true, sourceReviewFindings);
 }
-function validatePayload(input: CaseExportData, preflight: boolean): FinalReportPayload {
+function validatePayload(input: CaseExportData, preflight: boolean, sourceReviewFindings = input.findings): FinalReportPayload {
   if (!preflight && input.report?.quality_blocked === true) throw new Error("REPORT_BLOCKED: report failed its release gate");
   let payload = (input as FinalReportPayload).report_presentation
     ? assessmentPresentation(structuredClone(input as FinalReportPayload))
-    : composeFinalReportPayload(input);
+    : composeFinalReportPayload(input, sourceReviewFindings);
   let validation = validateFinalReportContract(payload);
   // REMEDIATE -> REVALIDATE before BLOCK. An uncited absolute absence sentence
   // (typically report_writer:missing_evidence) is rewritten into qualified

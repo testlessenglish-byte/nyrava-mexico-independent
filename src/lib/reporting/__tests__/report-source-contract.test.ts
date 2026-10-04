@@ -1,11 +1,13 @@
 import {it,expect} from 'vitest';
-import {composeFinalReportPayload} from '../final-report-contract';
-const quote='ÚNICO. Devuélvanse los autos al Tribunal Colegiado en Materia Administrativa del Primer Circuito para que dicte la sentencia que corresponda en el amparo en revisión 17/2024 de su índice.';
-function input():any {return {case:{case_type:'amparo',case_analysis_mode:'concluded_audit'},documents:[{id:'doc',filename:'judgment.pdf'}],findings:[],analysis:null,agents:[],score:null,report:{report_mode:'LIMITED',scores_suppressed:true,full_report:{
+import {composeReviewedFixture as composeFinalReportPayload,registerCurrentCoreReviews} from './fixtures/current-core-review';
+const body='Devuélvanse los autos al Tribunal Colegiado en Materia Administrativa del Primer Circuito para que dicte la sentencia que corresponda en el amparo en revisión 17/2024 de su índice.';
+const quote='ÚNICO. '+body;
+function input():any {return registerCurrentCoreReviews({case:{case_type:'amparo',case_analysis_mode:'concluded_audit'},documents:[{id:'doc',filename:'judgment.pdf',canonical_source_id:'doc'}],findings:[],analysis:null,agents:[],score:null,report:{report_mode:'LIMITED',scores_suppressed:true,full_report:{
  source_audit:{canonical_sources:[{document_id:'doc',canonical_source_id:'doc',original_filename:'judgment.pdf',source_aliases:[]}]},
  pre_release_source_pages:[{document_id:'doc',page:7,text:quote,filename:'judgment.pdf'}],
- mandatory_decision_core:{items:[{id:'order',kind:'DISPOSITION',text:quote,speaker_role:'scjn',source_refs:[{document_id:'doc',quote,page:2}]}]}
-}}};}
+ mandatory_decision_core:{items:[{id:'order',kind:'DISPOSITION',text:quote,speaker_role:'scjn',source_refs:[{document_id:'doc',quote,page:7}]}]}
+}}}, [{id:'review-ordinal',core_id:'order',title:'ÚNICO.',description:'ÚNICO.',source_document_id:'doc',source_page:7,source_quote:quote,speaker_role:'scjn'},
+ {id:'review-order',core_id:'order',title:body,description:body,source_document_id:'doc',source_page:7,source_quote:quote,speaker_role:'scjn'}]);}
 it('builds a receiving-court registry and appendix from the literal operative order without another AI call',()=>{
  const out=composeFinalReportPayload(input()),full:any=out.report!.full_report;
  expect(full.proceeding_registry).toEqual([expect.objectContaining({number:'17/2024',court:'Tribunal Colegiado en Materia Administrativa del Primer Circuito',proceeding:'amparo en revisión',relationship:'órgano receptor de los autos',source_refs:[expect.objectContaining({page:7,quote})]})]);
